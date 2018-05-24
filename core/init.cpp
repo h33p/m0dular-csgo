@@ -1,16 +1,19 @@
 #include "hooks.h"
+#include "fw_bridge.h"
 #include "../framework/utils/threading.h"
 #include "../framework/utils/memutils.h"
 #include <atomic>
-#include "../signatures.h"
-
 #include "../framework/source_csgo/sdk.h"
 
+#include "../signatures.h"
+#include "../hook_indices.h"
+#include "../interfaces.h"
+
 VFuncHook* hookClientMode = nullptr;
-VFuncHook* hookCl = nullptr;
-VFuncHook* hookEngine = nullptr;
 
 IClientMode* clientMode = nullptr;
+IVEngineClient* engine = nullptr;
+IClientEntityList* entityList = nullptr;
 
 static void InitializeOffsets();
 static void InitializeHooks();
@@ -38,7 +41,7 @@ void DLClose()
 }
 #endif
 
-int APIENTRY Construct(void* hModule, uintptr_t reasonForCall, void* lpReserved)
+int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 {
 #ifdef _WIN32
 	if (reasonForCall == DLL_PROCESS_ATTACH)
@@ -62,10 +65,16 @@ void SigOffset(SigOut* sig)
 static void InitializeOffsets()
 {
 	Threading::QueueJob(SigOffset, SigOut((uintptr_t*)&clientMode, clientModeSig));
+
+	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
 	Threading::FinishQueue();
 }
 
 static void InitializeHooks()
 {
+	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
+	hookClientMode = new VFuncHook(clientMode, false, 25);
 
+	for (int i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
+		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
 }

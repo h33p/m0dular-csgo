@@ -2,9 +2,10 @@
 #define HOOKS_H
 
 #include "../framework/utils/vfhook.h"
+#include "../framework/source_shared/hooks.h"
 
-#define GetOriginal1(NAME) get_original<decltype(NAME)*>((void*)NAME);
-#define GetOriginal2(TYPE, NAME) get_original<TYPE>((void*)NAME);
+#define GetOriginal1(NAME) GetOriginal<decltype(NAME)*>((void*)NAME);
+#define GetOriginal2(TYPE, NAME) GetOriginal<TYPE>((void*)NAME);
 
 #define ID2(x) x
 #define GET_MACRO2(_1,_2, NAME,...) NAME

@@ -1,8 +1,12 @@
 #include "../framework/g_defines.h"
-#include "../framework/source_shared/hooks.h"
 #include "hooks.h"
+#include "fw_bridge.h"
 
-void __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
+bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
 {
 	static auto origFn = hookClientMode->GetOriginal(SourceHooks::CreateMove);
+	FwBridge::UpdateLocalData(cmd);
+	FwBridge::UpdatePlayers(cmd);
+	origFn(CFASTARGS, inputSampleTime, cmd);
+	return false;
 }
