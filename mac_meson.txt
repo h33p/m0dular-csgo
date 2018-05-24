@@ -1,0 +1,17 @@
+[binaries]
+c = '/usr/bin/clang'
+cpp = '/usr/bin/clang++'
+ar = '/usr/bin/ar'
+ld = '/usr/bin/ld'
+strip = 'strip'
+
+[host_machine]
+system = 'osx'
+cpu_family = 'x64'
+cpu = 'x86_64'
+endian = 'little'
+
+[properties]
+sizeof_int = 4
+sizeof_void* = 8
+

@@ -1,0 +1,17 @@
+[binaries]
+c = 'clang'
+cpp = 'clang++'
+ar = 'llvm-ar'
+ld = 'ld.lld'
+strip = 'strip'
+
+[host_machine]
+system = 'linux'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'
+
+[properties]
+sizeof_int = 4
+sizeof_void* = 8
+

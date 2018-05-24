@@ -1,0 +1,1 @@
+option('msvc_dir', type: 'string', value : '', description : 'The root directory for all msvc includes and libraries')
