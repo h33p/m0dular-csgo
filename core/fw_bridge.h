@@ -9,6 +9,7 @@ constexpr int MAX_PLAYERS = 64;
 #include "../framework/players.h"
 #include "../framework/source_csgo/sdk.h"
 
+extern CBaseClient* cl;
 extern IClientMode* clientMode;
 extern IVEngineClient* engine;
 extern IClientEntityList* entityList;

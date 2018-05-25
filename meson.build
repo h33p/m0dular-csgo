@@ -1,10 +1,10 @@
 project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++14', 'b_ndebug=if-release'])
 
-compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor']
-linker_args = ['-fno-rtti']
+compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor', '-fvisibility=hidden']
+linker_args = ['-fno-rtti', '-fvisibility=hidden']
 
 core_files = ['core/init.cpp', 'core/hooks.cpp', 'core/fw_bridge.cpp']
-framework_files = ['framework/utils/threading.cpp', 'framework/utils/mutex.cpp', 'framework/utils/pattern_scan.cpp', 'framework/utils/semaphores.cpp', 'framework/utils/handles.cpp', 'framework/utils/vfhook.cpp', 'framework/source_csgo/baseentity.cpp']
+framework_files = ['framework/utils/threading.cpp', 'framework/utils/mutex.cpp', 'framework/utils/pattern_scan.cpp', 'framework/utils/semaphores.cpp', 'framework/utils/handles.cpp', 'framework/utils/vfhook.cpp', 'framework/source_csgo/baseentity.cpp', 'framework/source_shared/netvars.cpp', 'framework/utils/crc32.cpp']
 
 file_list = core_files + framework_files
 

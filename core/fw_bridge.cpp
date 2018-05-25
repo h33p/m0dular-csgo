@@ -10,6 +10,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		C_BaseEntity* ent = (C_BaseEntity*)entityList->GetClientEntity(i);
 		if (ent == localPlayer || !ent || !ent->IsPlayer())
 			continue;
+		volatile int flags = ent->m_fFlags();
 	}
 }
 

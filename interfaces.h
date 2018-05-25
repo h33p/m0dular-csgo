@@ -15,6 +15,7 @@ const char* engineLib = "engine.dll";
 #endif
 
 const InterfaceDefinition interfaceList[] = {
+	{(void*&)cl, clientLib, "VClient", false},
 	{(void*&)engine, engineLib, "VEngineClient", false},
 	{(void*&)entityList, clientLib, "VClientEntityList", false},
 };

@@ -11,6 +11,7 @@
 
 VFuncHook* hookClientMode = nullptr;
 
+CBaseClient* cl = nullptr;
 IClientMode* clientMode = nullptr;
 IVEngineClient* engine = nullptr;
 IClientEntityList* entityList = nullptr;
@@ -67,6 +68,7 @@ static void InitializeOffsets()
 	Threading::QueueJob(SigOffset, SigOut((uintptr_t*)&clientMode, clientModeSig));
 
 	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
+	SourceNetvars::Initialize(cl);
 	Threading::FinishQueue();
 }
 
