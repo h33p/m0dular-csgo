@@ -5,8 +5,10 @@
 */
 
 constexpr int MAX_PLAYERS = 64;
+constexpr int BACKTRACK_TICKS = 64;
 
 #include "../framework/players.h"
+#include "../framework/utils/history_list.h"
 #include "../framework/source_csgo/sdk.h"
 
 extern CBaseClient* cl;
@@ -16,6 +18,7 @@ extern IClientEntityList* entityList;
 
 namespace FwBridge
 {
+	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
 	extern C_BaseEntity* localPlayer;
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd);
