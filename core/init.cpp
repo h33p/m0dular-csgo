@@ -15,9 +15,13 @@ CBaseClient* cl = nullptr;
 IClientMode* clientMode = nullptr;
 IVEngineClient* engine = nullptr;
 IClientEntityList* entityList = nullptr;
+CGlobalVarsBase* globalVars = nullptr;
+IVModelInfo* mdlInfo = nullptr;
 
 static void InitializeOffsets();
 static void InitializeHooks();
+void Shutdown();
+void Unload();
 
 void* __stdcall EntryPoint(void*)
 {
@@ -29,16 +33,18 @@ void* __stdcall EntryPoint(void*)
 	return nullptr;
 }
 
+Semaphore closeSemaphore;
 #if defined(__linux__) || defined(__APPLE__)
 #define APIENTRY __attribute__((constructor))
-std::atomic_flag dlCloseLock = ATOMIC_FLAG_INIT;
-std::atomic_bool isClosing(false);
+static thread_t* tThread = nullptr;
 
 __attribute__((destructor))
 void DLClose()
 {
-	isClosing = true;
-	usleep(1000*1000);
+	Shutdown();
+	closeSemaphore.Post();
+	void* ret;
+	pthread_join(*tThread, &ret);
 }
 #endif
 
@@ -63,11 +69,25 @@ void SigOffset(SigOut* sig)
 	*sig->var = PatternScan::FindPattern(sig->sig.pattern, sig->sig.module);
 }
 
+static void PlatformSpecificOffsets()
+{
+#ifdef __posix__
+
+	uintptr_t hudUpdate = (*(uintptr_t**)cl)[11];
+	globalVars = *(CGlobalVarsBase**)(GetAbsoluteAddress(hudUpdate + LWM(13, 0, 15), 3, 7));
+	uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
+
+#else
+	**(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
+#endif
+}
+
 static void InitializeOffsets()
 {
 	Threading::QueueJob(SigOffset, SigOut((uintptr_t*)&clientMode, clientModeSig));
 
 	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
+	PlatformSpecificOffsets();
 	SourceNetvars::Initialize(cl);
 	Threading::FinishQueue();
 }
@@ -79,4 +99,42 @@ static void InitializeHooks()
 
 	for (int i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
 		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
+}
+
+void Shutdown()
+{
+
+	Threading::EndThreads();
+
+	if (hookClientMode) {
+		delete hookClientMode;
+		hookClientMode = nullptr;
+	}
+}
+
+void* __stdcall UnloadThread(thread_t* thisThread)
+{
+	Shutdown();
+
+#if defined(__linux__) || defined(__APPLE__)
+	tThread = thisThread;
+	MHandle handle = Handles::GetPtrModuleHandle((void*)DLClose);
+	dlclose(handle);
+	thread_t ctrd;
+	int count = 0;
+	while (closeSemaphore.TimedWait(20)) {
+		if (count++)
+			pthread_cancel(ctrd);
+		ctrd = Threading::StartThread((threadFn)dlclose, handle);
+	}
+#else
+
+#endif
+	return nullptr;
+}
+
+void Unload()
+{
+	thread_t t;
+	Threading::StartThread((threadFn)UnloadThread, (void*)&t, &t);
 }

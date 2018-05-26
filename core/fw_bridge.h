@@ -15,6 +15,8 @@ extern CBaseClient* cl;
 extern IClientMode* clientMode;
 extern IVEngineClient* engine;
 extern IClientEntityList* entityList;
+extern CGlobalVarsBase* globalVars;
+extern IVModelInfo* mdlInfo;
 
 namespace FwBridge
 {
