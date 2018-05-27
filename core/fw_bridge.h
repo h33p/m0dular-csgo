@@ -18,6 +18,9 @@ extern IClientEntityList* entityList;
 extern CGlobalVarsBase* globalVars;
 extern IVModelInfo* mdlInfo;
 
+typedef vec3(*Weapon_ShootPositionFn)(void*);
+extern Weapon_ShootPositionFn Weapon_ShootPosition;
+
 namespace FwBridge
 {
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;

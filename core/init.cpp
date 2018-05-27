@@ -18,6 +18,8 @@ IClientEntityList* entityList = nullptr;
 CGlobalVarsBase* globalVars = nullptr;
 IVModelInfo* mdlInfo = nullptr;
 
+Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
+
 static void InitializeOffsets();
 static void InitializeHooks();
 void Shutdown();
@@ -57,16 +59,9 @@ int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 	return 1;
 }
 
-struct SigOut
+void SigOffset(Signature* sig)
 {
-	signature_t sig;
-	uintptr_t* var;
-	SigOut(uintptr_t* v, signature_t s) : sig(s), var(v) { }
-};
-
-void SigOffset(SigOut* sig)
-{
-	*sig->var = PatternScan::FindPattern(sig->sig.pattern, sig->sig.module);
+	sig->result = PatternScan::FindPattern(sig->pattern, sig->module);
 }
 
 static void PlatformSpecificOffsets()
@@ -84,7 +79,8 @@ static void PlatformSpecificOffsets()
 
 static void InitializeOffsets()
 {
-	Threading::QueueJob(SigOffset, SigOut((uintptr_t*)&clientMode, clientModeSig));
+	for (int i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
+		Threading::QueueJobRef(SigOffset, signatures + i);
 
 	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
 	PlatformSpecificOffsets();

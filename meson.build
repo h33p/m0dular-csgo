@@ -1,6 +1,6 @@
 project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++14', 'b_ndebug=if-release'])
 
-compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor', '-fvisibility=hidden']
+compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor', '-fvisibility=hidden', '-Rpass=loop-vectorize']
 linker_args = ['-fno-rtti', '-fvisibility=hidden']
 
 core_files = ['core/init.cpp', 'core/hooks.cpp', 'core/fw_bridge.cpp']
