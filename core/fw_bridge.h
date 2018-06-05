@@ -7,9 +7,9 @@
 constexpr int MAX_PLAYERS = 64;
 constexpr int BACKTRACK_TICKS = 64;
 
-#include "../framework/players.h"
-#include "../framework/utils/history_list.h"
-#include "../framework/source_csgo/sdk.h"
+#include "../sdk/framework/players.h"
+#include "../sdk/framework/utils/history_list.h"
+#include "../sdk/source_csgo/sdk.h"
 
 extern CBaseClient* cl;
 extern IClientMode* clientMode;
@@ -18,7 +18,7 @@ extern IClientEntityList* entityList;
 extern CGlobalVarsBase* globalVars;
 extern IVModelInfo* mdlInfo;
 
-typedef vec3(*Weapon_ShootPositionFn)(void*);
+typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
 extern Weapon_ShootPositionFn Weapon_ShootPosition;
 
 namespace FwBridge

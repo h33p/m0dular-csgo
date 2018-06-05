@@ -1,9 +1,9 @@
 #include "hooks.h"
 #include "fw_bridge.h"
-#include "../framework/utils/threading.h"
-#include "../framework/utils/memutils.h"
+#include "../sdk/framework/utils/threading.h"
+#include "../sdk/framework/utils/memutils.h"
 #include <atomic>
-#include "../framework/source_csgo/sdk.h"
+#include "../sdk/source_csgo/sdk.h"
 
 #include "../signatures.h"
 #include "../hook_indices.h"
@@ -73,7 +73,7 @@ static void PlatformSpecificOffsets()
 	uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
 
 #else
-	**(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
+	globalVars = **(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
 #endif
 }
 

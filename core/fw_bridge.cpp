@@ -1,5 +1,5 @@
 #include "fw_bridge.h"
-#include "../framework/utils/threading.h"
+#include "../sdk/framework/utils/threading.h"
 
 C_BaseEntity* FwBridge::localPlayer = nullptr;
 

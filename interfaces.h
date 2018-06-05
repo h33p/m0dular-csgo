@@ -1,7 +1,7 @@
 #ifndef INTERFACES_H
 #define INTERFACES_H
 
-#include "framework/source_shared/interfaces.h"
+#include "sdk/source_shared/interfaces.h"
 
 #if defined(__linux__)
 const char* clientLib = "client_client.so";

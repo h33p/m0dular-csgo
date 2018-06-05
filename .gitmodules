@@ -1,3 +1,3 @@
-[submodule "framework"]
-	path = framework
-	url = ../m0dular.git
+[submodule "sdk"]
+	path = sdk
+	url = ../m0dular-source-sdk.git

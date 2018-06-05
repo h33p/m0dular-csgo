@@ -1,10 +1,10 @@
 project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++14', 'b_ndebug=if-release'])
 
-compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor', '-fvisibility=hidden', '-Rpass=loop-vectorize']
-linker_args = ['-fno-rtti', '-fvisibility=hidden']
+compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor', '-Rpass=loop-vectorize']
+linker_args = ['-fno-rtti']
 
 core_files = ['core/init.cpp', 'core/hooks.cpp', 'core/fw_bridge.cpp']
-framework_files = ['framework/utils/threading.cpp', 'framework/utils/mutex.cpp', 'framework/utils/pattern_scan.cpp', 'framework/utils/semaphores.cpp', 'framework/utils/handles.cpp', 'framework/utils/vfhook.cpp', 'framework/source_csgo/baseentity.cpp', 'framework/source_shared/netvars.cpp', 'framework/utils/crc32.cpp']
+framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp']
 
 file_list = core_files + framework_files
 
@@ -13,6 +13,11 @@ libraries = []
 deps = []
 
 cc = meson.get_compiler('cpp')
+
+if host_machine.system() != 'windows'
+ compile_args += '-fvisibility=hidden'
+ linker_args += '-fvisibility=hidden'
+endif
 
 if meson.is_cross_build()
 	add_args = []
@@ -40,7 +45,7 @@ if meson.is_cross_build()
 		add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas']
 	elif host_machine.system() == 'linux'
 		linker_args += '-fuse-ld=lld'
-		add_args = ['-target', 'x86_64-linux', '-fuse-ld=lld', '-flto']
+		add_args = ['-target', 'x86_64-linux', '-fuse-ld=lld', '-ldl', '-flto']
 	endif
 	foreach p :  add_args
 		compile_args += p

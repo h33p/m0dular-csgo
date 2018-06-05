@@ -1,4 +1,4 @@
-#include "../framework/g_defines.h"
+#include "../sdk/framework/g_defines.h"
 #include "hooks.h"
 #include "fw_bridge.h"
 
