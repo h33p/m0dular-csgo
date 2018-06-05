@@ -46,7 +46,7 @@ static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict pre
 	}
 }
 
-__attribute__((aligned(SIMD_COUNT * 4)))
+__ALIGNED(SIMD_COUNT * 4)
 static matrix3x4_t boneMatrix[128];
 static mstudiobbox_t* hitboxes[MAX_HITBOXES];
 static int boneIDs[MAX_HITBOXES];
@@ -105,12 +105,12 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 
 			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
 				for (int o = 0; o < SIMD_COUNT; o++)
-					if (hitboxes[idx])
+					if (hitboxes[idx * SIMD_COUNT + o])
 						players.hitboxes[i].start[idx].acc[o] = hitboxes[idx * SIMD_COUNT + o]->bbmin;
 
 			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
 				for (int o = 0; o < SIMD_COUNT; o++)
-					if (hitboxes[idx])
+					if (hitboxes[idx * SIMD_COUNT + o])
 						players.hitboxes[i].end[idx].acc[o] = hitboxes[idx * SIMD_COUNT + o]->bbmax;
 
 			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
