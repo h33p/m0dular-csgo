@@ -1,5 +1,8 @@
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
+#include "../sdk/framework/features/aimbot.h"
+#include "engine.h"
+#include <algorithm>
 
 C_BaseEntity* FwBridge::localPlayer = nullptr;
 
@@ -65,11 +68,12 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 			mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
 			if (!set)
 				continue;
-			if (!ent->SetupBones(boneMatrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, globalVars->curtime))
+
+			if (!Engine::UpdatePlayer(ent, boneMatrix))
 				continue;
 
-			for (int idx = 0; idx < Hitboxes::HITBOX_MAX && idx < MAX_HITBOXES; idx++) {
-				if (idx == Hitboxes::HITBOX_LOWER_CHEST || idx == Hitboxes::HITBOX_UPPER_CHEST ||
+			for (int idx = 0; idx < set->numhitboxes && hb < MAX_HITBOXES; idx++) {
+				if (idx == Hitboxes::HITBOX_UPPER_CHEST ||
 						idx == Hitboxes::HITBOX_LEFT_UPPER_ARM || idx == Hitboxes::HITBOX_RIGHT_UPPER_ARM)
 					continue;
 
@@ -103,20 +107,17 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 				damageMul[hb] = dmgMul;
 			}
 
-			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
-				for (int o = 0; o < SIMD_COUNT; o++)
-					if (hitboxes[idx * SIMD_COUNT + o])
-						players.hitboxes[i].start[idx].acc[o] = hitboxes[idx * SIMD_COUNT + o]->bbmin;
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				if (hitboxes[idx])
+					players.hitboxes[i].start[idx] = hitboxes[idx]->bbmin;
 
-			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
-				for (int o = 0; o < SIMD_COUNT; o++)
-					if (hitboxes[idx * SIMD_COUNT + o])
-						players.hitboxes[i].end[idx].acc[o] = hitboxes[idx * SIMD_COUNT + o]->bbmax;
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				if (hitboxes[idx])
+					players.hitboxes[i].end[idx] = hitboxes[idx]->bbmax;
 
-			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
-				for (int o = 0; o < SIMD_COUNT; o++)
-					players.hitboxes[i].wm[idx * SIMD_COUNT + o] = boneMatrix[boneIDs[idx * SIMD_COUNT + o]];
-			
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				players.hitboxes[i].wm[idx] = boneMatrix[boneIDs[idx]];
+
 			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
 				for (int o = 0; o < SIMD_COUNT; o++)
 					players.hitboxes[i].data[idx][0][o] = radius[idx * SIMD_COUNT + o];
@@ -124,6 +125,8 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
 				for (int o = 0; o < SIMD_COUNT; o++)
 					players.hitboxes[i].data[idx][1][o] = damageMul[idx * SIMD_COUNT + o];
+
+			players.flags[i] |= Flags::HITBOXES_UPDATED;
 		}
 		else if (players.flags[i] & Flags::EXISTS)
 			players.hitboxes[i] = prevPlayers.hitboxes[i];
@@ -191,39 +194,77 @@ static void ThreadedUpdate(UpdateData* data)
 		UpdateArmor(data->players, data->prevPlayers);
 }
 
+struct SortData {
+	C_BaseEntity* player;
+	float fov;
+	int id;
+};
+
+static SortData players[64];
+
+//Sort the players for better data layout, in this case - by FOV
+static bool PlayerSort(SortData& a, SortData& b)
+{
+    return a.fov < b.fov;
+}
+
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
-	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(0));
+	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1));
 	data.players.count = engine->GetMaxClients();
-	bool updatedOnce = false;
 
-	int max = 0;
-	for (int i = 0; i < 64; i++) {
+	int count = 0;
+
+	for (int i = 1; i < 64; i++)
+	{
 		C_BaseEntity* ent = (C_BaseEntity*)entityList->GetClientEntity(i);
-		if (ent == localPlayer || !ent || !ent->IsPlayer()) {
-			data.players.flags[i] = 0;
+
+		if (ent == localPlayer) {
+			lpData.ID = i;
 			continue;
 		}
-		data.players.instance[i] = (void*)ent;
-		data.players.time[i] = ent->m_flSimulationTime();
-		if (data.players.time[i] == data.prevPlayers.time[i])
-			data.players.flags[i] = data.prevPlayers.flags[i] & ~Flags::UPDATED;
-		else {
-			max = i + 1;
-			int flags = ent->m_fFlags();
-			int cflags = Flags::EXISTS | Flags::UPDATED;
-			if (flags & FL_ONGROUND)
-				cflags |= Flags::ONGROUND;
-			if (flags & FL_DUCKING)
-				cflags |= Flags::DUCKING;
-			data.players.flags[i] = cflags;
-			updatedOnce = true;
-		}
+
+		if (!ent || !ent->IsPlayer() || ent->IsDormant() || i == 0 || ent->m_lifeState() != LIFE_ALIVE)
+			continue;
+
+		int sortID = data.prevPlayers.sortIDs[i];
+
+		if (sortID >= 0 && ent->m_flSimulationTime() == data.prevPlayers.time[sortID])
+			continue;
+
+		vec3_t angle = ((vec3_t)ent->m_vecOrigin() - lpData.eyePos).GetAngles(true);
+		vec3_t angleDiff = (lpData.angles - angle).NormalizeAngles<2>(-180.f, 180.f);
+
+		players[count].fov = angleDiff.Length<2>();
+		players[count].player = ent;
+		players[count].id = i;
+		count++;
 	}
-	data.players.count = max;
+
+	std::sort(players, players + count, PlayerSort);
+
+	for (int i = 0; i < count; i++) {
+
+		C_BaseEntity* ent = players[i].player;
+
+		data.players.instance[i] = (void*)ent;
+		data.players.fov[i] = players[i].fov;
+		data.players.sortIDs[players[i].id] = i;
+
+		data.players.time[i] = ent->m_flSimulationTime();
+
+		int flags = ent->m_fFlags();
+		int cflags = Flags::EXISTS | Flags::UPDATED;
+		if (flags & FL_ONGROUND)
+			cflags |= Flags::ONGROUND;
+		if (flags & FL_DUCKING)
+			cflags |= Flags::DUCKING;
+		data.players.flags[i] = cflags;
+	}
+	data.players.count = count;
 
 	//We don't want to push a completely same list as before
-	if (updatedOnce) {
+	if (count > 0) {
 		//Updating the hitboxes calls engine functions that only work on the main thread
 		//While it is being done, let's update other data on a seperate thread
 		Threading::QueueJobRef(ThreadedUpdate, &data);
@@ -239,4 +280,17 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd)
 	localPlayer = (C_BaseEntity*)entityList->GetClientEntity(engine->GetLocalPlayer());
 	lpData.eyePos = Weapon_ShootPosition(localPlayer);
 	lpData.angles = cmd->viewangles;
+}
+
+void FwBridge::RunFeatures(CUserCmd *cmd, bool* bSendPacket)
+{
+	float maxBacktrack = Engine::CalculateBacktrackTime();
+
+	//Aimbot part
+	Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
+
+	if (target.id >= 0)
+		cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+
+	cmd->viewangles = lpData.angles;
 }

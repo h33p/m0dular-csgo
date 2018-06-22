@@ -17,6 +17,8 @@ IVEngineClient* engine = nullptr;
 IClientEntityList* entityList = nullptr;
 CGlobalVarsBase* globalVars = nullptr;
 IVModelInfo* mdlInfo = nullptr;
+IEngineTrace* engineTrace = nullptr;
+ICvar* cvar = nullptr;
 
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
 
@@ -43,10 +45,9 @@ static thread_t* tThread = nullptr;
 __attribute__((destructor))
 void DLClose()
 {
-	Shutdown();
 	closeSemaphore.Post();
-	void* ret;
-	pthread_join(*tThread, &ret);
+	usleep(100000);
+	Shutdown();
 }
 #endif
 
@@ -70,7 +71,7 @@ static void PlatformSpecificOffsets()
 
 	uintptr_t hudUpdate = (*(uintptr_t**)cl)[11];
 	globalVars = *(CGlobalVarsBase**)(GetAbsoluteAddress(hudUpdate + LWM(13, 0, 15), 3, 7));
-	uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
+	//uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
 
 #else
 	globalVars = **(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
@@ -118,11 +119,14 @@ void* __stdcall UnloadThread(thread_t* thisThread)
 	dlclose(handle);
 	thread_t ctrd;
 	int count = 0;
-	while (closeSemaphore.TimedWait(20)) {
-		if (count++)
-			pthread_cancel(ctrd);
+	while (closeSemaphore.TimedWait(50)) {
+		if (count++) {
+			void* ret;
+			pthread_join(ctrd, &ret);
+		}
 		ctrd = Threading::StartThread((threadFn)dlclose, handle);
 	}
+	pthread_exit(0);
 #else
 
 #endif
@@ -132,5 +136,5 @@ void* __stdcall UnloadThread(thread_t* thisThread)
 void Unload()
 {
 	thread_t t;
-	Threading::StartThread((threadFn)UnloadThread, (void*)&t, &t);
+	Threading::StartThread((threadFn)UnloadThread, (void*)&t, true, &t);
 }

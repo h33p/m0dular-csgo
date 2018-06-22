@@ -1,17 +1,18 @@
-project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++14', 'b_ndebug=if-release'])
+project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++17', 'b_ndebug=if-release'])
 
-compile_args = []
-linker_args = []
+compile_args = ['-DMAX_PLAYERS=64', '-DBACKTRACK_TICKS=64']
+linker_args = compile_args
 
 if build_machine.system() != 'windows'
-	compile_args = ['-fno-rtti', '-Wno-non-virtual-dtor', '-Rpass=loop-vectorize']
-	linker_args = ['-fno-rtti']
+	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor']
+	linker_args += ['-fno-rtti']
 endif
 
-core_files = ['core/init.cpp', 'core/hooks.cpp', 'core/fw_bridge.cpp']
-framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp']
+core_files = ['core/init.cpp', 'core/hooks.cpp', 'core/fw_bridge.cpp', 'core/engine.cpp']
+interface_files = ['interfaces/tracing.cpp']
+framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/features/aimbot.cpp']
 
-file_list = core_files + framework_files
+file_list = core_files + framework_files + interface_files
 
 includes = []
 libraries = []
@@ -56,12 +57,16 @@ if meson.is_cross_build()
 		linker_args += '-lmsvcrt'
 	elif host_machine.system() == 'linux'
 		linker_args += '-fuse-ld=lld'
-		add_args = ['-target', 'x86_64-linux', '-fuse-ld=lld', '-ldl', '-flto']
+		add_args = ['-target', 'x86_64-linux', '-flto']
 	endif
 	foreach p :  add_args
 		compile_args += p
 		linker_args += p
 	endforeach
+endif
+
+if host_machine.system() == 'linux'
+  linker_args += '-ldl'
 endif
 
 foreach p : libraries

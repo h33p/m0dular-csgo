@@ -4,9 +4,7 @@
  * to bridge the game with the framework
 */
 
-constexpr int MAX_PLAYERS = 64;
-constexpr int BACKTRACK_TICKS = 64;
-
+#include "../sdk/framework/math/mmath.h"
 #include "../sdk/framework/players.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
@@ -17,9 +15,23 @@ extern IVEngineClient* engine;
 extern IClientEntityList* entityList;
 extern CGlobalVarsBase* globalVars;
 extern IVModelInfo* mdlInfo;
+extern IEngineTrace* engineTrace;
+extern ICvar* cvar;
 
 typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
 extern Weapon_ShootPositionFn Weapon_ShootPosition;
+
+#define TICK_INTERVAL globalVars->interval_per_tick
+
+inline float TicksToTime(int ticks)
+{
+	return ticks * TICK_INTERVAL;
+}
+
+inline int TimeToTicks(float time)
+{
+	return (int)(0.5f + (float)(time) / TICK_INTERVAL);
+}
 
 namespace FwBridge
 {
@@ -27,6 +39,7 @@ namespace FwBridge
 	extern C_BaseEntity* localPlayer;
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd);
+	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);
 }
 
 #endif
