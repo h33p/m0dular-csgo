@@ -62,12 +62,12 @@ float Engine::CalculateBacktrackTime()
 {
 	INetChannelInfo* nci = engine->GetNetChannelInfo();
 
-	float correct = (nci ? nci->GetAvgLatency(FLOW_OUTGOING) + nci->GetAvgLatency(FLOW_INCOMING) : 0.f);
+	float correct = nci ? nci->GetLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) : 0.f;
 
 	float lerpTime = LerpTime();
 
 	correct += lerpTime;
 	correct = fmaxf(0.f, fminf(correct, 1.f));
 
-    return globalVars->curtime * globalVars->interval_per_tick - 0.2f - correct;
+	return globalVars->curtime - 0.2f - correct;
 }

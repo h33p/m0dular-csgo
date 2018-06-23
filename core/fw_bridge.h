@@ -37,6 +37,7 @@ namespace FwBridge
 {
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
 	extern C_BaseEntity* localPlayer;
+	extern float maxBacktrack;
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);

@@ -1,10 +1,12 @@
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/features/aimbot.h"
+#include "../sdk/features/features.h"
 #include "engine.h"
 #include <algorithm>
 
 C_BaseEntity* FwBridge::localPlayer = nullptr;
+float FwBridge::maxBacktrack = 0;
 
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer lpData;
@@ -208,6 +210,15 @@ static bool PlayerSort(SortData& a, SortData& b)
     return a.fov < b.fov;
 }
 
+static void UpdateFlags(int& flags, int& cflags)
+{
+	cflags = Flags::EXISTS | Flags::UPDATED;
+	if (flags & FL_ONGROUND)
+		cflags |= Flags::ONGROUND;
+	if (flags & FL_DUCKING)
+		cflags |= Flags::DUCKING;
+}
+
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
 	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1));
@@ -250,15 +261,13 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		data.players.instance[i] = (void*)ent;
 		data.players.fov[i] = players[i].fov;
 		data.players.sortIDs[players[i].id] = i;
+		data.players.unsortIDs[i] = players[i].id;
 
 		data.players.time[i] = ent->m_flSimulationTime();
 
 		int flags = ent->m_fFlags();
-		int cflags = Flags::EXISTS | Flags::UPDATED;
-		if (flags & FL_ONGROUND)
-			cflags |= Flags::ONGROUND;
-		if (flags & FL_DUCKING)
-			cflags |= Flags::DUCKING;
+		int cflags;
+		UpdateFlags(flags, cflags);
 		data.players.flags[i] = cflags;
 	}
 	data.players.count = count;
@@ -279,18 +288,27 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd)
 {
 	localPlayer = (C_BaseEntity*)entityList->GetClientEntity(engine->GetLocalPlayer());
 	lpData.eyePos = Weapon_ShootPosition(localPlayer);
-	lpData.angles = cmd->viewangles;
+
+	int flags = localPlayer->m_fFlags();
+	int cflags;
+	UpdateFlags(flags, cflags);
+	lpData.flags = cflags;
+
+	SourceEssentials::UpdateData(cmd, &lpData);
 }
 
-void FwBridge::RunFeatures(CUserCmd *cmd, bool* bSendPacket)
+void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 {
-	float maxBacktrack = Engine::CalculateBacktrackTime();
+	maxBacktrack = Engine::CalculateBacktrackTime();
 
+	SourceBhop::Run(cmd, &lpData);
 	//Aimbot part
 	Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
 
 	if (target.id >= 0)
 		cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
 
-	cmd->viewangles = lpData.angles;
+	//lpData.angles = cmd->viewangles;
+
+	SourceEssentials::UpdateCMD(cmd, &lpData);
 }
