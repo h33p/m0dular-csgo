@@ -25,13 +25,13 @@ enum BTMask
 bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char backtrackMask[MAX_PLAYERS])
 {
 	int count = players->count;
-	for (size_t i = 0; i < count; i++)
+	for (int i = 0; i < count; i++)
 		if (players->flags[i] & Flags::HITBOXES_UPDATED && players->time[i] < FwBridge::maxBacktrack)
 			return false;
 
 	bool validPlayer = false;
 
-	for (size_t i = 0; i < count; i++) {
+	for (int i = 0; i < count; i++) {
 		int id = players->unsortIDs[i];
 		int prevID = prevPlayers ? prevPlayers->sortIDs[id] : MAX_PLAYERS;
 		if (players->flags[i] & Flags::HITBOXES_UPDATED &&
@@ -42,5 +42,5 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 			backtrackMask[id] |= NON_BACKTRACKABLE;
 	}
 
-	return true;
+	return validPlayer;
 }

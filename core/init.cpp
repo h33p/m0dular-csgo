@@ -72,7 +72,6 @@ void SigOffset(Signature* sig)
 static void PlatformSpecificOffsets()
 {
 #ifdef __posix__
-
 	uintptr_t hudUpdate = (*(uintptr_t**)cl)[11];
 	globalVars = *(CGlobalVarsBase**)(GetAbsoluteAddress(hudUpdate + LWM(13, 0, 15), 3, 7));
 	//uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
@@ -85,7 +84,7 @@ static void PlatformSpecificOffsets()
 
 static void InitializeOffsets()
 {
-	for (int i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
+	for (size_t i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
 		Threading::QueueJobRef(SigOffset, signatures + i);
 
 	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
@@ -99,7 +98,7 @@ static void InitializeHooks()
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
 
-	for (int i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
+	for (size_t i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
 		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
 }
 
