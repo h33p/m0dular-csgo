@@ -210,13 +210,15 @@ static bool PlayerSort(SortData& a, SortData& b)
     return a.fov < b.fov;
 }
 
-static void UpdateFlags(int& flags, int& cflags)
+static void UpdateFlags(int& flags, int& cflags, C_BaseEntity* ent)
 {
 	cflags = Flags::EXISTS | Flags::UPDATED;
 	if (flags & FL_ONGROUND)
 		cflags |= Flags::ONGROUND;
 	if (flags & FL_DUCKING)
 		cflags |= Flags::DUCKING;
+	if (FwBridge::localPlayer && ent->m_iTeamNum() == FwBridge::localPlayer->m_iTeamNum())
+		cflags |= Flags::FRIENDLY;
 }
 
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
@@ -267,7 +269,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		int flags = ent->m_fFlags();
 		int cflags;
-		UpdateFlags(flags, cflags);
+		UpdateFlags(flags, cflags, ent);
 		data.players.flags[i] = cflags;
 	}
 	data.players.count = count;
@@ -284,14 +286,36 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		playerTrack.UndoPush();
 }
 
-void FwBridge::UpdateLocalData(CUserCmd* cmd)
+void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)
+{
+#ifdef _WIN32
+	RunSimulationFunc(prediction, nullptr, 0, 0, curtime, command_number, tCmd, localPlayer);
+#else
+	RunSimulationFunc(prediction, curtime, command_number, tCmd, localPlayer);
+#endif
+}
+
+void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
 	localPlayer = (C_BaseEntity*)entityList->GetClientEntity(engine->GetLocalPlayer());
+
+	SourceEnginePred::Prepare(cmd, localPlayer, hostRunFrameFp);
+	SourceEnginePred::Run(cmd, localPlayer);
+
 	lpData.eyePos = Weapon_ShootPosition(localPlayer);
+
+	float recoilScale = 1.f;
+
+	static ConVar* weapon_recoil_scale = cvar->FindVar("weapon_recoil_scale");
+
+	if (weapon_recoil_scale)
+		recoilScale = weapon_recoil_scale->GetFloat();
+
+	lpData.aimOffset = localPlayer->m_aimPunchAngle() * recoilScale;
 
 	int flags = localPlayer->m_fFlags();
 	int cflags;
-	UpdateFlags(flags, cflags);
+	UpdateFlags(flags, cflags, localPlayer);
 	lpData.flags = cflags;
 
 	SourceEssentials::UpdateData(cmd, &lpData);
@@ -303,12 +327,13 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 
 	SourceBhop::Run(cmd, &lpData);
 	//Aimbot part
-	Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
+	if (lpData.keys & Keys::ATTACK1) {
+		Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
 
-	if (target.id >= 0)
-		cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-
-	//lpData.angles = cmd->viewangles;
+		if (target.id >= 0)
+			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+	}
 
 	SourceEssentials::UpdateCMD(cmd, &lpData);
+	SourceEnginePred::Finish(cmd, localPlayer);
 }

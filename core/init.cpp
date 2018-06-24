@@ -19,8 +19,12 @@ CGlobalVarsBase* globalVars = nullptr;
 IVModelInfo* mdlInfo = nullptr;
 IEngineTrace* engineTrace = nullptr;
 ICvar* cvar = nullptr;
+CClientState* clientState = nullptr;
+CPrediction* prediction = nullptr;
 
+CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
+RunSimulationFn RunSimulationFunc = nullptr;
 
 static void InitializeOffsets();
 static void InitializeHooks();
@@ -72,7 +76,8 @@ static void PlatformSpecificOffsets()
 	uintptr_t hudUpdate = (*(uintptr_t**)cl)[11];
 	globalVars = *(CGlobalVarsBase**)(GetAbsoluteAddress(hudUpdate + LWM(13, 0, 15), 3, 7));
 	//uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
-
+	uintptr_t GetLocalPlayer = GetAbsoluteAddress((*(uintptr_t**)engine)[12] + 9, 1, 5);
+	clientState = ((CClientState*(*)(int))GetLocalPlayer)(-1);
 #else
 	globalVars = **(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
 #endif

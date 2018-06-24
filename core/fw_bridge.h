@@ -1,6 +1,7 @@
 #ifndef FW_BRIDGE_H
 #define FW_BRIDGE_H
-/* Here we implement game specific functions
+/*
+ * Here we implement game specific functions
  * to bridge the game with the framework
 */
 
@@ -8,6 +9,17 @@
 #include "../sdk/framework/players.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
+
+#if defined(__linux__)
+#define RUNFRAME_TICK 0x2
+#define RUNFRAME_SERVERTICK 0x6
+#elif defined(__APPLE__)
+#define RUNFRAME_TICK 0xb
+#define RUNFRAME_SERVERTICK 0x1
+#else
+#define RUNFRAME_TICK 0x6
+#define RUNFRAME_SERVERTICK 0x15
+#endif
 
 extern CBaseClient* cl;
 extern IClientMode* clientMode;
@@ -17,9 +29,21 @@ extern CGlobalVarsBase* globalVars;
 extern IVModelInfo* mdlInfo;
 extern IEngineTrace* engineTrace;
 extern ICvar* cvar;
+extern CClientState* clientState;
+extern CPrediction* prediction;
 
+typedef void (*CL_RunPredictionFn) (void);
 typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
+
+#ifdef _WIN32
+typedef void(__vectorcall*RunSimulationFn)(void*, void*, float, float, float, int, CUserCmd*, C_BaseEntity*);
+#else
+typedef void(*RunSimulationFn)(void*, float, int, CUserCmd*, C_BaseEntity*);
+#endif
+
+extern CL_RunPredictionFn CL_RunPrediction;
 extern Weapon_ShootPositionFn Weapon_ShootPosition;
+extern RunSimulationFn RunSimulationFunc;
 
 #define TICK_INTERVAL globalVars->interval_per_tick
 
@@ -39,7 +63,7 @@ namespace FwBridge
 	extern C_BaseEntity* localPlayer;
 	extern float maxBacktrack;
 	void UpdatePlayers(CUserCmd* cmd);
-	void UpdateLocalData(CUserCmd* cmd);
+	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);
 }
 
