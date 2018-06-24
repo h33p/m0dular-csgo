@@ -36,7 +36,7 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 		int prevID = prevPlayers ? prevPlayers->sortIDs[id] : MAX_PLAYERS;
 		if (players->flags[i] & Flags::HITBOXES_UPDATED &&
 			~backtrackMask[id] & BTMask::NON_BACKTRACKABLE &&
-			(prevPlayers && (prevID >= prevPlayers->count || ((vec3)players->origin[i / SIMD_COUNT].acc[i % SIMD_COUNT] - (vec3)prevPlayers->origin[prevID / SIMD_COUNT].acc[i % SIMD_COUNT]).LengthSqr() < 4096)))
+			(!prevPlayers || prevID >= prevPlayers->count || ((vec3)players->origin[i / SIMD_COUNT].acc[i % SIMD_COUNT] - (vec3)prevPlayers->origin[prevID / SIMD_COUNT].acc[i % SIMD_COUNT]).LengthSqr() < 4096))
 			validPlayer = true; //In CSGO 3D length square is used to check for lagcomp breakage
 		else
 			backtrackMask[id] |= NON_BACKTRACKABLE;
