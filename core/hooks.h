@@ -4,6 +4,7 @@
 #include "../sdk/framework/utils/vfhook.h"
 #include "../sdk/source_csgo/sdk.h"
 #include "../sdk/source_shared/hooks.h"
+#include <unordered_map>
 
 #define GetOriginal1(NAME) GetOriginal<decltype(NAME)*>((void*)NAME);
 #define GetOriginal2(TYPE, NAME) GetOriginal<TYPE>((void*)NAME);
@@ -15,5 +16,12 @@
 extern VFuncHook* hookClientMode;
 extern VFuncHook* hookCl;
 extern VFuncHook* hookEngine;
+
+namespace CSGOHooks
+{
+	extern std::unordered_map<C_BasePlayer*, VFuncHook*>* entityHooks;
+	void __fastcall EntityDestruct(FASTARGS);
+	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
+}
 
 #endif

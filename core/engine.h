@@ -3,13 +3,20 @@
 
 #include "../sdk/framework/math/mmath.h"
 
-class C_BaseEntity;
+struct Players;
+class C_BasePlayer;
 
 namespace Engine
 {
-	bool UpdatePlayer(C_BaseEntity* ent, matrix<3,4> out[128]);
+	extern int numBones[];
+	bool UpdatePlayer(C_BasePlayer* ent, matrix<3,4> out[128]);
 	float LerpTime();
 	float CalculateBacktrackTime();
+	void StartLagCompensation();
+	void EndLagCompensation();
+	void StartAnimationFix(Players* players, Players* prevPlayers);
+	void EndAnimationFix(Players* players, Players* prevPlayers);
+	void Shutdown();
 }
 
 #endif

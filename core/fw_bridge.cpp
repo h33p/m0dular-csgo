@@ -3,10 +3,13 @@
 #include "../sdk/framework/features/aimbot.h"
 #include "../sdk/features/features.h"
 #include "engine.h"
+#include "hooks.h"
 #include <algorithm>
 
-C_BaseEntity* FwBridge::localPlayer = nullptr;
+C_BasePlayer* FwBridge::localPlayer = nullptr;
 float FwBridge::maxBacktrack = 0;
+int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
+bool FwBridge::inCreateMove = false;
 
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer lpData;
@@ -21,18 +24,18 @@ LocalPlayer lpData;
 static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (players.flags[i] & Flags::UPDATED)
-			players.origin[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->m_vecOrigin();
+			players.origin[i] = ent->m_vecOrigin();
 		else if (players.flags[i] & Flags::EXISTS)
-			players.origin[i / SIMD_COUNT].acc[i % SIMD_COUNT].Set(prevPlayers.origin[i / SIMD_COUNT].acc[i % SIMD_COUNT]);
+			players.origin[i] = prevPlayers.origin[i];
 	}
 }
 
 static void UpdateBoundsStart(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (players.flags[i] & Flags::UPDATED)
 			players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->m_Collision()->m_vecMins();
 		else if (players.flags[i] & Flags::EXISTS)
@@ -43,7 +46,7 @@ static void UpdateBoundsStart(Players& __restrict players, Players& __restrict p
 static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (players.flags[i] & Flags::UPDATED)
 			players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->m_Collision()->m_vecMins();
 		else if (players.flags[i] & Flags::EXISTS)
@@ -61,12 +64,13 @@ static float damageMul[MAX_HITBOXES];
 static void UpdateHitboxes(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		int hb = -1;
 		if (players.flags[i] & Flags::UPDATED) {
 			studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 			if (!hdr)
 				continue;
+
 			mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
 			if (!set)
 				continue;
@@ -80,6 +84,7 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 					continue;
 
 				hitboxes[++hb] = set->GetHitbox(idx);
+				FwBridge::hitboxIDs[idx] = hb;
 				if (!hitboxes[hb])
 					continue;
 				boneIDs[hb] = hitboxes[hb]->bone;
@@ -108,6 +113,9 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 
 				damageMul[hb] = dmgMul;
 			}
+
+			for (; hb < Hitboxes::HITBOX_MAX; hb++)
+				FwBridge::hitboxIDs[hb] = -1;
 
 			for (int idx = 0; idx < MAX_HITBOXES; idx++)
 				if (hitboxes[idx])
@@ -138,7 +146,7 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 static void UpdateVelocity(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (players.flags[i] & Flags::UPDATED)
 			players.velocity[i] = ent->m_vecVelocity();
 		else if (players.flags[i] & Flags::EXISTS)
@@ -149,7 +157,7 @@ static void UpdateVelocity(Players& __restrict players, Players& __restrict prev
 static void UpdateHealth(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (players.flags[i] & Flags::UPDATED)
 			players.health[i] = ent->m_iHealth();
 		else if (players.flags[i] & Flags::EXISTS)
@@ -160,7 +168,7 @@ static void UpdateHealth(Players& __restrict players, Players& __restrict prevPl
 static void UpdateArmor(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		C_BaseEntity* ent = (C_BaseEntity*)players.instance[i];
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (players.flags[i] & Flags::UPDATED)
 			players.armor[i] = ent->m_ArmorValue();
 		else if (players.flags[i] & Flags::EXISTS)
@@ -170,12 +178,14 @@ static void UpdateArmor(Players& __restrict players, Players& __restrict prevPla
 
 static void SwitchFlags(Players& __restrict players, Players& __restrict prevPlayers)
 {
-	for (int i = 0; i < players.count; i++)
-		if (players.flags[i] & Flags::EXISTS && (~players.flags[i]) & Flags::UPDATED && prevPlayers.flags[i] & Flags::UPDATED) {
+	for (int i = 0; i < players.count; i++) {
+		int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+		if (pID < prevPlayers.count && players.flags[i] & Flags::EXISTS && (~players.flags[i]) & Flags::UPDATED && prevPlayers.flags[pID] & Flags::UPDATED) {
 			int fl = players.flags[i];
-			players.flags[i] = prevPlayers.flags[i];
-			prevPlayers.flags[i] = fl;
+			players.flags[i] = prevPlayers.flags[pID];
+			prevPlayers.flags[pID] = fl;
 		}
+	}
 }
 
 struct UpdateData
@@ -188,7 +198,6 @@ struct UpdateData
 
 static void ThreadedUpdate(UpdateData* data)
 {
-		UpdateOrigin(data->players, data->prevPlayers);
 		UpdateBoundsStart(data->players, data->prevPlayers);
 		UpdateBoundsEnd(data->players, data->prevPlayers);
 		UpdateVelocity(data->players, data->prevPlayers);
@@ -197,7 +206,7 @@ static void ThreadedUpdate(UpdateData* data)
 }
 
 struct SortData {
-	C_BaseEntity* player;
+	C_BasePlayer* player;
 	float fov;
 	int id;
 };
@@ -210,9 +219,9 @@ static bool PlayerSort(SortData& a, SortData& b)
     return a.fov < b.fov;
 }
 
-static void UpdateFlags(int& flags, int& cflags, C_BaseEntity* ent)
+static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent)
 {
-	cflags = Flags::EXISTS | Flags::UPDATED;
+	cflags = Flags::EXISTS;
 	if (flags & FL_ONGROUND)
 		cflags |= Flags::ONGROUND;
 	if (flags & FL_DUCKING)
@@ -230,20 +239,22 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	for (int i = 1; i < 64; i++)
 	{
-		C_BaseEntity* ent = (C_BaseEntity*)entityList->GetClientEntity(i);
+		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
+
+		if (!ent || !ent->IsPlayer() || ent->IsDormant() || i == 0)
+			continue;
+
+		if (CSGOHooks::entityHooks->find(ent) == CSGOHooks::entityHooks->end()) {
+			VFuncHook* hook = new VFuncHook((void*)ent);
+			hook->Hook(1, CSGOHooks::EntityDestruct);
+			hook->Hook(104, CSGOHooks::SetupBones);
+			CSGOHooks::entityHooks->insert({ent, hook});
+		}
 
 		if (ent == localPlayer) {
 			lpData.ID = i;
 			continue;
 		}
-
-		if (!ent || !ent->IsPlayer() || ent->IsDormant() || i == 0 || ent->m_lifeState() != LIFE_ALIVE)
-			continue;
-
-		int sortID = data.prevPlayers.sortIDs[i];
-
-		if (sortID >= 0 && ent->m_flSimulationTime() == data.prevPlayers.time[sortID])
-			continue;
 
 		vec3_t angle = ((vec3_t)ent->m_vecOrigin() - lpData.eyePos).GetAngles(true);
 		vec3_t angleDiff = (lpData.angles - angle).NormalizeAngles<2>(-180.f, 180.f);
@@ -258,7 +269,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	for (int i = 0; i < count; i++) {
 
-		C_BaseEntity* ent = players[i].player;
+		C_BasePlayer* ent = players[i].player;
 
 		data.players.instance[i] = (void*)ent;
 		data.players.fov[i] = players[i].fov;
@@ -270,20 +281,31 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		int flags = ent->m_fFlags();
 		int cflags;
 		UpdateFlags(flags, cflags, ent);
+
+		if (data.players.time[i] != data.prevPlayers.time[data.prevPlayers.sortIDs[data.players.unsortIDs[i]]] && ent->m_lifeState() == LIFE_ALIVE)
+			cflags |= Flags::UPDATED;
+
 		data.players.flags[i] = cflags;
 	}
 	data.players.count = count;
 
-	//We don't want to push a completely same list as before
-	if (count > 0) {
+	Engine::StartLagCompensation();
+
+	//We want to push empty lists only if the previous list was not empty.
+	if (count > 0 || data.prevPlayers.count > 0) {
 		//Updating the hitboxes calls engine functions that only work on the main thread
 		//While it is being done, let's update other data on a seperate thread
+		//Flags depend on the animation fix fixing up the player.
+		UpdateOrigin(data.players, data.prevPlayers);
+		Engine::StartAnimationFix(&data.players, &data.prevPlayers);
 		Threading::QueueJobRef(ThreadedUpdate, &data);
 		UpdateHitboxes(data.players, data.prevPlayers);
+		Engine::EndAnimationFix(&data.players, &data.prevPlayers);
 		Threading::FinishQueue();
 		SwitchFlags(data.players, data.prevPlayers);
 	} else
 		playerTrack.UndoPush();
+
 }
 
 void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)
@@ -297,7 +319,28 @@ void RunSimulation(CPrediction* prediction, float curtime, int command_number, C
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
-	localPlayer = (C_BaseEntity*)entityList->GetClientEntity(engine->GetLocalPlayer());
+	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
+	C_BaseCombatWeapon* activeWeapon = localPlayer->m_hActiveWeapon();
+
+	if (activeWeapon) {
+		lpData.weaponAmmo = activeWeapon->m_iClip1();
+		CCSWeaponInfo* weaponInfo = GetWeaponInfo(weaponDatabase, activeWeapon->m_iItemDefinitionIndex());
+		if (weaponInfo) {
+			lpData.weaponArmorPenetration = weaponInfo->flArmorRatio();
+			lpData.weaponRange = weaponInfo->flRange();
+			lpData.weaponRangeModifier = weaponInfo->flRangeModifier();
+			lpData.weaponPenetration = weaponInfo->flPenetration();
+			lpData.weaponDamage = weaponInfo->iDamage();
+		} else {
+			lpData.weaponPenetration = 0;
+			lpData.weaponRange = 0;
+			lpData.weaponRangeModifier = 0;
+			lpData.weaponPenetration = 0;
+			lpData.weaponDamage = 0;
+		}
+	} else {
+		lpData.weaponAmmo = 0;
+	}
 
 	SourceEnginePred::Prepare(cmd, localPlayer, hostRunFrameFp);
 	SourceEnginePred::Run(cmd, localPlayer);
@@ -329,11 +372,16 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 	//Aimbot part
 	if (lpData.keys & Keys::ATTACK1) {
 		Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
+		//Disable the actual aimbot for now
+		lpData.angles = cmd->viewangles;
 
-		if (target.id >= 0)
+		if (target.id >= 0) {
 			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+			cmd->buttons |= IN_ATTACK;
+		}
 	}
 
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
+	Engine::EndLagCompensation();
 }

@@ -31,9 +31,13 @@ extern IEngineTrace* engineTrace;
 extern ICvar* cvar;
 extern CClientState* clientState;
 extern CPrediction* prediction;
+extern void* weaponDatabase;
 
-typedef void (*CL_RunPredictionFn) (void);
+typedef void (*CL_RunPredictionFn)(void);
 typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
+typedef CCSWeaponInfo*(__thiscall*GetWeaponInfoFn)(void*, ItemDefinitionIndex);
+typedef void(__thiscall* SetAbsFn)(void*, const vec3& origin);
+typedef bool(__thiscall* SetupBonesFn)(C_BasePlayer*, matrix3x4_t*, int, int, float);
 
 #ifdef _WIN32
 typedef void(__vectorcall*RunSimulationFn)(void*, void*, float, float, float, int, CUserCmd*, C_BaseEntity*);
@@ -44,6 +48,11 @@ typedef void(*RunSimulationFn)(void*, float, int, CUserCmd*, C_BaseEntity*);
 extern CL_RunPredictionFn CL_RunPrediction;
 extern Weapon_ShootPositionFn Weapon_ShootPosition;
 extern RunSimulationFn RunSimulationFunc;
+extern GetWeaponInfoFn GetWeaponInfo;
+extern SetAbsFn SetAbsOrigin;
+extern SetAbsFn SetAbsAngles;
+extern SetAbsFn SetAbsVelocity;
+extern SetupBonesFn SetupBones;
 
 #define TICK_INTERVAL globalVars->interval_per_tick
 
@@ -59,9 +68,11 @@ inline int TimeToTicks(float time)
 
 namespace FwBridge
 {
+	extern bool inCreateMove;
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
-	extern C_BaseEntity* localPlayer;
+	extern C_BasePlayer* localPlayer;
 	extern float maxBacktrack;
+	extern int hitboxIDs[];
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);

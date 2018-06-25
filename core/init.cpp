@@ -4,6 +4,7 @@
 #include "../sdk/framework/utils/memutils.h"
 #include <atomic>
 #include "../sdk/source_csgo/sdk.h"
+#include "engine.h"
 
 #include "../signatures.h"
 #include "../hook_indices.h"
@@ -25,9 +26,17 @@ CPrediction* prediction = nullptr;
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
 RunSimulationFn RunSimulationFunc = nullptr;
+GetWeaponInfoFn GetWeaponInfo = nullptr;
+SetAbsFn SetAbsOrigin = nullptr;
+SetAbsFn SetAbsAngles = nullptr;
+SetAbsFn SetAbsVelocity = nullptr;
+SetupBonesFn SetupBones = nullptr;
+
+void* weaponDatabase = nullptr;
 
 static void InitializeOffsets();
 static void InitializeHooks();
+static void InitializeDynamicHooks();
 void Shutdown();
 void Unload();
 
@@ -38,6 +47,7 @@ void* __stdcall EntryPoint(void*)
 	InitializeOffsets();
 	InitializeHooks();
 #endif
+	InitializeDynamicHooks();
 	return nullptr;
 }
 
@@ -53,11 +63,15 @@ void DLClose()
 	usleep(100000);
 	Shutdown();
 }
+#else
+void* thisModule = nullptr;
 #endif
+static bool shuttingDown = false;
 
 int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 {
 #ifdef _WIN32
+	thisModule = hModule;
 	if (reasonForCall == DLL_PROCESS_ATTACH)
 #endif
 		Threading::StartThread(EntryPoint, NULL);
@@ -102,6 +116,11 @@ static void InitializeHooks()
 		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
 }
 
+static void InitializeDynamicHooks()
+{
+	CSGOHooks::entityHooks = new std::unordered_map<C_BasePlayer*, VFuncHook*>();
+}
+
 void Shutdown()
 {
 
@@ -111,6 +130,15 @@ void Shutdown()
 		delete hookClientMode;
 		hookClientMode = nullptr;
 	}
+
+	if (CSGOHooks::entityHooks) {
+		for (auto& i : *CSGOHooks::entityHooks)
+			delete i.second;
+		delete CSGOHooks::entityHooks;
+		CSGOHooks::entityHooks = nullptr;
+	}
+
+	Engine::Shutdown();
 }
 
 void* __stdcall UnloadThread(thread_t* thisThread)
@@ -132,13 +160,17 @@ void* __stdcall UnloadThread(thread_t* thisThread)
 	}
 	pthread_exit(0);
 #else
-
+	Sleep(50);
+	FreeLibraryAndExitThread((HMODULE)thisModule, 0);
 #endif
 	return nullptr;
 }
 
 void Unload()
 {
+	if (shuttingDown)
+		return;
+	shuttingDown = true;
 	thread_t t;
 	Threading::StartThread((threadFn)UnloadThread, (void*)&t, true, &t);
 }
