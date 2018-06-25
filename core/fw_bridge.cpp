@@ -244,10 +244,18 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		if (!ent || !ent->IsPlayer() || ent->IsDormant() || i == 0)
 			continue;
 
-		if (CSGOHooks::entityHooks->find(ent) == CSGOHooks::entityHooks->end()) {
-			VFuncHook* hook = new VFuncHook((void*)ent);
+#ifdef _WIN32
+		C_BasePlayer* hookEnt = ent+1;
+#else
+		C_BasePlayer* hookEnt = ent;
+#endif
+
+		if (CSGOHooks::entityHooks->find(hookEnt) == CSGOHooks::entityHooks->end()) {
+			VFuncHook* hook = new VFuncHook((void*)hookEnt);
+#ifndef _WIN32
 			hook->Hook(1, CSGOHooks::EntityDestruct);
-			hook->Hook(104, CSGOHooks::SetupBones);
+#endif
+			hook->Hook(PosixWin(104, 52), CSGOHooks::SetupBones);
 			CSGOHooks::entityHooks->insert({ent, hook});
 		}
 

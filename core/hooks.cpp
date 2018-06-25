@@ -30,9 +30,12 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 std::unordered_map<C_BasePlayer*, VFuncHook*>* CSGOHooks::entityHooks = nullptr;
 
+/*
+  For the time being we do not hook this on windows. So, we are going to leak memory
+*/
+
 void __fastcall CSGOHooks::EntityDestruct(FASTARGS)
 {
-	cvar->ConsoleDPrintf("Entity destroy!\n");
 	VFuncHook* hook = entityHooks->at((C_BasePlayer*)thisptr);
 	auto origFn = hook->GetOriginal(CSGOHooks::EntityDestruct);
 	entityHooks->erase((C_BasePlayer*)thisptr);

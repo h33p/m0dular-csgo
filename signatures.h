@@ -45,6 +45,7 @@ const Signature signatures[] = {
 	{(uintptr_t&)SetAbsOrigin, clientLib, "55 8B EC 83 E4 F8 51 53 56 57 8B F1"},
 	{(uintptr_t&)SetAbsAngles, clientLib, "55 8B EC 83 E4 F8 83 EC 64 53 56 57 8B F1 E8"},
 	{(uintptr_t&)SetAbsVelocity, clientLib, "55 8B EC 83 E4 F8 83 EC 0C 53 56 57 8B 7D 08 8B F1"},
+	{(uintptr_t&)SetupBones, clientLib, "55 8B EC 83 E4 F0 B8 D8 1C 00 00 E8 ? ? ? ? 56"},
 	{(uintptr_t&)Weapon_ShootPosition, clientLib, "55 8B EC 56 8B 75 08 57 8B F9 56 8B 07 FF ? ? ? ? ? 80"}
 };
 #endif
