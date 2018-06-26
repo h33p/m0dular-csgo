@@ -377,7 +377,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 
 	SourceBhop::Run(cmd, &lpData);
 	//Aimbot part
-	if (lpData.keys & Keys::ATTACK1) {
+	if (true || lpData.keys & Keys::ATTACK1) {
 		Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
 		//Disable the actual aimbot for now
 		lpData.angles = cmd->viewangles;

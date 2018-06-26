@@ -9,6 +9,7 @@
 #include "../sdk/framework/players.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
+#include "macros.h"
 
 #if defined(__linux__)
 #define RUNFRAME_TICK 0x2
@@ -32,6 +33,7 @@ extern ICvar* cvar;
 extern CClientState* clientState;
 extern CPrediction* prediction;
 extern void* weaponDatabase;
+extern CClientEffectRegistration** effectsHead;
 
 typedef void (*CL_RunPredictionFn)(void);
 typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);

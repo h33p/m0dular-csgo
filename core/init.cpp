@@ -22,6 +22,8 @@ IEngineTrace* engineTrace = nullptr;
 ICvar* cvar = nullptr;
 CClientState* clientState = nullptr;
 CPrediction* prediction = nullptr;
+void* weaponDatabase = nullptr;
+CClientEffectRegistration** effectsHead = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
@@ -31,8 +33,6 @@ SetAbsFn SetAbsOrigin = nullptr;
 SetAbsFn SetAbsAngles = nullptr;
 SetAbsFn SetAbsVelocity = nullptr;
 SetupBonesFn SetupBones = nullptr;
-
-void* weaponDatabase = nullptr;
 
 static void InitializeOffsets();
 static void InitializeHooks();
@@ -119,6 +119,7 @@ static void InitializeHooks()
 static void InitializeDynamicHooks()
 {
 	CSGOHooks::entityHooks = new std::unordered_map<C_BasePlayer*, VFuncHook*>();
+	EffectsHook::HookAll(effectHooks, effectsCount, *effectsHead);
 }
 
 void Shutdown()
@@ -137,6 +138,8 @@ void Shutdown()
 		delete CSGOHooks::entityHooks;
 		CSGOHooks::entityHooks = nullptr;
 	}
+
+	EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
 
 	Engine::Shutdown();
 }

@@ -22,4 +22,10 @@ HookDefine hookIds[] = {
 };
 #endif
 
+EffectHook effectHooks[] = {
+	{CSGOHooks::ImpactsEffect, CCRC32("Impact"), nullptr}
+};
+
+size_t effectsCount = sizeof(effectHooks) / sizeof(EffectHook);
+
 #endif

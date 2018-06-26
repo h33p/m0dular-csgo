@@ -1,5 +1,9 @@
 project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++17', 'b_ndebug=if-release'])
 
+if get_option('buildtype').startswith('debug')
+  add_project_arguments('-DDEBUG', language : 'cpp')
+endif
+
 compile_args = ['-DMAX_PLAYERS=64', '-DBACKTRACK_TICKS=64']
 linker_args = compile_args
 
@@ -46,7 +50,6 @@ if meson.is_cross_build()
 			libraries += join_paths(bf_dir, join_paths('lib/um', cpu_family))
 			libraries += join_paths(bf_dir, join_paths('lib/shared', cpu_family))
 			libraries += join_paths(bf_dir, join_paths('lib/winrt', cpu_family))
-			linker_args += '-Wl,-debug'
 		else
 			add_args = []
 			linker_args += '-Wl,-debug:full'

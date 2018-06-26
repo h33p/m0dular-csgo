@@ -45,3 +45,13 @@ bool __fastcall CSGOHooks::SetupBones(C_BasePlayer* thisptr, matrix3x4_t* matrix
 {
 	return ::SetupBones(thisptr, matrix, maxBones, boneMask, curtime);
 }
+
+extern EffectHook effectHooks[];
+extern size_t effectsCount;
+
+void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
+{
+	static auto origFn = EffectsHook::GetOriginalCallback(effectHooks, effectsCount, CSGOHooks::ImpactsEffect);
+	if (origFn)
+		origFn(effectData);
+}

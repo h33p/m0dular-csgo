@@ -21,6 +21,7 @@ const Signature signatures[] = {
 	{(uintptr_t&)SetAbsAngles, clientLib, "55 48 89 E5 48 89 5D E0 48 89 FB 4C 89 6D F0 49 89 F5 4C 89 65 E8 4C 89 75 F8 48 ? ? ? E8 ? ? ? ? F3"},
 	{(uintptr_t&)SetAbsVelocity, clientLib, "55 48 89 E5 48 89 5D E8 48 89 FB 4C 89 65 F0 49 89 F4 4C 89 6D F8 48 83 EC 30 F3 0F 10 06 0F 2F 87 CC 00 00 00 75 12"},
 	{(uintptr_t&)SetupBones, clientLib, "55 48 8D 05 ? ? ? ? 48 89 E5 41 57 41 56 41 55 4C 8D 2D"},
+	{(uintptr_t&)effectsHead, clientLib, "[4C 8B 2D *? ? ? ?] 4D 85 ED 0F 85 94 00 00 00 0F 1F 44 00 00"},
 	{(uintptr_t&)Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 89 FB 48 83 EC 38 E8 ? ? ? ? 80 BB"}
 };
 #elif defined(__APPLE__)
@@ -32,6 +33,7 @@ const Signature signatures[] = {
 	{(uintptr_t&)SetAbsOrigin, clientLib, "55 48 89 E5 41 57 41 56 53 50 49 89 F6 48 89 FB E8 ? ? ? ? F3 41 0F 10 06"},
 	{(uintptr_t&)SetAbsAngles, clientLib, "55 48 89 E5 41 57 41 56 41 55 41 54 53 48 83 EC 68 49 89 F6 48 89 FB E8 ? ? ? ? F3 41 0F 10 06"},
 	{(uintptr_t&)SetAbsVelocity, clientLib, "55 48 89 E5 41 57 41 56 53 48 83 EC 18 49 89 F6 48 89 FB F3 41 0F 10 06"},
+	{(uintptr_t&)effectsHead, clientLib, "[4C 8B 3D *? ? ? ?] 4D 85 FF 0F 84 ? ? ? ? 48 8D 1D"},
 	{(uintptr_t&)Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 83 EC 18 48 89 FB E8 ? ? ? ? 0F 13 45 E8 F3 0F 11 4D F0 80 BB"}
 };
 #elif defined(_WIN32)
@@ -46,6 +48,7 @@ const Signature signatures[] = {
 	{(uintptr_t&)SetAbsAngles, clientLib, "55 8B EC 83 E4 F8 83 EC 64 53 56 57 8B F1 E8"},
 	{(uintptr_t&)SetAbsVelocity, clientLib, "55 8B EC 83 E4 F8 83 EC 0C 53 56 57 8B 7D 08 8B F1"},
 	{(uintptr_t&)SetupBones, clientLib, "55 8B EC 83 E4 F0 B8 D8 1C 00 00 E8 ? ? ? ? 56"},
+	{(uintptr_t&)effectsHead, clientLib, "8B 35 *? ? ? ? 85 F6 0F 84 ? ? ? ? BB FF FF 00 00 8B 0E"},
 	{(uintptr_t&)Weapon_ShootPosition, clientLib, "55 8B EC 56 8B 75 08 57 8B F9 56 8B 07 FF ? ? ? ? ? 80"}
 };
 #endif

@@ -22,6 +22,7 @@ namespace CSGOHooks
 	extern std::unordered_map<C_BasePlayer*, VFuncHook*>* entityHooks;
 	void __fastcall EntityDestruct(FASTARGS);
 	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
+	void ImpactsEffect(const CEffectData& effectData);
 }
 
 #endif
