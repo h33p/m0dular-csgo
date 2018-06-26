@@ -4,6 +4,7 @@
 #include "engine.h"
 
 void Unload();
+extern bool shuttingDown;
 
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
 {
@@ -12,16 +13,14 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	//CL_ExtraMouseUpdate branch eventually calls clientMode createMove with null command_number and tick_count
 	//Which we don't want to hook.
-	if (!cmd->command_number || !cmd->tick_count)
+	if (shuttingDown || !cmd->command_number || !cmd->tick_count)
 		return ret;
 
 	bool* bSendPacket = nullptr;
 
-	FwBridge::inCreateMove = true;
 	FwBridge::UpdateLocalData(cmd, ****(void*****)__builtin_frame_address(0));
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket);
-	FwBridge::inCreateMove = false;
 	if (cmd->buttons & IN_ATTACK2)
 		Unload();
 

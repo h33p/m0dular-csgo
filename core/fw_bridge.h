@@ -68,7 +68,6 @@ inline int TimeToTicks(float time)
 
 namespace FwBridge
 {
-	extern bool inCreateMove;
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
 	extern C_BasePlayer* localPlayer;
 	extern float maxBacktrack;

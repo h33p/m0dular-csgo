@@ -66,7 +66,7 @@ void DLClose()
 #else
 void* thisModule = nullptr;
 #endif
-static bool shuttingDown = false;
+bool shuttingDown = false;
 
 int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 {

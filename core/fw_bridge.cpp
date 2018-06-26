@@ -9,7 +9,6 @@
 C_BasePlayer* FwBridge::localPlayer = nullptr;
 float FwBridge::maxBacktrack = 0;
 int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
-bool FwBridge::inCreateMove = false;
 
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer lpData;
@@ -256,7 +255,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 			hook->Hook(1, CSGOHooks::EntityDestruct);
 #endif
 			hook->Hook(PosixWin(104, 52), CSGOHooks::SetupBones);
-			CSGOHooks::entityHooks->insert({ent, hook});
+			CSGOHooks::entityHooks->insert({hookEnt, hook});
 		}
 
 		if (ent == localPlayer) {
