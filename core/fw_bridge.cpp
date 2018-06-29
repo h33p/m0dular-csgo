@@ -380,7 +380,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 	if (true || lpData.keys & Keys::ATTACK1) {
 		Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
 		//Disable the actual aimbot for now
-		lpData.angles = cmd->viewangles;
+		//lpData.angles = cmd->viewangles;
 
 		if (target.id >= 0) {
 			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
