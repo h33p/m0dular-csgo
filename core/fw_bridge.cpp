@@ -1,5 +1,6 @@
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
+#include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/features/aimbot.h"
 #include "../sdk/features/features.h"
 #include "engine.h"
@@ -14,10 +15,10 @@ HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer lpData;
 
 /*
- * We try to be as much cache efficient as possible here.
- * Thus, we split each data entry to it's own separate function,
- * since that way memory read/write will be sequencial on our side.
- * About the game side - not much you can do.
+  We try to be as much cache efficient as possible here.
+  Thus, we split each data entry to it's own separate function,
+  since that way memory read/write will be sequencial on our side.
+  About the game side - not much you can do.
 */
 
 static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPlayers)
@@ -54,16 +55,22 @@ static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict pre
 }
 
 __ALIGNED(SIMD_COUNT * 4)
-static matrix3x4_t boneMatrix[128];
+static matrix3x4_t* boneMatrix = nullptr;
 static mstudiobbox_t* hitboxes[MAX_HITBOXES];
 static int boneIDs[MAX_HITBOXES];
 static float radius[MAX_HITBOXES];
 static float damageMul[MAX_HITBOXES];
 
+/*
+  This function is a bit too long.
+  We could split it to smaller chunks.
+*/
+
 static void UpdateHitboxes(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		HitboxList& hbList = players.hitboxes[i];
 		int hb = -1;
 		if (players.flags[i] & Flags::UPDATED) {
 			studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
@@ -73,6 +80,8 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 			mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
 			if (!set)
 				continue;
+
+			boneMatrix = players.bones[i];
 
 			if (!Engine::UpdatePlayer(ent, boneMatrix))
 				continue;
@@ -118,22 +127,120 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 
 			for (int idx = 0; idx < MAX_HITBOXES; idx++)
 				if (hitboxes[idx])
-					players.hitboxes[i].start[idx] = hitboxes[idx]->bbmin;
+					hbList.start[idx] = hitboxes[idx]->bbmin;
 
 			for (int idx = 0; idx < MAX_HITBOXES; idx++)
 				if (hitboxes[idx])
-					players.hitboxes[i].end[idx] = hitboxes[idx]->bbmax;
+					hbList.end[idx] = hitboxes[idx]->bbmax;
 
 			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				players.hitboxes[i].wm[idx] = boneMatrix[boneIDs[idx]];
+				hbList.wm[idx] = boneMatrix[boneIDs[idx]];
 
-			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
-				for (int o = 0; o < SIMD_COUNT; o++)
-					players.hitboxes[i].data[idx][0][o] = radius[idx * SIMD_COUNT + o];
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				hbList.radius[idx] = radius[idx];
 
-			for (int idx = 0; idx < HITBOX_CHUNKS; idx++)
-				for (int o = 0; o < SIMD_COUNT; o++)
-					players.hitboxes[i].data[idx][1][o] = damageMul[idx * SIMD_COUNT + o];
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				hbList.damageMul[idx] = damageMul[idx];
+
+			vec3_t camDir[MAX_HITBOXES];
+			vec3_t hUp[MAX_HITBOXES];
+
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				camDir[idx] = lpData.eyePos;
+
+			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
+				hUp[idx] = (vec3_t)hbList.wm[idx].vec.acc[3];
+				hUp[idx].z += 1;
+			}
+
+			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
+				matrix3x4_t transpose = hbList.wm[idx].InverseTranspose();
+				camDir[idx] = transpose.Vector3ITransform(camDir[idx]);
+				hUp[idx] = transpose.Vector3ITransform(hUp[idx]);
+			}
+
+			for (int idx = 0; idx < MAX_HITBOXES; idx++)
+				hUp[idx].Normalize();
+
+			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
+				/*
+					MULTIPOINT_COUNT is 8
+					We will have 2 points on each end of the hitbox axis
+					and 3 points on each end of the hitbox
+					(extending along the axis, and perpendicular to the axis).
+					Side points will be rotated to face towards the camera,
+					thus are recalculated each tick.
+					Some hitboxes are box shaped and are needed to be set up differently.
+				*/
+
+				vecSoa<float, MULTIPOINT_COUNT, 3> tOffset;
+				vecSoa<float, MULTIPOINT_COUNT, 3> tDir;
+
+				int o = 0;
+
+				if (hitboxes[idx]->m_flRadius >= 0) {
+					vec3_t dir = hitboxes[idx]->bbmax - hitboxes[idx]->bbmin;
+					dir.Normalize();
+
+					vec3_t camCross = camDir[idx].Cross(dir);
+					camCross.Normalize();
+
+					vec3_t camCrossUp = camDir[idx].Cross(hUp[idx]).Cross(camDir[idx]);
+					camCrossUp.Normalize();
+
+					vec3_t camDirUp = camCross.Cross(camDir[idx]);
+					camDirUp.Normalize();
+
+					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+					tDir.AssignCol(o++, 0);
+					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+					tDir.AssignCol(o++, 0);
+
+					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+					tDir.AssignCol(o++, camCrossUp * -1.f);
+					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+					tDir.AssignCol(o++, camCrossUp);
+
+					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+					tDir.AssignCol(o++, camCross * -1.f);
+					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+					tDir.AssignCol(o++, camCross);
+
+					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+					tDir.AssignCol(o++, camCross * -1.f);
+					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+					tDir.AssignCol(o++, camCross);
+				} else {
+
+					vec3_t bbmax = hitboxes[idx]->bbmax;
+					vec3_t bbmin = hitboxes[idx]->bbmin;
+
+					vec3_t s = bbmin;
+					tOffset.AssignCol(o, s);
+					tDir.AssignCol(o++, 0);
+
+					s = hitboxes[idx]->bbmax;
+					tOffset.AssignCol(o, s);
+					tDir.AssignCol(o++, 0);
+
+					for (int q = 0; q < 3; q++) {
+						s = bbmin;
+						s[q] = bbmax[q];
+						tOffset.AssignCol(o, s);
+						tDir.AssignCol(o++, 0);
+
+						s = bbmax;
+						s[q] = bbmin[q];
+						tOffset.AssignCol(o, s);
+						tDir.AssignCol(o++, 0);
+					}
+				}
+
+				hbList.mpOffset[idx] = tOffset.Rotate();
+				auto rot = tDir.Rotate();
+				hbList.mpDir[idx] = rot;
+
+			}
 
 			players.flags[i] |= Flags::HITBOXES_UPDATED;
 		}
@@ -210,7 +317,7 @@ struct SortData {
 	int id;
 };
 
-static SortData players[64];
+SortData players[64];
 
 //Sort the players for better data layout, in this case - by FOV
 static bool PlayerSort(SortData& a, SortData& b)
@@ -312,7 +419,6 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		SwitchFlags(data.players, data.prevPlayers);
 	} else
 		playerTrack.UndoPush();
-
 }
 
 void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)
@@ -323,6 +429,8 @@ void RunSimulation(CPrediction* prediction, float curtime, int command_number, C
 	RunSimulationFunc(prediction, curtime, command_number, tCmd, localPlayer);
 #endif
 }
+
+static ConVar* weapon_recoil_scale = nullptr;
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
@@ -356,7 +464,8 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 
 	float recoilScale = 1.f;
 
-	static ConVar* weapon_recoil_scale = cvar->FindVar("weapon_recoil_scale");
+	if (!weapon_recoil_scale)
+		weapon_recoil_scale = cvar->FindVar(StackString("weapon_recoil_scale"));
 
 	if (weapon_recoil_scale)
 		recoilScale = weapon_recoil_scale->GetFloat();
@@ -371,6 +480,8 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	SourceEssentials::UpdateData(cmd, &lpData);
 }
 
+bool shouldDraw = false;
+
 void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 {
 	maxBacktrack = Engine::CalculateBacktrackTime();
@@ -380,7 +491,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 	if (true || lpData.keys & Keys::ATTACK1) {
 		Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
 		//Disable the actual aimbot for now
-		//lpData.angles = cmd->viewangles;
+		lpData.angles = cmd->viewangles;
 
 		if (target.id >= 0) {
 			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
@@ -391,4 +502,50 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
 	Engine::EndLagCompensation();
+
+	shouldDraw = true;
 }
+
+#ifdef PT_VISUALS
+void FwBridge::Draw()
+{
+	if (!engine->IsInGame()) {
+		shouldDraw = false;
+		return;
+	}
+
+	if (!shouldDraw)
+		return;
+
+	auto& pl = playerTrack.GetLastItem(0);
+	static matrix4x4& w2s = (matrix4x4&)engine->WorldToScreenMatrix();
+
+	vec2 screen;
+	int w, h;
+	engine->GetScreenSize(w, h);
+	screen[0] = w;
+	screen[1] = h;
+
+	int count = pl.count;
+
+	for (int i = 0; i < count; i++) {
+		for (int o = 0; o < MAX_HITBOXES; o++) {
+			mvec3 mpVec = pl.hitboxes[i].mpOffset[o];
+			mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o];
+			mpVec += ptVec;
+			mpVec = pl.hitboxes[i].wm[o].VecSoaTransform(mpVec);
+
+			bool flags[mpVec.Yt];
+			mvec3 screenPos = w2s.WorldToScreen(mpVec, screen, flags);
+
+			for (size_t u = 0; u < MULTIPOINT_COUNT; u++) {
+				if (!flags[u])
+					continue;
+				vec3 screen = (vec3)screenPos.acc[u];
+				surface->DrawSetColor(Color(1.f, 0.f, 0.f, 1.f));
+				surface->DrawFilledRect(screen[0]-2, screen[1]-2, screen[0]+2, screen[1]+2);
+			}
+		}
+	}
+}
+#endif

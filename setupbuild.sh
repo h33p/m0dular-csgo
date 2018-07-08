@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 CROSS_FILE_ENDING='_meson.txt'
 CROSS_FILE="$1$CROSS_FILE_ENDING"

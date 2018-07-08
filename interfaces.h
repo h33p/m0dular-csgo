@@ -4,14 +4,22 @@
 #include "sdk/source_shared/interfaces.h"
 #include "libnames.h"
 
+#ifdef STACK_STRING
+#define INTERFACE(out, lib, name, exact) {(void*&)out, lib, (new StackString(name))->val(), exact}
+#else
+#define INTERFACE(out, lib, name, exact) {(void*&)out, lib, name, exact}
+#endif
+
 const InterfaceDefinition interfaceList[] = {
-	{(void*&)cl, clientLib, "VClient", false},
-	{(void*&)engine, engineLib, "VEngineClient", false},
-	{(void*&)mdlInfo, engineLib, "VModelInfoClient", false},
-	{(void*&)entityList, clientLib, "VClientEntityList", false},
-	{(void*&)engineTrace, engineLib, "EngineTraceClient", false},
-	{(void*&)cvar, matSystemLib, "VEngineCvar", false},
-	{(void*&)prediction, clientLib, "VClientPrediction", false},
+	INTERFACE(cl, clientLib, "VClient", false),
+	INTERFACE(engine, engineLib, "VEngineClient", false),
+	INTERFACE(mdlInfo, engineLib, "VModelInfoClient", false),
+	INTERFACE(entityList, clientLib, "VClientEntityList", false),
+	INTERFACE(engineTrace, engineLib, "EngineTraceClient", false),
+	INTERFACE(cvar, matSystemLib, "VEngineCvar", false),
+	INTERFACE(prediction, clientLib, "VClientPrediction", false),
+	INTERFACE(panel, vguiLib, "VGUI_Panel", false),
+	INTERFACE(surface, surfaceLib, "VGUI_Surface", false),
 };
 
 #endif

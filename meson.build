@@ -4,17 +4,23 @@ if get_option('buildtype').startswith('debug')
   add_project_arguments('-DDEBUG', language : 'cpp')
 endif
 
-compile_args = ['-DMAX_PLAYERS=64', '-DBACKTRACK_TICKS=64']
+add_project_arguments('-DPT_VISUALS', language : 'cpp')
+
+compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '-DRESOLVEBASECOUNT=7', '-DMULTIPOINT_COUNT=8']
+if not get_option('buildtype').startswith('debug')
+	compile_args += ['-flto']
+endif
+#pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
 linker_args = compile_args
 
 if build_machine.system() != 'windows'
-	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor']
+	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing']
 	linker_args += ['-fno-rtti']
 endif
 
 core_files = ['core/init.cpp', 'core/hooks.cpp', 'core/fw_bridge.cpp', 'core/engine.cpp']
 interface_files = ['interfaces/tracing.cpp']
-framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/features/aimbot.cpp']
+framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp']
 
 file_list = core_files + framework_files + interface_files
 
@@ -39,6 +45,7 @@ if meson.is_cross_build()
 			add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas']
 
 			bf_dir = get_option('msvc_dir')
+			includes += join_paths(bf_dir, 'include/clang')
 			includes += join_paths(bf_dir, 'include/msvc')
 			includes += join_paths(bf_dir, 'include/ucrt')
 			includes += join_paths(bf_dir, 'include/um')

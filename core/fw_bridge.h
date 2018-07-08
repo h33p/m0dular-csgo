@@ -32,6 +32,9 @@ extern IEngineTrace* engineTrace;
 extern ICvar* cvar;
 extern CClientState* clientState;
 extern CPrediction* prediction;
+extern IPanel* panel;
+extern ISurface* surface;
+extern IViewRender* viewRender;
 extern void* weaponDatabase;
 extern CClientEffectRegistration** effectsHead;
 
@@ -77,6 +80,9 @@ namespace FwBridge
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);
+#ifdef PT_VISUALS
+	void Draw();
+#endif
 }
 
 #endif

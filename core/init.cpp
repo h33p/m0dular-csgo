@@ -1,6 +1,7 @@
 #include "hooks.h"
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
+#include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/memutils.h"
 #include <atomic>
 #include "../sdk/source_csgo/sdk.h"
@@ -11,6 +12,7 @@
 #include "../interfaces.h"
 
 VFuncHook* hookClientMode = nullptr;
+VFuncHook* hookPanel = nullptr;
 
 CBaseClient* cl = nullptr;
 IClientMode* clientMode = nullptr;
@@ -22,6 +24,9 @@ IEngineTrace* engineTrace = nullptr;
 ICvar* cvar = nullptr;
 CClientState* clientState = nullptr;
 CPrediction* prediction = nullptr;
+IPanel* panel = nullptr;
+ISurface* surface = nullptr;
+IViewRender* viewRender = nullptr;
 void* weaponDatabase = nullptr;
 CClientEffectRegistration** effectsHead = nullptr;
 
@@ -111,6 +116,9 @@ static void InitializeHooks()
 {
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
+#ifdef PT_VISUALS
+	hookPanel = new VFuncHook(panel, false, 5);
+#endif
 
 	for (size_t i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
 		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
@@ -130,6 +138,11 @@ void Shutdown()
 	if (hookClientMode) {
 		delete hookClientMode;
 		hookClientMode = nullptr;
+	}
+
+	if (hookPanel) {
+		delete hookPanel;
+		hookPanel = nullptr;
 	}
 
 	if (CSGOHooks::entityHooks) {

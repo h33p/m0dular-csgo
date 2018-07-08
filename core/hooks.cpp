@@ -1,6 +1,7 @@
 #include "../sdk/framework/g_defines.h"
 #include "hooks.h"
 #include "fw_bridge.h"
+#include "../sdk/framework/utils/stackstring.h"
 #include "engine.h"
 
 void Unload();
@@ -26,6 +27,26 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	return false;
 }
+
+#ifdef PT_VISUALS
+void __stdcall CSGOHooks::PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool forceRepaint, bool allowForce)
+{
+	static auto originalFunction = hookPanel->GetOriginal(void (__thiscall*)(void*, vgui::VPANEL, bool, bool), CSGOHooks::PaintTraverse);
+
+	static vgui::VPANEL panelId = 0;
+
+	const char* panelName = panel->GetName(vpanel);
+
+	if (!panelId) {
+		if (!strcmp(panelName, StackString("FocusOverlayPanel")))
+			panelId = vpanel;
+	} else if (panelId == vpanel) {
+		FwBridge::Draw();
+	}
+
+	originalFunction(panel, vpanel, forceRepaint, allowForce);
+}
+#endif
 
 std::unordered_map<C_BasePlayer*, VFuncHook*>* CSGOHooks::entityHooks = nullptr;
 
@@ -54,4 +75,9 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 	static auto origFn = EffectsHook::GetOriginalCallback(effectHooks, effectsCount, CSGOHooks::ImpactsEffect);
 	if (origFn)
 		origFn(effectData);
+}
+
+void CSGOHooks::VecAnglesProxy(const CRecvProxyData* data, void* ent, void* out)
+{
+	cvar->ConsoleDPrintf("New ang: %f %p\n", data->m_Value.m_Float, ent);
 }
