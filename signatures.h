@@ -26,15 +26,15 @@ struct Signature
 #if defined(__linux__)
 const Signature signatures[] = {
 	SIGNATURE(clientMode, clientLib, "[48 8D 05 *? ? ? ?] 48 89 E5 48 89 05 ? ? ? ? E8 ? ? ? ? 5D 48"),
-	SIGNATURE(CL_RunPrediction, engineLib, "55 48 89 E5 53 48 83 EC 08 E8 ? ? ? ? 83 B8 A0 01 00 00 06 48 89 C3"),
-	SIGNATURE(RunSimulationFunc, clientLib, "55 48 89 E5 41 57 49 89 CF 41 56 49 89 FE 41 55 41 54 41 89 F4 53"),
-	SIGNATURE(GetWeaponInfo, clientLib, "55 48 89 E5 41 57 41 56 41 55 41 89 F5 41 54 45 31 E4 53"),
-	SIGNATURE(weaponDatabase, clientLib, "74 32 [48 8B 05 **-24? ? ? ?] 48 8B 00"),
-	SIGNATURE(SetAbsOrigin, clientLib, "55 48 89 E5 48 89 5D E8 48 89 FB 4C 89 65 F0 49 89 F4 4C 89 6D F8 48 83 EC 20 E8 B1 ? ? ? F3 41 0F"),
-	SIGNATURE(SetAbsAngles, clientLib, "55 48 89 E5 48 89 5D E0 48 89 FB 4C 89 6D F0 49 89 F5 4C 89 65 E8 4C 89 75 F8 48 ? ? ? E8 ? ? ? ? F3"),
-	SIGNATURE(SetAbsVelocity, clientLib, "55 48 89 E5 48 89 5D E8 48 89 FB 4C 89 65 F0 49 89 F4 4C 89 6D F8 48 83 EC 30 F3 0F 10 06 0F 2F 87 CC 00 00 00 75 12"),
-	SIGNATURE(SetupBones, clientLib, "55 48 8D 05 ? ? ? ? 48 89 E5 41 57 41 56 41 55 4C 8D 2D"),
-	SIGNATURE(effectsHead, clientLib, "[4C 8B 2D *? ? ? ?] 4D 85 ED 0F 85 94 00 00 00 0F 1F 44 00 00"),
+	SIGNATURE(CL_RunPrediction, engineLib, "F3 0F 11 40 24 [E8 *? ? ? ?] E8 ? ? ? ? BF 01"),
+	SIGNATURE(RunSimulationFunc, clientLib, "[E8 *? ? ? ?] 48 8B 05 ? ? ? ? 0F 57 C0"),
+	SIGNATURE(GetWeaponInfo, clientLib, "55 48 89 E5 41 57 41 56 41 55 41 54 53 89 F3 48 83 EC 28"),
+	SIGNATURE(weaponDatabase, clientLib, "FF 10 [48 8B 3D **-24? ? ? ?] 48 83 C4 08"),
+	SIGNATURE(SetAbsOrigin, clientLib, "48 89 DF [E8 *? ? ? ?] B8 01 00 00 00 E9 06"),
+	SIGNATURE(SetAbsAngles, clientLib, "48 89 DF [E8 *? ? ? ?] B8 01 00 00 00 E9 49"),
+	SIGNATURE(SetAbsVelocity, clientLib, "[E8 *? ? ? ?] EB 22 0F 1F 40 00"),
+	SIGNATURE(SetupBones, clientLib, "5B 44 89 E1 4C 89 EE 44 89 F2 41 5C 41 5D 41 5E 5D [E9 *? ? ? ?]"),
+	SIGNATURE(effectsHead, clientLib, "75 1E [48 8B 1D *? ? ? ?] 48 85 DB 0F"),
 	SIGNATURE(Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 89 FB 48 83 EC 38 E8 ? ? ? ? 80 BB")
 };
 #elif defined(__APPLE__)

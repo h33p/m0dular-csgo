@@ -18,10 +18,7 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, globalVars->curtime);
 	ent->m_fFlags() = flags;
 
-	if (!ret)
-		return false;
-
-	return true;
+	return ret;
 }
 
 matrix<3,4> matrices[MAX_PLAYERS][128];
@@ -151,11 +148,6 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	globalVars->curtime = curtime;
 	globalVars->frametime = frametime;
 	globalVars->framecount = framecount;
-}
-
-void Engine::EndAnimationFix(Players* players, Players* prevPlayers)
-{
-	size_t count = players->count;
 
 	for (size_t i = 0; i < count; i++) {
 		if (prevPlayers->sortIDs[players->unsortIDs[i]] >= prevPlayers->count)

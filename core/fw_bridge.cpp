@@ -414,7 +414,6 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		Engine::StartAnimationFix(&data.players, &data.prevPlayers);
 		Threading::QueueJobRef(ThreadedUpdate, &data);
 		UpdateHitboxes(data.players, data.prevPlayers);
-		Engine::EndAnimationFix(&data.players, &data.prevPlayers);
 		Threading::FinishQueue();
 		SwitchFlags(data.players, data.prevPlayers);
 	} else

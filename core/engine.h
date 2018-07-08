@@ -15,7 +15,6 @@ namespace Engine
 	void StartLagCompensation();
 	void EndLagCompensation();
 	void StartAnimationFix(Players* players, Players* prevPlayers);
-	void EndAnimationFix(Players* players, Players* prevPlayers);
 	void Shutdown();
 }
 
