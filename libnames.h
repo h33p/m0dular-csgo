@@ -20,7 +20,7 @@ LIBNAME(matSystemLib, "/materialsystem.dylib");
 LIBNAME(vguiLib, "/vgui2.dylib");
 LIBNAME(surfaceLib, "/vguimatsurface.dylib");
 #elif defined(_WIN32) || defined(_WIN64)
-LIBNAME(clientLib, "client.dll");
+LIBNAME(clientLib, "client_panorama.dll");
 LIBNAME(engineLib, "engine.dll");
 LIBNAME(matSystemLib, "materialsystem.dll");
 LIBNAME(surfaceLib, "vguimatsurface.dll");
