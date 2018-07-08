@@ -1,7 +1,7 @@
 #include "hooks.h"
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
-#include "../sdk/framework/utils/stackstring.h"
+//#include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/memutils.h"
 #include <atomic>
 #include "../sdk/source_csgo/sdk.h"

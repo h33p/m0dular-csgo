@@ -4,7 +4,7 @@ if get_option('buildtype').startswith('debug')
   add_project_arguments('-DDEBUG', language : 'cpp')
 endif
 
-add_project_arguments('-DPT_VISUALS', language : 'cpp')
+#add_project_arguments('-DPT_VISUALS', language : 'cpp')
 
 compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '-DRESOLVEBASECOUNT=7', '-DMULTIPOINT_COUNT=8']
 if not get_option('buildtype').startswith('debug')
