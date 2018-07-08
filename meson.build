@@ -38,10 +38,9 @@ endif
 if meson.is_cross_build()
 	add_args = []
 	if host_machine.system() == 'windows'
-		linker_args += '-fuse-ld=lld'
 		cpu_family = host_machine.cpu_family()
 		if build_machine.system() != 'windows'
-
+			linker_args += '-fuse-ld=lld'
 			add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas']
 
 			bf_dir = get_option('msvc_dir')

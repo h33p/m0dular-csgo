@@ -19,7 +19,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	bool* bSendPacket = nullptr;
 
-	FwBridge::UpdateLocalData(cmd, ****(void*****)__builtin_frame_address(0));
+	FwBridge::UpdateLocalData(cmd, ****(void*****)FRAME_POINTER());
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket);
 	if (cmd->buttons & IN_ATTACK2)
