@@ -1,6 +1,7 @@
 #include "../sdk/framework/interfaces/tracing.h"
 #include "../core/fw_bridge.h"
 #include "../core/engine.h"
+#include "../core/spread.h"
 
 static void TracePart1(vec3_t* eyePos, vec3_t point, trace_t* tr, C_BasePlayer* skipEnt)
 {
@@ -51,7 +52,7 @@ void Tracing::TracePlayersSIMD(LocalPlayer* localPlayer, Players* players, vec3s
 
 //Template size definitions to make the linking successful
 template void Tracing::TracePlayersSIMD<MULTIPOINT_COUNT>(LocalPlayer* localPlayer, Players* players, mvec3 point, int eID, int out[MULTIPOINT_COUNT], int depth, bool skipLocal);
-template void Tracing::TracePlayersSIMD<SIMD_COUNT>(LocalPlayer* localPlayer, Players* players, nvec3 point, int eID, int out[SIMD_COUNT], int depth, bool skipLocal);
+//template void Tracing::TracePlayersSIMD<SIMD_COUNT>(LocalPlayer* localPlayer, Players* players, nvec3 point, int eID, int out[SIMD_COUNT], int depth, bool skipLocal);
 
 enum BTMask
 {

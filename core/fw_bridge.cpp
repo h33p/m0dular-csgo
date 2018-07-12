@@ -3,16 +3,18 @@
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/features/aimbot.h"
 #include "../sdk/features/features.h"
+#include "spread.h"
 #include "engine.h"
 #include "hooks.h"
 #include <algorithm>
 
 C_BasePlayer* FwBridge::localPlayer = nullptr;
+C_BaseCombatWeapon* FwBridge::activeWeapon = nullptr;
 float FwBridge::maxBacktrack = 0;
 int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
 
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
-LocalPlayer lpData;
+LocalPlayer FwBridge::lpData;
 
 /*
   We try to be as much cache efficient as possible here.
@@ -57,6 +59,7 @@ static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict pre
 __ALIGNED(SIMD_COUNT * 4)
 static matrix3x4_t* boneMatrix = nullptr;
 static mstudiobbox_t* hitboxes[MAX_HITBOXES];
+static mstudiobone_t* bones[MAX_HITBOXES];
 static int boneIDs[MAX_HITBOXES];
 static float radius[MAX_HITBOXES];
 static float damageMul[MAX_HITBOXES];
@@ -95,6 +98,7 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 				FwBridge::hitboxIDs[idx] = hb;
 				if (!hitboxes[hb])
 					continue;
+				bones[hb] = hdr->GetBone(hitboxes[hb]->bone);
 				boneIDs[hb] = hitboxes[hb]->bone;
 				radius[hb] = hitboxes[hb]->m_flRadius;
 				HitGroups hitGroup = (HitGroups)hitboxes[hb]->group;
@@ -146,7 +150,7 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 			vec3_t hUp[MAX_HITBOXES];
 
 			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				camDir[idx] = lpData.eyePos;
+				camDir[idx] = FwBridge::lpData.eyePos;
 
 			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
 				hUp[idx] = (vec3_t)hbList.wm[idx].vec.acc[3];
@@ -211,6 +215,8 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
 					tDir.AssignCol(o++, camCross);
 				} else {
+
+					//TODO: fix box orientation.
 
 					vec3_t bbmax = hitboxes[idx]->bbmax;
 					vec3_t bbmin = hitboxes[idx]->bbmin;
@@ -356,7 +362,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		C_BasePlayer* hookEnt = ent;
 #endif
 
-		if (CSGOHooks::entityHooks->find(hookEnt) == CSGOHooks::entityHooks->end()) {
+		if (false && CSGOHooks::entityHooks->find(hookEnt) == CSGOHooks::entityHooks->end()) {
 			VFuncHook* hook = new VFuncHook((void*)hookEnt);
 #ifndef _WIN32
 			hook->Hook(1, CSGOHooks::EntityDestruct);
@@ -434,7 +440,7 @@ static ConVar* weapon_recoil_scale = nullptr;
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
 	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
-	C_BaseCombatWeapon* activeWeapon = localPlayer->m_hActiveWeapon();
+	activeWeapon = localPlayer->m_hActiveWeapon();
 
 	if (activeWeapon) {
 		lpData.weaponAmmo = activeWeapon->m_iClip1();
@@ -487,14 +493,15 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 
 	SourceBhop::Run(cmd, &lpData);
 	//Aimbot part
-	if (true || lpData.keys & Keys::ATTACK1) {
+	if (lpData.keys & Keys::ATTACK1) {
 		Target target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
 		//Disable the actual aimbot for now
 		lpData.angles = cmd->viewangles;
 
 		if (target.id >= 0) {
 			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-			cmd->buttons |= IN_ATTACK;
+			if (!Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+				lpData.keys &= ~Keys::ATTACK1;
 		}
 	}
 

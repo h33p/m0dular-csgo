@@ -39,6 +39,12 @@ SetAbsFn SetAbsAngles = nullptr;
 SetAbsFn SetAbsVelocity = nullptr;
 SetupBonesFn SetupBones = nullptr;
 
+RandomSeedFn RandomSeed = nullptr;
+RandomFloatFn RandomFloat = nullptr;
+RandomFloatExpFn RandomFloatExp = nullptr;
+RandomIntFn RandomInt = nullptr;
+RandomGaussianFloatFn RandomGaussianFloat = nullptr;
+
 static void InitializeOffsets();
 static void InitializeHooks();
 static void InitializeDynamicHooks();
@@ -101,11 +107,23 @@ static void PlatformSpecificOffsets()
 #endif
 }
 
+static void FindVSTDFunctions()
+{
+	MHandle handle = Handles::GetModuleHandle(vstdLib);
+
+	RandomSeed = (RandomSeedFn)paddr(handle, "RandomSeed");
+	RandomFloat = (RandomFloatFn)paddr(handle, "RandomFloat");
+	RandomFloatExp = (RandomFloatExpFn)paddr(handle, "RandomFloatExp");
+	RandomInt = (RandomIntFn)paddr(handle, "RandomInt");
+	RandomGaussianFloat = (RandomGaussianFloatFn)paddr(handle, "RandomGaussianFloat");
+}
+
 static void InitializeOffsets()
 {
 	for (size_t i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
 		Threading::QueueJobRef(SigOffset, signatures + i);
 
+	FindVSTDFunctions();
 	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
 	PlatformSpecificOffsets();
 	SourceNetvars::Initialize(cl);

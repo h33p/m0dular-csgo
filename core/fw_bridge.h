@@ -50,6 +50,12 @@ typedef void(__vectorcall*RunSimulationFn)(void*, void*, float, float, float, in
 typedef void(*RunSimulationFn)(void*, float, int, CUserCmd*, C_BaseEntity*);
 #endif
 
+typedef void (*RandomSeedFn)(int);
+typedef float (*RandomFloatFn)(float, float);
+typedef float (*RandomFloatExpFn)(float, float, float);
+typedef int (*RandomIntFn)(int, int);
+typedef float (*RandomGaussianFloatFn)(float, float);
+
 extern CL_RunPredictionFn CL_RunPrediction;
 extern Weapon_ShootPositionFn Weapon_ShootPosition;
 extern RunSimulationFn RunSimulationFunc;
@@ -58,6 +64,12 @@ extern SetAbsFn SetAbsOrigin;
 extern SetAbsFn SetAbsAngles;
 extern SetAbsFn SetAbsVelocity;
 extern SetupBonesFn SetupBones;
+
+extern RandomSeedFn RandomSeed;
+extern RandomFloatFn RandomFloat;
+extern RandomFloatExpFn RandomFloatExp;
+extern RandomIntFn RandomInt;
+extern RandomGaussianFloatFn RandomGaussianFloat;
 
 #define TICK_INTERVAL globalVars->interval_per_tick
 
@@ -74,7 +86,9 @@ inline int TimeToTicks(float time)
 namespace FwBridge
 {
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
+	extern LocalPlayer lpData;
 	extern C_BasePlayer* localPlayer;
+	extern C_BaseCombatWeapon* activeWeapon;
 	extern float maxBacktrack;
 	extern int hitboxIDs[];
 	void UpdatePlayers(CUserCmd* cmd);
