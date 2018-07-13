@@ -3,6 +3,7 @@
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "engine.h"
+#include "visuals.h"
 
 void Unload();
 extern bool shuttingDown;
@@ -41,7 +42,7 @@ void __stdcall CSGOHooks::PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool for
 		if (!strcmp(panelName, StackString("FocusOverlayPanel")))
 			panelId = vpanel;
 	} else if (panelId == vpanel) {
-		FwBridge::Draw();
+		Visuals::Draw();
 	}
 
 	originalFunction(panel, vpanel, forceRepaint, allowForce);

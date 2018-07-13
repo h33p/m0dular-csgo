@@ -1,6 +1,6 @@
 #include "spread.h"
 #include "../sdk/framework/utils/threading.h"
-#include "../sdk/framework/utils/intersect.h"
+#include "../sdk/framework/utils/intersect_impl.h"
 
 static float randomFl1[256];
 static float randomFlPi1[256];
@@ -117,9 +117,7 @@ static void RunHitChance(HitChanceInput* inp)
 		dir *= range;
 		dir += startPos;
 
-		unsigned int flags = 0;
-
-		hitbox.IntersectSOA(startPos, dir, flags);
+		unsigned int flags = hitbox.IntersectSOA(startPos, dir);
 
 #ifdef _MSC_VER
 		tempOutput[jobID] += __popcnt(flags);

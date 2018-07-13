@@ -230,3 +230,12 @@ void Engine::Shutdown()
 		ent->m_varMapping().m_nInterpolatedEntries = ent->m_varMapping().m_Entries.m_Size;
 	}
 }
+
+void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)
+{
+#ifdef _WIN32
+	RunSimulationFunc(prediction, nullptr, 0, 0, curtime, command_number, tCmd, localPlayer);
+#else
+	RunSimulationFunc(prediction, curtime, command_number, tCmd, localPlayer);
+#endif
+}

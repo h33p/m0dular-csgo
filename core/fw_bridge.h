@@ -94,9 +94,6 @@ namespace FwBridge
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);
-#ifdef PT_VISUALS
-	void Draw();
-#endif
 }
 
 #endif

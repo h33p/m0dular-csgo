@@ -111,11 +111,11 @@ static void FindVSTDFunctions()
 {
 	MHandle handle = Handles::GetModuleHandle(vstdLib);
 
-	RandomSeed = (RandomSeedFn)paddr(handle, "RandomSeed");
-	RandomFloat = (RandomFloatFn)paddr(handle, "RandomFloat");
-	RandomFloatExp = (RandomFloatExpFn)paddr(handle, "RandomFloatExp");
-	RandomInt = (RandomIntFn)paddr(handle, "RandomInt");
-	RandomGaussianFloat = (RandomGaussianFloatFn)paddr(handle, "RandomGaussianFloat");
+	RandomSeed = (RandomSeedFn)paddr(handle, StackString("RandomSeed"));
+	RandomFloat = (RandomFloatFn)paddr(handle, StackString("RandomFloat"));
+	RandomFloatExp = (RandomFloatExpFn)paddr(handle, StackString("RandomFloatExp"));
+	RandomInt = (RandomIntFn)paddr(handle, StackString("RandomInt"));
+	RandomGaussianFloat = (RandomGaussianFloatFn)paddr(handle, StackString("RandomGaussianFloat"));
 }
 
 static void InitializeOffsets()
