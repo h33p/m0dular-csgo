@@ -18,7 +18,7 @@ static void TracePart1(vec3_t* eyePos, vec3_t point, trace_t* tr, C_BasePlayer* 
 
 static float TracePart2(LocalPlayer* localPlayer, Players* players, trace_t* tr, int eID)
 {
-	if ((void*)tr->m_pEnt != players->instance[eID])
+	if ((void*)tr->ent != players->instance[eID])
 		return -1.f;
 
 	int hbID = FwBridge::hitboxIDs[tr->hitbox];
@@ -86,7 +86,7 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 				C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
 				vec3 origin = (vec3)players->origin[i];
 				SetAbsOrigin(ent, origin);
-				CUtlVector<matrix3x4_t>& matrix = ent->m_nBoneMatrix();
+				CUtlVector<matrix3x4_t>& matrix = ent->boneMatrix();
 				int bones = Engine::numBones[id];
 
 				memcpy(*(void**)&matrix, players->bones[i], sizeof(matrix3x4_t) * bones);

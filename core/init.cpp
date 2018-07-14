@@ -5,7 +5,9 @@
 #include "../sdk/framework/utils/memutils.h"
 #include <atomic>
 #include "../sdk/source_csgo/sdk.h"
+#include "../sdk/source_shared/eventlistener.h"
 #include "engine.h"
+#include "resolver.h"
 
 #include "../signatures.h"
 #include "../hook_indices.h"
@@ -29,6 +31,7 @@ ISurface* surface = nullptr;
 IViewRender* viewRender = nullptr;
 void* weaponDatabase = nullptr;
 CClientEffectRegistration** effectsHead = nullptr;
+IGameEventManager* gameEvents = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
@@ -44,6 +47,8 @@ RandomFloatFn RandomFloat = nullptr;
 RandomFloatExpFn RandomFloatExp = nullptr;
 RandomIntFn RandomInt = nullptr;
 RandomGaussianFloatFn RandomGaussianFloat = nullptr;
+
+EventListener listener({Resolver::ImpactEvent});
 
 static void InitializeOffsets();
 static void InitializeHooks();
@@ -111,11 +116,11 @@ static void FindVSTDFunctions()
 {
 	MHandle handle = Handles::GetModuleHandle(vstdLib);
 
-	RandomSeed = (RandomSeedFn)paddr(handle, StackString("RandomSeed"));
-	RandomFloat = (RandomFloatFn)paddr(handle, StackString("RandomFloat"));
-	RandomFloatExp = (RandomFloatExpFn)paddr(handle, StackString("RandomFloatExp"));
-	RandomInt = (RandomIntFn)paddr(handle, StackString("RandomInt"));
-	RandomGaussianFloat = (RandomGaussianFloatFn)paddr(handle, StackString("RandomGaussianFloat"));
+	RandomSeed = (RandomSeedFn)paddr(handle, ST("RandomSeed"));
+	RandomFloat = (RandomFloatFn)paddr(handle, ST("RandomFloat"));
+	RandomFloatExp = (RandomFloatExpFn)paddr(handle, ST("RandomFloatExp"));
+	RandomInt = (RandomIntFn)paddr(handle, ST("RandomInt"));
+	RandomGaussianFloat = (RandomGaussianFloatFn)paddr(handle, ST("RandomGaussianFloat"));
 }
 
 static void InitializeOffsets()
@@ -146,6 +151,14 @@ static void InitializeDynamicHooks()
 {
 	CSGOHooks::entityHooks = new std::unordered_map<C_BasePlayer*, VFuncHook*>();
 	EffectsHook::HookAll(effectHooks, effectsCount, *effectsHead);
+	listener.Initialize(ST("bullet_impact"));
+
+#ifdef DEBUG
+	cvar->ConsoleDPrintf("Effect list:\n");
+	Color col = Color(0, 255, 0, 255);
+    for (auto head = *effectsHead; head; head = head->next)
+		cvar->ConsoleColorPrintf(col, "%s\n", head->effectName);
+#endif
 }
 
 void Shutdown()

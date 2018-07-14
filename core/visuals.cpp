@@ -3,6 +3,12 @@
 
 bool Visuals::shouldDraw = false;
 
+//Temporary debugging of the hit shot resolver
+HistoryList<zvec3, 11> starts;
+HistoryList<zvec3, 11> ends;
+vec3_t start;
+vec3_t end;
+
 #ifdef PT_VISUALS
 void Visuals::Draw()
 {
@@ -44,5 +50,49 @@ void Visuals::Draw()
 			}
 		}
 	}
+
+	for (int i = 0; i < 11; i++) {
+
+		bool flags[16];
+		zvec3 screenStartPos = w2s.WorldToScreen(starts.GetLastItem(i), screen, flags);
+		bool flags2[16];
+		zvec3 screenEndPos = w2s.WorldToScreen(ends.GetLastItem(i), screen, flags2);
+
+		for (size_t u = 0; u < 16; u++) {
+			if (!flags[u] || !flags2[u])
+				continue;
+			vec3 screenStart = (vec3)screenStartPos.acc[u];
+			vec3 screenEnd = (vec3)screenEndPos.acc[u];
+			surface->DrawSetColor(Color(0.f, 0.f, 1.f, 1.f));
+			surface->DrawLine(screenStart[0], screenStart[1], screenEnd[0], screenEnd[1]);
+		}
+	}
+
+
+	{
+		bool flag1, flag2;
+
+		vec3_t startPos = w2s.WorldToScreen(start, screen, flag1);
+		vec3_t endPos = w2s.WorldToScreen(end, screen, flag2);
+
+		if (!flag1 || !flag2)
+			return;
+
+		surface->DrawSetColor(Color(0.f, 1.f, 0.f, 1.f));
+		surface->DrawLine(startPos[0], startPos[1], endPos[0], endPos[1]);
+	}
 }
 #endif
+
+void Visuals::PassColliders(vec3soa<float, 16> start, vec3soa<float, 16> end)
+{
+	starts.Push(start);
+	ends.Push(end);
+}
+
+
+void Visuals::PassStart(vec3_t start, vec3_t end)
+{
+	::start = start;
+	::end = end;
+}

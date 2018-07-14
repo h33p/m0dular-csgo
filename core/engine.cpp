@@ -11,12 +11,12 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 	*(int*)((uintptr_t)ent + x64x32(0xFE4, 0xA28)) = 0;
 	*(unsigned long*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
 
-	ent->m_varMapping().m_nInterpolatedEntries = 0;
+	ent->varMapping().interpolatedEntries = 0;
 
-	int flags = ent->m_fFlags();
-	ent->m_fFlags() |= EF_NOINTERP;
+	int flags = ent->flags();
+	ent->flags() |= EF_NOINTERP;
 	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, globalVars->curtime);
-	ent->m_fFlags() = flags;
+	ent->flags() = flags;
 
 	return ret;
 }
@@ -45,8 +45,8 @@ void Engine::StartLagCompensation()
 
 		origins[i] = ent->GetClientRenderable()->GetRenderOrigin();
 
-		CUtlVector<matrix3x4_t>& matrix = ent->m_nBoneMatrix();
-		memcpy(matrices[id], matrix.m_Memory.m_pMemory, sizeof(matrix3x4_t) * bones);
+		CUtlVector<matrix3x4_t>& matrix = ent->boneMatrix();
+		memcpy(matrices[id], matrix.memory.memory, sizeof(matrix3x4_t) * bones);
 	}
 }
 
@@ -66,8 +66,8 @@ void Engine::EndLagCompensation()
 
 		SetAbsOrigin(ent, origins[i]);
 
-		CUtlVector<matrix3x4_t>& matrix = ent->m_nBoneMatrix();
-		memcpy(matrix.m_Memory.m_pMemory, matrices[id], sizeof(matrix3x4_t) * bones);
+		CUtlVector<matrix3x4_t>& matrix = ent->boneMatrix();
+		memcpy(matrix.memory.memory, matrices[id], sizeof(matrix3x4_t) * bones);
 	}
 }
 
@@ -92,7 +92,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 		if (prevPlayers->sortIDs[players->unsortIDs[i]] >= prevPlayers->count)
 			continue;
 		C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-		memcpy(serverAnimations[i], ent->m_pAnimationLayers(), sizeof(AnimationLayer) * 13);
+		memcpy(serverAnimations[i], ent->animationLayers(), sizeof(AnimationLayer) * 13);
 	}
 
 	float curtime = globalVars->curtime;
@@ -102,46 +102,47 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			CCSGOPlayerAnimState* animState = ent->m_pAnimState();
-			ent->m_bClientSideAnimation() = true;
+			CCSGOPlayerAnimState* animState = ent->animState();
+			ent->clientSideAnimation() = true;
 
-			globalVars->curtime = ent->m_flPrevSimulationTime() + globalVars->interval_per_tick;
+			globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick;
 			globalVars->frametime = globalVars->interval_per_tick;
-			globalVars->framecount = animState->frameCount() + 1;
+			globalVars->framecount = animState->frameCount + 1;
 
 			int pID = players->unsortIDs[i];
-			int pFlags = ent->m_fFlags();
+			int pFlags = ent->flags();
 
 			//Predict the FL_ONGROUND flag.
 			//lastOnGround deals with some artifacting (FL_ONGROUND repeating for a couple of ticks) happenning by those checks
 			if (~pFlags & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
-				if (ent->m_pAnimationLayers()[5].m_flWeight > 0.f && !lastOnGround[pID])
-					ent->m_fFlags() |= FL_ONGROUND;
+				if (ent->animationLayers()[5].weight > 0.f && !lastOnGround[pID])
+					ent->flags() |= FL_ONGROUND;
 				else
-					ent->m_fFlags() &= ~FL_ONGROUND;
+					ent->flags() &= ~FL_ONGROUND;
 			} else
-				ent->m_fFlags() |= FL_ONGROUND;
+				ent->flags() |= FL_ONGROUND;
 
-			lastOnGround[pID] = ent->m_pAnimationLayers()[5].m_flWeight > 0.f;
+			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
-			vel = (players->origin[i] - prevOrigins[pID]) * (1.f / (ent->m_flSimulationTime() - prevSimulationTime[pID]));
+			vel = (players->origin[i] - prevOrigins[pID]) * (1.f / (ent->simulationTime() - prevSimulationTime[pID]));
 
 			SetAbsVelocity(ent, vel);
 
 			//Here we will resolve the player
-			//ent->m_angEyeAngles()[1] += (((int)globalVars->curtime) % 180);// ent->m_flLowerBodyYawTarget();
+			//ent->eyeAngles()[1] = 180.f;
+			//ent->eyeAngles()[1] += (((int)globalVars->curtime) % 180);// ent->lowerBodyYawTarget();
 
 			//WIP abs angle fix, there must be a more correct way of doing this
-			//cvar->ConsoleDPrintf("%f %f %f\n", ent->m_angEyeAngles()[1], ent->m_vecAngles()[1], ent->m_flLowerBodyYawTarget());
+			//cvar->ConsoleDPrintf("%f %f %f\n", ent->eyeAngles()[1], ent->angles()[1], ent->lowerBodyYawTarget());
 
 			ent->UpdateClientSideAnimation();
-			//ent->m_vecAngles()[1] = ent->m_pAnimState()->currentFeetYaw;
-			//SetAbsAngles(ent, ent->m_vecAngles());
-			ent->m_bClientSideAnimation() = false;
-			ent->m_fFlags() = pFlags;
-			prevFlags[pID] = ent->m_fFlags();
+			//ent->angles()[1] = ent->animState()->currentFeetYaw;
+			//SetAbsAngles(ent, ent->angles());
+			ent->clientSideAnimation() = false;
+			ent->flags() = pFlags;
+			prevFlags[pID] = ent->flags();
 			prevOrigins[pID] = players->origin[i];
-			prevSimulationTime[pID] = ent->m_flSimulationTime();
+			prevSimulationTime[pID] = ent->simulationTime();
 		}
 	}
 
@@ -153,7 +154,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 		if (prevPlayers->sortIDs[players->unsortIDs[i]] >= prevPlayers->count)
 			continue;
 		C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-		memcpy(ent->m_pAnimationLayers(), serverAnimations[i], sizeof(AnimationLayer) * 13);
+		memcpy(ent->animationLayers(), serverAnimations[i], sizeof(AnimationLayer) * 13);
 	}
 }
 
@@ -215,7 +216,6 @@ float Engine::CalculateBacktrackTime()
 
 void Engine::Shutdown()
 {
-
 	for (int i = 1; i < 64; i++)
 	{
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
@@ -226,8 +226,8 @@ void Engine::Shutdown()
 		if (!ent || !ent->IsPlayer() || i == 0)
 			continue;
 
-		ent->m_bClientSideAnimation() = true;
-		ent->m_varMapping().m_nInterpolatedEntries = ent->m_varMapping().m_Entries.m_Size;
+		ent->clientSideAnimation() = true;
+		ent->varMapping().interpolatedEntries = ent->varMapping().entries.size;
 	}
 }
 

@@ -9,6 +9,7 @@
 #include "../sdk/framework/players.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
+#include "../sdk/framework/features/aimbot.h"
 #include "macros.h"
 
 #if defined(__linux__)
@@ -37,6 +38,7 @@ extern ISurface* surface;
 extern IViewRender* viewRender;
 extern void* weaponDatabase;
 extern CClientEffectRegistration** effectsHead;
+extern IGameEventManager* gameEvents;
 
 typedef void (*CL_RunPredictionFn)(void);
 typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
@@ -91,6 +93,7 @@ namespace FwBridge
 	extern C_BaseCombatWeapon* activeWeapon;
 	extern float maxBacktrack;
 	extern int hitboxIDs[];
+	extern HistoryList<Target, BACKTRACK_TICKS> aimbotTargets;
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);

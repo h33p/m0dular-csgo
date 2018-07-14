@@ -4,6 +4,7 @@
 #include "../sdk/framework/utils/stackstring.h"
 #include "engine.h"
 #include "visuals.h"
+#include "resolver.h"
 
 void Unload();
 extern bool shuttingDown;
@@ -74,11 +75,12 @@ extern size_t effectsCount;
 void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 {
 	static auto origFn = EffectsHook::GetOriginalCallback(effectHooks, effectsCount, CSGOHooks::ImpactsEffect);
+	Resolver::HandleImpact(effectData);
 	if (origFn)
 		origFn(effectData);
 }
 
 void CSGOHooks::VecAnglesProxy(const CRecvProxyData* data, void* ent, void* out)
 {
-	cvar->ConsoleDPrintf("New ang: %f %p\n", data->m_Value.m_Float, ent);
+	cvar->ConsoleDPrintf("New ang: %f %p\n", data->value.Float, ent);
 }
