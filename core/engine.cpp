@@ -1,5 +1,6 @@
 #include "engine.h"
 #include "fw_bridge.h"
+#include "resolver.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/math/mmath.h"
 #include "../sdk/source_csgo/sdk.h"
@@ -99,6 +100,8 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	float frametime = globalVars->frametime;
 	int framecount = globalVars->framecount;
 
+	int pFlags[MAX_PLAYERS];
+
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
@@ -110,11 +113,11 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			globalVars->framecount = animState->frameCount + 1;
 
 			int pID = players->unsortIDs[i];
-			int pFlags = ent->flags();
+			pFlags[i] = ent->flags();
 
 			//Predict the FL_ONGROUND flag.
 			//lastOnGround deals with some artifacting (FL_ONGROUND repeating for a couple of ticks) happenning by those checks
-			if (~pFlags & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
+			if (~pFlags[i] & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
 				if (ent->animationLayers()[5].weight > 0.f && !lastOnGround[pID])
 					ent->flags() |= FL_ONGROUND;
 				else
@@ -125,8 +128,17 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
 			vel = (players->origin[i] - prevOrigins[pID]) * (1.f / (ent->simulationTime() - prevSimulationTime[pID]));
-
+			ent->velocity() = vel;
 			SetAbsVelocity(ent, vel);
+		}
+	}
+
+	Resolver::Run(players, prevPlayers);
+
+	for (size_t i = 0; i < count; i++) {
+		if (players->flags[i] & Flags::UPDATED) {
+			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			int pID = players->unsortIDs[i];
 
 			//Here we will resolve the player
 			//ent->eyeAngles()[1] = 180.f;
@@ -140,7 +152,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			SetAbsAngles(ent, ent->angles());
 			SetAbsOrigin(ent, ent->origin());
 			ent->clientSideAnimation() = false;
-			ent->flags() = pFlags;
+			ent->flags() = pFlags[i];
 			prevFlags[pID] = ent->flags();
 			prevOrigins[pID] = players->origin[i];
 			prevSimulationTime[pID] = ent->simulationTime();

@@ -2,6 +2,7 @@
 #include "fw_bridge.h"
 #include "engine.h"
 #include "visuals.h"
+#include "resolver.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 
@@ -13,21 +14,6 @@
   The event is called first, then comes the effect.
   Combining both will result us in having completely enough information for any impact based resolving.
 */
-
-struct BulletData
-{
-	vec3_t pos;
-	vec3_t relPos;
-	vec3_t relStart;
-	int attacker;
-	int hitEnt;
-	int hitbox;
-	float addTime;
-	int backTick;
-
-	bool cleared;
-	float processed;
-};
 
 struct PlayerBackup
 {
@@ -48,7 +34,7 @@ static bool effectCalled = false;
 
 static void ProcessHitEntity(BulletData data);
 static void ProcessWorldImpacts();
-static void ProcessLocalImpacts(bool hitShot);
+static void ProcessLocalImpacts(bool hitShot, int hitbox);
 static void ProcessBulletQueue();
 
 void Impacts::Tick()
@@ -93,6 +79,7 @@ void Impacts::ImpactEvent(IGameEvent* data, unsigned int crc)
 	event.pos.y = data->GetFloat(ST("y"));
 	event.pos.z = data->GetFloat(ST("z"));
 	event.addTime = FwBridge::lpData.time + Engine::LerpTime();
+	event.onGround = -1;
 	event.processed = false;
 
 	eventsQueue.Push(event);
@@ -154,11 +141,14 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 		}
 
 		if (finalData) {
+			Players& players = FwBridge::playerTrack.GetLastItem(backTick);
+
 			finalData->relPos = effectOrigin;
 			finalData->relStart = (vec3)effectData.start;
 			finalData->hitEnt = entID;
 			finalData->hitbox = effectData.hitBox;
 			finalData->backTick = backTick;
+			finalData->onGround = players.flags[players.sortIDs[entID]] & Flags::ONGROUND;
 			finalData->cleared = true;
 		}
 	}
@@ -172,11 +162,13 @@ static void ProcessBulletQueue()
 		return;
 
 	hitFlags = 0;
+
 	worldImpacts.Reset();
 	localImpacts.Reset();
 
 	//Did we hit a player?
 	bool localHit = false;
+	int hitbox = -1;
 	//Do we need to do any processing?
 	bool hasEvents = false;
 	//Is there any events queued up in the future for the effects to process?
@@ -203,8 +195,10 @@ static void ProcessBulletQueue()
 			continue;
 		}
 
-		if (data.attacker == FwBridge::lpData.ID)
+		if (data.attacker == FwBridge::lpData.ID) {
 			localHit = true;
+			hitbox = data.hitbox;
+		}
 
 		if (data.hitEnt >= 0)
 			ProcessHitEntity(data);
@@ -214,7 +208,7 @@ static void ProcessBulletQueue()
 
 	if (hasEvents) {
 		ProcessWorldImpacts();
-		ProcessLocalImpacts(localHit);
+		ProcessLocalImpacts(localHit, hitbox);
 
 		effectCalled = false;
 	}
@@ -222,6 +216,9 @@ static void ProcessBulletQueue()
 	if (shouldClear)
 		eventsQueue.Reset();
 }
+
+static float resolvedAngle = 0.f;
+static bool resolvedShot = false;
 
 static void ProcessHitEntity(BulletData data)
 {
@@ -242,8 +239,11 @@ static void ProcessHitEntity(BulletData data)
 	  case Hitboxes::HITBOX_CHEST:
 	  case Hitboxes::HITBOX_LOWER_NECK:
 		  return;
-	  default:
+	  case Hitboxes::HITBOX_HEAD:
+	  case Hitboxes::HITBOX_NECK:
 		  break;
+	  default:
+		  return;
 	}
 
 	C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(data.hitEnt);
@@ -364,15 +364,18 @@ static void ProcessHitEntity(BulletData data)
 
 	SetAbsOrigin(ent, entBOrigin);
 	ent->clientSideAnimation() = false;
-	if (closestDist < 80.f)
+	if (closestDist < 80.f) {
 		cvar->ConsoleDPrintf(ST("Resolved from shot: %f %d\n"), NormalizeFloat(bestAngle, -180.f, 180.f), data.hitbox);
+		resolvedShot = true;
+		resolvedAngle = NormalizeFloat(bestAngle, 0.f, 360.f);
+	}
 
 	globalVars->curtime = curtime;
 	globalVars->frametime = frametime;
 	globalVars->framecount = framecount;
 }
 
-static void ProcessLocalImpacts(bool hitShot)
+static void ProcessLocalImpacts(bool hitShot, int hitbox)
 {
 	//Find the longest ray from the list and perform the spread check on the correct aimbot target
 
@@ -414,7 +417,8 @@ static void ProcessLocalImpacts(bool hitShot)
 		}
 	}
 
-    CapsuleColliderSOA<SIMD_COUNT>* colliders = FwBridge::playerTrack.GetLastItem(pbi).colliders[aimbotTarget->id];
+	Players& players = FwBridge::playerTrack.GetLastItem(pbi);
+    CapsuleColliderSOA<SIMD_COUNT>* colliders = players.colliders[aimbotTarget->id];
 
 	unsigned int flags = 0;
 
@@ -424,12 +428,25 @@ static void ProcessLocalImpacts(bool hitShot)
 	Color colorOK = Color(0, 255, 0, 255);
 	Color colorMiss = Color(255, 0, 0, 255);
 
+	if (hitShot && (hitbox < 0 || aimbotTarget->boneID != FwBridge::hitboxIDs[hitbox]))
+		hitShot = false;
+
+	Resolver::ShootPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND);
+
 	if (!hitShot) {
 		if (!flags)
 			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to spread.\n"));
 		else
 			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to incorrect resolver.\n"));
 	} else {
+
+		C_BasePlayer* instance = (C_BasePlayer*)players.instance[aimbotTarget->id];
+
+		if (resolvedShot)
+			Resolver::HitPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND, resolvedAngle);
+		else if (instance)
+			Resolver::HitPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND, instance->eyeAngles()[1]);
+
 		if (!flags)
 			cvar->ConsoleColorPrintf(colorOK, ST("Hit shot due to spread!\n"));
 		else

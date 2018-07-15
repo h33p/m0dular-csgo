@@ -56,26 +56,31 @@ template void Tracing::TracePlayersSIMD<MULTIPOINT_COUNT>(LocalPlayer* localPlay
 
 enum BTMask
 {
-	NON_BACKTRACKABLE = (1 << 0)
+	NON_BACKTRACKABLE = (1 << 0),
+	FIRST_TIME_DONE = (1 << 1),
 };
+
+static vec3_t prevOrigin[MAX_PLAYERS];
 
 bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char backtrackMask[MAX_PLAYERS])
 {
 	int count = players->count;
+
 	for (int i = 0; i < count; i++)
-		if (players->flags[i] & Flags::HITBOXES_UPDATED && players->time[i] < FwBridge::maxBacktrack)
+		if (players->flags[i] & Flags::HITBOXES_UPDATED && players->time[i] < FwBridge::maxBacktrack && backtrackMask[players->unsortIDs[i]] & FIRST_TIME_DONE)
 			return false;
 
 	bool validPlayer = false;
 
 	for (int i = 0; i < count; i++) {
 		int id = players->unsortIDs[i];
-		int prevID = prevPlayers ? prevPlayers->sortIDs[id] : MAX_PLAYERS;
 		if (players->flags[i] & Flags::HITBOXES_UPDATED &&
 			~backtrackMask[id] & BTMask::NON_BACKTRACKABLE &&
-			(!prevPlayers || prevID >= prevPlayers->count || ((vec3)players->origin[i] - (vec3)prevPlayers->origin[prevID]).LengthSqr() < 4096))
+			(~backtrackMask[id] & FIRST_TIME_DONE || (players->origin[i] - prevOrigin[id]).LengthSqr() < 4096)) {
 			validPlayer = true; //In CSGO 3D length square is used to check for lagcomp breakage
-		else
+			backtrackMask[id] |= FIRST_TIME_DONE;
+			prevOrigin[id] = players->origin[i];
+		} else
 			backtrackMask[id] |= NON_BACKTRACKABLE;
 	}
 

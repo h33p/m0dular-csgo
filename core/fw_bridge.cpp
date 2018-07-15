@@ -210,18 +210,22 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 	//Aimbot part
 	Target target;
 	target.id = -1;
-	if (lpData.keys & Keys::ATTACK1) {
-		target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack);
+	if (activeWeapon && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (lpData.keys & Keys::ATTACK1)) {
+
+		bool hitboxList[MAX_HITBOXES];
+		memset(hitboxList, 0xff, sizeof(hitboxList));
+
+		target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack, hitboxList);
 		//Disable the actual aimbot for now
 		lpData.angles = cmd->viewangles;
 
 		if (target.id >= 0) {
+
 			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
 			if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
 				lpData.keys &= ~Keys::ATTACK1;
-		} else {
+		} else
 			lpData.angles -= lpData.aimOffset;
-		}
 		Spread::CompensateSpread(cmd);
 	}
 	aimbotTargets.Push(target);
