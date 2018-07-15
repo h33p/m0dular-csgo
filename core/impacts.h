@@ -4,7 +4,7 @@
 struct CEffectData;
 class IGameEvent;
 
-namespace Resolver
+namespace Impacts
 {
 	void Tick();
 	void ImpactEvent(IGameEvent* data, unsigned int name);

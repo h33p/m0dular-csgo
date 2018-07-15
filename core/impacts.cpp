@@ -1,4 +1,4 @@
-#include "resolver.h"
+#include "impacts.h"
 #include "fw_bridge.h"
 #include "engine.h"
 #include "visuals.h"
@@ -23,6 +23,7 @@ struct BulletData
 	int hitEnt;
 	int hitbox;
 	float addTime;
+	int backTick;
 
 	bool cleared;
 	float processed;
@@ -30,8 +31,8 @@ struct BulletData
 
 struct PlayerBackup
 {
-	CCSGOPlayerAnimState animState;
-	AnimationLayer layers[13];
+	vec3_t origin[MAX_PLAYERS];
+	AnimationLayer layers[MAX_PLAYERS][13];
 };
 
 static HistoryList<BulletData, 20> eventsQueue;
@@ -41,7 +42,7 @@ static unsigned long long hitFlags = 0;
 static HistoryList<vec3_t, BACKTRACK_TICKS> prevShootOrigins;
 
 //There are problems in debug mode when loading having a large chunk of memory allocated in the data segment.
-auto* historyStates = new HistoryList<PlayerBackup, 3>[MAX_PLAYERS];
+static HistoryList<PlayerBackup, BACKTRACK_TICKS> historyStates;
 
 static bool effectCalled = false;
 
@@ -50,13 +51,14 @@ static void ProcessWorldImpacts();
 static void ProcessLocalImpacts(bool hitShot);
 static void ProcessBulletQueue();
 
-void Resolver::Tick()
+void Impacts::Tick()
 {
 	Players& players = FwBridge::playerTrack.GetLastItem(0);
 
 	ProcessBulletQueue();
 	prevShootOrigins.Push(FwBridge::lpData.eyePos);
 
+	PlayerBackup backup;
 	for (int i = 0; i < players.count; i++) {
 		int id = players.unsortIDs[i];
 		if (id < 0 || id >= MAX_PLAYERS)
@@ -64,14 +66,13 @@ void Resolver::Tick()
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (!ent)
 			continue;
-		PlayerBackup backup;
-		backup.animState = *ent->animState();
-		memcpy(backup.layers, ent->animationLayers(), sizeof(backup.layers));
-		historyStates[id].Push(backup);
+		memcpy(backup.layers[id], ent->animationLayers(), sizeof(backup.layers[id]));
+		backup.origin[id] = (vec3)ent->GetClientRenderable()->GetRenderOrigin();
 	}
+	historyStates.Push(backup);
 }
 
-void Resolver::ImpactEvent(IGameEvent* data, unsigned int crc)
+void Impacts::ImpactEvent(IGameEvent* data, unsigned int crc)
 {
 	if (crc != CCRC32("bullet_impact"))
 		return;
@@ -86,6 +87,7 @@ void Resolver::ImpactEvent(IGameEvent* data, unsigned int crc)
 	event.cleared = false;
 	event.hitEnt = -1;
 	event.hitbox = -1;
+	event.backTick = -1;
 	event.attacker = engine->GetPlayerForUserID(data->GetInt(ST("userid")));
 	event.pos.x = data->GetFloat(ST("x"));
 	event.pos.y = data->GetFloat(ST("y"));
@@ -96,7 +98,7 @@ void Resolver::ImpactEvent(IGameEvent* data, unsigned int crc)
 	eventsQueue.Push(event);
 }
 
-void Resolver::HandleImpact(const CEffectData& effectData)
+void Impacts::HandleImpact(const CEffectData& effectData)
 {
 	if (effectData.entity == -1)
 		return;
@@ -116,6 +118,7 @@ void Resolver::HandleImpact(const CEffectData& effectData)
 		//Find the closest matching player from the event list and player track
 		BulletData* finalData = nullptr;
 		float closestDistance = 20.f;
+		int backTick = 0;
 
 		for (int i = 0; i < eventsQueue.Count(); i++) {
 			BulletData& data = eventsQueue.GetLastItem(i);
@@ -126,20 +129,27 @@ void Resolver::HandleImpact(const CEffectData& effectData)
 			if (data.cleared)
 				continue;
 
-			for (int o = 0; o < FwBridge::playerTrack.Count(); o++) {
+			for (int o = 0; o < FwBridge::playerTrack.Count() && o < 32; o++) {
 				Players& players = FwBridge::playerTrack.GetLastItem(o);
 
 				int pID = players.sortIDs[entID];
 				if (pID >= MAX_PLAYERS)
 					continue;
 
-				float dist = (players.origin[pID] + effectOrigin - data.pos).Length();
+				int hbID = FwBridge::hitboxIDs[effectData.hitBox];
+
+				vec3_t addVec = {{{0, 0, 0}}};
+				if (hbID >= 0 && hbID < MAX_HITBOXES)
+					addVec.z = -effectOrigin.z -players.origin[pID][2] + players.hitboxes[pID].wm[hbID][2][3];
+
+				float dist = (players.origin[pID] + addVec + effectOrigin - data.pos).Length();
 
 				if (dist >= closestDistance)
 					continue;
 
 				finalData = &data;
 				closestDistance = dist;
+				backTick = o;
 			}
 		}
 
@@ -148,6 +158,7 @@ void Resolver::HandleImpact(const CEffectData& effectData)
 			finalData->relStart = (vec3)effectData.start;
 			finalData->hitEnt = entID;
 			finalData->hitbox = effectData.hitBox;
+			finalData->backTick = backTick;
 			finalData->cleared = true;
 		}
 	}
@@ -156,6 +167,7 @@ void Resolver::HandleImpact(const CEffectData& effectData)
 
 static void ProcessBulletQueue()
 {
+
 	if (!eventsQueue.Count() && !effectCalled)
 		return;
 
@@ -215,9 +227,32 @@ static void ProcessHitEntity(BulletData data)
 {
 	hitFlags |= (1ull << data.hitEnt);
 
+	//Ignore hitboxes that lead to inaccurate results or are not in the hitbox list
+	switch(data.hitbox)
+	{
+	  case Hitboxes::HITBOX_LEFT_UPPER_ARM:
+	  case Hitboxes::HITBOX_RIGHT_UPPER_ARM:
+	  case Hitboxes::HITBOX_UPPER_CHEST:
+	  case Hitboxes::HITBOX_RIGHT_CALF:
+	  case Hitboxes::HITBOX_RIGHT_THIGH:
+	  case Hitboxes::HITBOX_RIGHT_FOREARM:
+	  case Hitboxes::HITBOX_PELVIS:
+	  case Hitboxes::HITBOX_STOMACH:
+	  case Hitboxes::HITBOX_LOWER_CHEST:
+	  case Hitboxes::HITBOX_CHEST:
+	  case Hitboxes::HITBOX_LOWER_NECK:
+		  return;
+	  default:
+		  break;
+	}
+
 	C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(data.hitEnt);
 
 	if (!ent || ent->IsDormant())
+		return;
+
+	//TODO: Handle this case by rotating the hitbox around the axis
+	if (ent->lifeState() != LIFE_ALIVE)
 		return;
 
 	studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
@@ -229,78 +264,108 @@ static void ProcessHitEntity(BulletData data)
 	    return;
 
 	mstudiobbox_t* hitbox = set->GetHitbox(data.hitbox);
-
 	if (!hitbox)
 		return;
 
 	CCSGOPlayerAnimState* animState = ent->animState();
-
 	if (!animState)
 		return;
 
-	vec3_t entOrigin = (vec3)ent->GetClientRenderable()->GetRenderOrigin();
+	int lerpTicks = std::min((int)(Engine::LerpTime() / globalVars->interval_per_tick), 3) + data.backTick;
 
-	vec3_t start = data.relStart + entOrigin;
-	vec3_t end = data.relPos + entOrigin;
-
+	//Backup player data
+	vec3_t entBOrigin = (vec3)ent->GetClientRenderable()->GetRenderOrigin();
 	float eyeYaw = ent->eyeAngles()[1];
-	float currentFeetYawDelta = NormalizeFloat(animState->currentFeetYaw - eyeYaw, -180.f, 180.f);
-	float hitYaw = data.relPos.GetAngles(true)[1];
 	vec3 angsBackup = ent->angles();
 	AnimationLayer animationLayers[13];
 	matrix3x4_t matrix[128];
 	CCSGOPlayerAnimState animStateBackup = *animState;
 	memcpy(animationLayers, ent->animationLayers(), sizeof(AnimationLayer) * 13);
-
 	float curtime = globalVars->curtime;
 	float frametime = globalVars->frametime;
 	int framecount = globalVars->framecount;
-	int lerpTicks = std::min((int)(Engine::LerpTime() / globalVars->interval_per_tick), 3);
+
+	PlayerBackup& backup = historyStates.GetLastItem(lerpTicks);
+	vec3_t entOrigin = backup.origin[data.hitEnt];
+	SetAbsOrigin(ent, entOrigin);
+
+	vec3_t start = data.relStart + entOrigin;
+	vec3_t rend = data.relPos + entOrigin;
+	vec3_t end = rend + (rend - start).Normalized() * hitbox->radius * 0.2f;
+
+	float hitYaw = data.relPos.GetAngles(true)[1];
+	float shootAngles = (rend - start).GetAngles(true)[1];
+	float goalFeetYawDelta = NormalizeFloat(animState->goalFeetYaw - eyeYaw, -180.f, 180.f);
+	float rotationDelta = NormalizeFloat(ent->angles()[1] - eyeYaw, -180.f, 180.f);
 
 	globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick - lerpTicks;
 	globalVars->frametime = globalVars->interval_per_tick;
 	globalVars->framecount = animState->frameCount + 1;
 
-	Visuals::PassStart(start, end);
+	Visuals::PassStart(start, rend);
 	ent->clientSideAnimation() = true;
-	for (int i = 0; i < 11; i++) {
+
+	float closestDist = 80.f;
+	float bestAngle = 0.f;
+
+	ent->UpdateClientSideAnimation();
+	Engine::UpdatePlayer(ent, matrix);
+
+	vec3_t s = {{{0, 0, 0}}};
+	float boneOffset = (matrix[hitbox->bone].Vector3Transform(s) - entOrigin).GetAngles(true)[1] - eyeYaw;
+
+	//Get the direction we should move towards
+	float sign = NormalizeFloat(shootAngles - hitYaw + boneOffset, -180.f, 180.f);
+	sign /= fabsf(sign);
+
+	for (int i = 0; i < 7; i++) {
 		CapsuleColliderSOA<16> collider;
+		zvec3 closestDir;
+		zvec3 hitboxPos;
 
 		for (int o = 0; o < 16; o++)
 			collider.radius[o] = hitbox->radius;
 
 		for (int o = 0; o < 16; o++) {
-		    PlayerBackup& backup = historyStates[data.hitEnt].GetLastItem(lerpTicks);
-			*animState = backup.animState;
-			memcpy(ent->animationLayers(), backup.layers, sizeof(AnimationLayer) * 13);
-			ent->eyeAngles()[1] = NormalizeFloat(hitYaw - 90.f + 2 * (i * 16 + o), -180.f, 180.f);
-			animState->currentFeetYaw = NormalizeFloat(currentFeetYawDelta + ent->eyeAngles()[1], 0.f, 360.f);
+			animState->prevOrigin = entOrigin;
+			animState->origin = entOrigin;
+			ent->eyeAngles()[1] = NormalizeFloat(hitYaw - boneOffset - sign * (i * 16 + o) + 96.f * sign, -180.f, 180.f);
+			animState->goalFeetYaw = NormalizeFloat(goalFeetYawDelta + ent->eyeAngles()[1], 0.f, 360.f);
 			ent->UpdateClientSideAnimation();
 			vec3 angs = ent->angles();
-			angs[1] = animState->currentFeetYaw;
+			angs[1] = NormalizeFloat(rotationDelta + ent->eyeAngles()[1], 0.f, 360.f);
 			SetAbsAngles(ent, angs);
+			memcpy(ent->animationLayers(), backup.layers[data.hitEnt], sizeof(AnimationLayer) * 13);
 			Engine::UpdatePlayer(ent, matrix);
 
 			collider.start.acc[o] = matrix[hitbox->bone].Vector3Transform(hitbox->bbmin);
 			collider.end.acc[o] = matrix[hitbox->bone].Vector3Transform(hitbox->bbmax);
 
+			for (int u = 0; u < 3; u++)
+				hitboxPos[u][1] = matrix[hitbox->bone][u][3];
+
 			SetAbsAngles(ent, angsBackup);
 			ent->eyeAngles()[1] = eyeYaw;
+			*animState = animStateBackup;
 		}
 
 		memcpy(ent->animationLayers(), animationLayers, sizeof(AnimationLayer) * 13);
-		*animState = animStateBackup;
 		Visuals::PassColliders(collider.start, collider.end);
-		unsigned int flags = collider.Intersect(start, end);
+		unsigned int flags = collider.Intersect(start, end, &closestDir);
 
 		if (flags) {
 			int idx = 31 - CLZ(flags);
-			float resAng = NormalizeFloat(hitYaw - 90.f + 2 * (i * 16 + idx), -180.f, 180.f);
-			cvar->ConsoleDPrintf(ST("Resolved from shot: %f\n"), resAng);
+			closestDist = 0.f;
+			bestAngle = NormalizeFloat(hitYaw - boneOffset - sign * (i * 16 + idx) + 96.f * sign, -180.f, 180.f);
+			Visuals::PassBest(idx, i);
 			break;
 		}
 	}
+
+	SetAbsOrigin(ent, entBOrigin);
 	ent->clientSideAnimation() = false;
+	if (closestDist < 80.f)
+		cvar->ConsoleDPrintf(ST("Resolved from shot: %f %d\n"), NormalizeFloat(bestAngle, -180.f, 180.f), data.hitbox);
 
 	globalVars->curtime = curtime;
 	globalVars->frametime = frametime;

@@ -8,7 +8,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "visuals.h"
-#include "resolver.h"
+#include "impacts.h"
 
 #include <algorithm>
 
@@ -190,7 +190,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		//While it is being done, let's update other data on a seperate thread
 		//Flags depend on the animation fix fixing up the player.
 		UpdateOrigin(data.players, data.prevPlayers);
-		Resolver::Tick();
+		Impacts::Tick();
 		Engine::StartAnimationFix(&data.players, &data.prevPlayers);
 		Threading::QueueJobRef(ThreadedUpdate, &data);
 		UpdateHitboxes(data.players, data.prevPlayers);

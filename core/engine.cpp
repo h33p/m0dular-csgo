@@ -136,8 +136,9 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			//cvar->ConsoleDPrintf("%f %f %f\n", ent->eyeAngles()[1], ent->angles()[1], ent->lowerBodyYawTarget());
 
 			ent->UpdateClientSideAnimation();
-			//ent->angles()[1] = ent->animState()->currentFeetYaw;
-			//SetAbsAngles(ent, ent->angles());
+			ent->angles()[1] = ent->animState()->currentFeetYaw;
+			SetAbsAngles(ent, ent->angles());
+			SetAbsOrigin(ent, ent->origin());
 			ent->clientSideAnimation() = false;
 			ent->flags() = pFlags;
 			prevFlags[pID] = ent->flags();
@@ -168,6 +169,7 @@ ConVar* maxInterp = nullptr;
 
 float Engine::LerpTime()
 {
+
 	if (!bigUdRate)
 		bigUdRate = cvar->FindVar(StackString("cl_updaterate"));
 	if (!minUdRate)

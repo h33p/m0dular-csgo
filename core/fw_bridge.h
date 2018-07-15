@@ -94,6 +94,7 @@ namespace FwBridge
 	extern float maxBacktrack;
 	extern int hitboxIDs[];
 	extern HistoryList<Target, BACKTRACK_TICKS> aimbotTargets;
+	extern int hitboxToHitbox[];
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);

@@ -7,7 +7,7 @@
 #include "../sdk/source_csgo/sdk.h"
 #include "../sdk/source_shared/eventlistener.h"
 #include "engine.h"
-#include "resolver.h"
+#include "impacts.h"
 
 #include "../signatures.h"
 #include "../hook_indices.h"
@@ -48,7 +48,7 @@ RandomFloatExpFn RandomFloatExp = nullptr;
 RandomIntFn RandomInt = nullptr;
 RandomGaussianFloatFn RandomGaussianFloat = nullptr;
 
-EventListener listener({Resolver::ImpactEvent});
+EventListener listener({Impacts::ImpactEvent});
 
 static void InitializeOffsets();
 static void InitializeHooks();

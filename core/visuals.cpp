@@ -4,10 +4,12 @@
 bool Visuals::shouldDraw = false;
 
 //Temporary debugging of the hit shot resolver
-HistoryList<zvec3, 11> starts;
-HistoryList<zvec3, 11> ends;
+HistoryList<zvec3, 6> starts;
+HistoryList<zvec3, 6> ends;
 vec3_t start;
 vec3_t end;
+int best = 0;
+int besti = 0;
 
 #ifdef PT_VISUALS
 void Visuals::Draw()
@@ -51,7 +53,7 @@ void Visuals::Draw()
 		}
 	}
 
-	for (int i = 0; i < 11; i++) {
+	for (int i = 0; i < 6; i++) {
 
 		bool flags[16];
 		zvec3 screenStartPos = w2s.WorldToScreen(starts.GetLastItem(i), screen, flags);
@@ -63,7 +65,10 @@ void Visuals::Draw()
 				continue;
 			vec3 screenStart = (vec3)screenStartPos.acc[u];
 			vec3 screenEnd = (vec3)screenEndPos.acc[u];
-			surface->DrawSetColor(Color(0.f, 0.f, 1.f, 1.f));
+			if (best == u && besti == i)
+				surface->DrawSetColor(Color(1.f, 0.f, 1.f, 1.f));
+			else
+				surface->DrawSetColor(Color(0.f, 0.f, 1.f, 1.f));
 			surface->DrawLine(screenStart[0], screenStart[1], screenEnd[0], screenEnd[1]);
 		}
 	}
@@ -95,4 +100,10 @@ void Visuals::PassStart(vec3_t start, vec3_t end)
 {
 	::start = start;
 	::end = end;
+}
+
+void Visuals::PassBest(int o, int i)
+{
+	besti = i;
+	best = o;
 }

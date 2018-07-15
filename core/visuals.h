@@ -11,6 +11,7 @@ namespace Visuals
 #endif
 	void PassColliders(vec3soa<float, 16> start, vec3soa<float, 16> end);
 	void PassStart(vec3_t start, vec3_t end);
+	void PassBest(int o, int i);
 }
 
 #endif
