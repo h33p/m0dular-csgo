@@ -19,6 +19,107 @@ constexpr int HITCHANCE_JOBS = 4;
 constexpr int HITCHANCE_PER_JOB = 256 / HITCHANCE_JOBS;
 constexpr int HITCHANCE_SIMD = NumOfSIMD(HITCHANCE_PER_JOB);
 
+struct HitChanceInput
+{
+	int start;
+	int jobID;
+};
+
+static int tempOutput[HITCHANCE_JOBS];
+
+static Players* players;
+static int targetEnt;
+static vec3_t targetVec;
+static vec3_t forward;
+static vec3_t up;
+static vec3_t right;
+static float inaccuracyVal;
+static float spreadVal;
+static float range;
+static nvec3 startPos;
+CapsuleCollider hitbox;
+
+static void PopulateRandomFloat();
+static void RunHitChance(HitChanceInput* inp);
+
+bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID)
+{
+	if (!randomPopulated)
+		PopulateRandomFloat();
+
+	FwBridge::activeWeapon->UpdateAccuracyPenalty();
+
+	::players = players;
+	::targetEnt = targetEnt;
+	::targetVec = targetVec;
+
+	range = FwBridge::lpData.weaponRange;
+	spreadVal = FwBridge::activeWeapon->GetSpread();
+	inaccuracyVal = FwBridge::activeWeapon->GetInaccuracy();
+	vec3_t dir = targetVec - FwBridge::lpData.eyePos;
+	startPos = FwBridge::lpData.eyePos;
+	dir.Normalize().ToAngles().GetVectors(forward, up, right);
+
+	auto& hitboxes = players->hitboxes[targetEnt];
+	hitbox.start = hitboxes.wm[boneID].Vector3Transform(hitboxes.start[boneID]);
+	hitbox.end = hitboxes.wm[boneID].Vector3Transform(hitboxes.end[boneID]);
+	hitbox.radius = hitboxes.radius[boneID];
+
+	for (int i = 0; i < HITCHANCE_JOBS; i++) {
+		HitChanceInput args;
+		args.start = i * (256 / HITCHANCE_JOBS);
+		args.jobID = i;
+		Threading::QueueJob(RunHitChance, args);
+	}
+
+	Threading::FinishQueue();
+
+	int sum = 0;
+
+	for (int i = 0; i < HITCHANCE_JOBS; i++)
+		sum += tempOutput[i];
+
+	return (sum * 100) / 256 > 50;
+}
+
+static ConVar* sv_usercmd_custom_random_seed = nullptr;
+static ConVar* weapon_accuracy_nospread = nullptr;
+
+void Spread::CompensateSpread(CUserCmd* cmd)
+{
+	if (!randomPopulated)
+		PopulateRandomFloat();
+
+	if (!sv_usercmd_custom_random_seed)
+		sv_usercmd_custom_random_seed = cvar->FindVar(ST("sv_usercmd_custom_random_seed"));
+	if (!weapon_accuracy_nospread)
+		weapon_accuracy_nospread = cvar->FindVar(ST("weapon_accuracy_nospread"));
+
+	if (weapon_accuracy_nospread && weapon_accuracy_nospread->GetBool())
+		return;
+
+	if (sv_usercmd_custom_random_seed && sv_usercmd_custom_random_seed->GetBool())
+		return;
+
+	FwBridge::activeWeapon->UpdateAccuracyPenalty();
+
+	spreadVal = FwBridge::activeWeapon->GetSpread();
+	inaccuracyVal = FwBridge::activeWeapon->GetInaccuracy();
+
+	int randomSeed = cmd->random_seed % 256;
+
+	float randInaccuracy = randomFl1[randomSeed] * inaccuracyVal;
+	float randSpread = randomFl2[randomSeed] * spreadVal;
+
+	vec2 spread;
+	spread[0] = randomFlCos1[randomSeed] * randInaccuracy + randomFlCos2[randomSeed] * randSpread;
+	spread[1] = randomFlSin1[randomSeed] * randInaccuracy + randomFlSin2[randomSeed] * randSpread;
+
+	//Apply pitch-roll spread correction
+	FwBridge::lpData.angles.x += atanf(spread.Length()) * RAD2DEG;
+	FwBridge::lpData.angles.z = atan2f(-spread[0], spread[1]) * RAD2DEG;
+}
+
 //We want to get the values of all random values because they stay constant ant never change.
 static void PopulateRandomFloat()
 {
@@ -44,26 +145,6 @@ static void PopulateRandomFloat()
 
 	randomPopulated = true;
 }
-
-struct HitChanceInput
-{
-	int start;
-	int jobID;
-};
-
-static int tempOutput[HITCHANCE_JOBS];
-
-static Players* players;
-static int targetEnt;
-static vec3_t targetVec;
-static vec3_t forward;
-static vec3_t up;
-static vec3_t right;
-static float inaccuracyVal;
-static float spreadVal;
-static float range;
-static nvec3 startPos;
-CapsuleCollider hitbox;
 
 //This code should theoretically scale up to any SIMD level automatically with near perfect scaling.
 static void RunHitChance(HitChanceInput* inp)
@@ -125,44 +206,4 @@ static void RunHitChance(HitChanceInput* inp)
 		tempOutput[jobID] += __builtin_popcount(flags);
 #endif
 	}
-}
-
-bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID)
-{
-	if (!randomPopulated)
-		PopulateRandomFloat();
-
-	FwBridge::activeWeapon->UpdateAccuracyPenalty();
-
-	::players = players;
-	::targetEnt = targetEnt;
-	::targetVec = targetVec;
-
-	range = FwBridge::lpData.weaponRange;
-	spreadVal = FwBridge::activeWeapon->GetSpread();
-	inaccuracyVal = FwBridge::activeWeapon->GetInaccuracy();
-	vec3_t dir = targetVec - FwBridge::lpData.eyePos;
-	startPos = FwBridge::lpData.eyePos;
-	dir.Normalize().ToAngles().GetVectors(forward, up, right);
-
-	auto& hitboxes = players->hitboxes[targetEnt];
-	hitbox.start = hitboxes.wm[boneID].Vector3Transform(hitboxes.start[boneID]);
-	hitbox.end = hitboxes.wm[boneID].Vector3Transform(hitboxes.end[boneID]);
-	hitbox.radius = hitboxes.radius[boneID];
-
-	for (int i = 0; i < HITCHANCE_JOBS; i++) {
-		HitChanceInput args;
-		args.start = i * (256 / HITCHANCE_JOBS);
-		args.jobID = i;
-		Threading::QueueJob(RunHitChance, args);
-	}
-
-	Threading::FinishQueue();
-
-	int sum = 0;
-
-	for (int i = 0; i < HITCHANCE_JOBS; i++)
-		sum += tempOutput[i];
-
-	return (sum * 100) / 256 > 50;
 }

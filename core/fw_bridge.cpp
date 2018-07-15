@@ -217,11 +217,12 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
 
 		if (target.id >= 0) {
 			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-			if (!Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+			if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
 				lpData.keys &= ~Keys::ATTACK1;
 		} else {
 			lpData.angles -= lpData.aimOffset;
 		}
+		Spread::CompensateSpread(cmd);
 	}
 	aimbotTargets.Push(target);
 

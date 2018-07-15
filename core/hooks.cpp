@@ -76,7 +76,7 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 {
 	static auto origFn = EffectsHook::GetOriginalCallback(effectHooks, effectsCount, CSGOHooks::ImpactsEffect);
 	Impacts::HandleImpact(effectData);
-	if (false && origFn)
+	if (origFn)
 		origFn(effectData);
 }
 
