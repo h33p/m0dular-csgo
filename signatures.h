@@ -60,9 +60,9 @@ const Signature signatures[] = {
 	SIGNATURE(RunSimulationFunc, clientLib, "55 8B EC 83 EC 08 53 8B 5D 10 56"),
 	SIGNATURE(GetWeaponInfo, clientLib, "55 8B EC 83 EC 0C 53 8B 5D 08 89 4D F4 81 FB FF FF 00 00"),
 	SIGNATURE(weaponDatabase, clientLib, "*? ? ? ? FF 10 0F B7 C0 B9 ? ? ? ? 50"),
-	SIGNATURE(SetAbsOrigin, clientLib, "55 8B EC 83 E4 F8 51 53 56 57 8B F1"),
-	SIGNATURE(SetAbsAngles, clientLib, "55 8B EC 83 E4 F8 83 EC 64 53 56 57 8B F1 E8"),
-	SIGNATURE(SetAbsVelocity, clientLib, "55 8B EC 83 E4 F8 83 EC 0C 53 56 57 8B 7D 08 8B F1"),
+	SIGNATURE(SetAbsOrigin, clientLib, "50 [E8 *? ? ? ?] EB 78 FF"),
+	SIGNATURE(SetAbsAngles, clientLib, "8B CE [E8 *? ? ? ?] 8B 8E F4 09 00 00"),
+	SIGNATURE(SetAbsVelocity, clientLib, "F3 0F 11 44 24 24 [E8 *? ? ? ?] 5F"),
 	SIGNATURE(SetupBones, clientLib, "55 8B EC 83 E4 F0 B8 D8 1C 00 00 E8 ? ? ? ? 56"),
 	SIGNATURE(effectsHead, clientLib, "8B 35 *? ? ? ? 85 F6 0F 84 ? ? ? ? BB FF FF 00 00 8B 0E"),
 	SIGNATURE(Weapon_ShootPosition, clientLib, "55 8B EC 56 8B 75 08 57 8B F9 56 8B 07 FF ? ? ? ? ? 80")

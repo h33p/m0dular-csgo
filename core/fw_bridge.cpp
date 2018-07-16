@@ -3,12 +3,14 @@
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/features/features.h"
+#include "../sdk/framework/utils/intersect_impl.h"
 
 #include "spread.h"
 #include "engine.h"
 #include "hooks.h"
 #include "visuals.h"
 #include "impacts.h"
+#include "antiaim.h"
 
 #include <algorithm>
 
@@ -41,6 +43,7 @@ struct UpdateData
 };
 
 
+static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state);
 static void ThreadedUpdate(UpdateData* data);
 static bool PlayerSort(SortData& a, SortData& b);
 static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent);
@@ -208,30 +211,10 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 
 	SourceBhop::Run(cmd, &lpData);
 	SourceAutostrafer::Run(cmd, &lpData);
-	SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
-	//Aimbot part
-	Target target;
-	target.id = -1;
-	if (activeWeapon && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (lpData.keys & Keys::ATTACK1)) {
+	FakelagState state = SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
+	ExecuteAimbot(cmd, bSendPacket, state);
 
-		bool hitboxList[MAX_HITBOXES];
-		memset(hitboxList, 0xff, sizeof(hitboxList));
-
-		target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack, hitboxList);
-		//Disable the actual aimbot for now
-		lpData.angles = cmd->viewangles;
-
-		if (target.id >= 0) {
-
-			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-			if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
-				lpData.keys &= ~Keys::ATTACK1;
-		} else
-			lpData.angles -= lpData.aimOffset;
-		Spread::CompensateSpread(cmd);
-	}
-	aimbotTargets.Push(target);
-
+	Antiaim::Run(cmd, state);
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
 	Engine::EndLagCompensation();
@@ -239,6 +222,68 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 	Visuals::shouldDraw = true;
 }
 
+
+//This way it is way cleaner
+using namespace FwBridge;
+
+static bool allowShoot = false;
+float lastPrimary = 0.f;
+
+static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
+{
+	//Aimbot part
+	Target target;
+	target.id = -1;
+
+	//We can only shoot once until we take a shot
+	if (lastPrimary != activeWeapon->nextPrimaryAttack())
+		allowShoot = false;
+	lastPrimary = activeWeapon->nextPrimaryAttack();
+	if (!allowShoot)
+		allowShoot = (state == FakelagState::REAL);
+	if (!allowShoot)
+		lpData.keys &= ~Keys::ATTACK1;
+
+	if (allowShoot && activeWeapon && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (true || lpData.keys & Keys::ATTACK1)) {
+		bool hitboxList[MAX_HITBOXES];
+		memset(hitboxList, 0xff, sizeof(hitboxList));
+
+		target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack, hitboxList);
+		//Disable the actual aimbot for now
+		//lpData.angles = cmd->viewangles;
+
+		if (target.id >= 0) {
+			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+			if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+				lpData.keys &= ~Keys::ATTACK1;
+		} else
+			lpData.angles -= lpData.aimOffset;
+		Spread::CompensateSpread(cmd);
+	}
+
+	if (target.id >= 0) {
+		vec3_t dir, up, down;
+		(lpData.angles + lpData.aimOffset).GetVectors(dir, up, down, true);
+		vec3_t endPoint = dir * lpData.weaponRange + lpData.eyePos;
+
+		CapsuleColliderSOA<SIMD_COUNT>* colliders = playerTrack.GetLastItem(target.backTick).colliders[target.id];
+
+		unsigned int flags = 0;
+
+		if (lpData.keys & Keys::ATTACK1)
+			for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
+				flags |= colliders[i].Intersect(lpData.eyePos, endPoint);
+
+		if (!flags)
+			target.id = -1;
+		else {
+			lpData.keys |= Keys::ATTACK1;
+			cmd->buttons |= IN_ATTACK;
+		}
+	}
+
+	aimbotTargets.Push(target);
+}
 
 static void ThreadedUpdate(UpdateData* data)
 {

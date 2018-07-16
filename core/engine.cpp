@@ -26,6 +26,7 @@ matrix<3,4> matrices[MAX_PLAYERS][128];
 vec3 origins[MAX_PLAYERS];
 
 int Engine::numBones[MAX_PLAYERS];
+vec3_t Engine::velocities[MAX_PLAYERS];
 
 void Engine::StartLagCompensation()
 {
@@ -82,7 +83,6 @@ AnimationLayer serverAnimations[MAX_PLAYERS][13];
 int prevFlags[MAX_PLAYERS];
 vec3_t prevOrigins[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
-vec3 vel;
 float prevSimulationTime[MAX_PLAYERS];
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
@@ -127,9 +127,8 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
-			vel = (players->origin[i] - prevOrigins[pID]) * (1.f / (ent->simulationTime() - prevSimulationTime[pID]));
-			ent->velocity() = vel;
-			SetAbsVelocity(ent, vel);
+			velocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
+			SetAbsVelocity(ent, velocities[pID]);
 		}
 	}
 

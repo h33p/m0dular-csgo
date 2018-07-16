@@ -9,6 +9,7 @@ class C_BasePlayer;
 namespace Engine
 {
 	extern int numBones[];
+	extern vec3_t velocities[];
 	bool UpdatePlayer(C_BasePlayer* ent, matrix<3,4> out[128]);
 	float LerpTime();
 	float CalculateBacktrackTime();

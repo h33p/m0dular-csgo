@@ -1,6 +1,7 @@
 #include "resolver.h"
 #include "../sdk/features/resolver.h"
 #include "fw_bridge.h"
+#include "engine.h"
 
 enum ResolveBase
 {
@@ -41,7 +42,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
 			resolveBases[pID][BASE_LBY] = ent->lowerBodyYawTarget();
 			resolveBases[pID][BASE_AT_TARGET] = (atTarget - players->origin[i]).GetAngles(true)[1];
-			resolveBases[pID][BASE_VELOCITY] = players->velocity[i].GetAngles(true)[1];
+			resolveBases[pID][BASE_VELOCITY] = Engine::velocities[pID].GetAngles(true)[1];
 			resolveBases[pID][BASE_STATIC] = 0.f;
 
 			//TODO: freestanding calculation

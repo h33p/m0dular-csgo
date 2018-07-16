@@ -25,6 +25,7 @@ static HistoryList<BulletData, 20> eventsQueue;
 static HistoryList<BulletData, 20> worldImpacts;
 static HistoryList<BulletData, 20> localImpacts;
 static unsigned long long hitFlags = 0;
+static unsigned long long onGround = 0;
 static HistoryList<vec3_t, BACKTRACK_TICKS> prevShootOrigins;
 
 //There are problems in debug mode when loading having a large chunk of memory allocated in the data segment.
@@ -35,6 +36,7 @@ static bool effectCalled = false;
 static void ProcessHitEntity(BulletData data);
 static void ProcessWorldImpacts();
 static void ProcessLocalImpacts(bool hitShot, int hitbox);
+static void ProcessOtherHits();
 static void ProcessBulletQueue();
 
 void Impacts::Tick()
@@ -155,6 +157,8 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 }
 
 
+static float resolvedAngle[MAX_PLAYERS];
+
 static void ProcessBulletQueue()
 {
 
@@ -162,6 +166,7 @@ static void ProcessBulletQueue()
 		return;
 
 	hitFlags = 0;
+	onGround = 0;
 
 	worldImpacts.Reset();
 	localImpacts.Reset();
@@ -209,6 +214,7 @@ static void ProcessBulletQueue()
 	if (hasEvents) {
 		ProcessWorldImpacts();
 		ProcessLocalImpacts(localHit, hitbox);
+		ProcessOtherHits();
 
 		effectCalled = false;
 	}
@@ -216,9 +222,6 @@ static void ProcessBulletQueue()
 	if (shouldClear)
 		eventsQueue.Reset();
 }
-
-static float resolvedAngle = 0.f;
-static bool resolvedShot = false;
 
 static void ProcessHitEntity(BulletData data)
 {
@@ -354,7 +357,7 @@ static void ProcessHitEntity(BulletData data)
 		unsigned int flags = collider.Intersect(start, end, &closestDir);
 
 		if (flags) {
-			int idx = 31 - CLZ(flags);
+			int idx = 31 - Clz(flags);
 			closestDist = 0.f;
 			bestAngle = NormalizeFloat(hitYaw - boneOffset - sign * (i * 16 + idx) + 96.f * sign, -180.f, 180.f);
 			Visuals::PassBest(idx, i);
@@ -366,8 +369,10 @@ static void ProcessHitEntity(BulletData data)
 	ent->clientSideAnimation() = false;
 	if (closestDist < 80.f) {
 		cvar->ConsoleDPrintf(ST("Resolved from shot: %f %d\n"), NormalizeFloat(bestAngle, -180.f, 180.f), data.hitbox);
-		resolvedShot = true;
-		resolvedAngle = NormalizeFloat(bestAngle, 0.f, 360.f);
+	    hitFlags |= (1ull << data.hitEnt);
+		if (data.onGround > 0)
+			onGround |= (1ull << data.hitEnt);
+		resolvedAngle[data.hitEnt] = NormalizeFloat(bestAngle, 0.f, 360.f);
 	}
 
 	globalVars->curtime = curtime;
@@ -433,6 +438,8 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 
 	Resolver::ShootPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND);
 
+	int unsortID = players.unsortIDs[aimbotTarget->id];
+
 	if (!hitShot) {
 		if (!flags)
 			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to spread.\n"));
@@ -442,16 +449,24 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 
 		C_BasePlayer* instance = (C_BasePlayer*)players.instance[aimbotTarget->id];
 
-		if (resolvedShot)
-			Resolver::HitPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND, resolvedAngle);
-		else if (instance)
-			Resolver::HitPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND, instance->eyeAngles()[1]);
+		if (hitFlags & (1ull << unsortID)) {
+			Resolver::HitPlayer(unsortID, players.flags[aimbotTarget->id] & Flags::ONGROUND, resolvedAngle[unsortID]);
+		    hitFlags &= ~(1ull << unsortID);
+		} else if (instance)
+			Resolver::HitPlayer(unsortID, players.flags[aimbotTarget->id] & Flags::ONGROUND, instance->eyeAngles()[1]);
 
 		if (!flags)
 			cvar->ConsoleColorPrintf(colorOK, ST("Hit shot due to spread!\n"));
 		else
 			cvar->ConsoleColorPrintf(colorOK, ST("Hit resolved shot!\n"));
 	}
+}
+
+static void ProcessOtherHits()
+{
+	for (int i = 0; i < MAX_PLAYERS && i < 64; i++)
+		if (hitFlags & (1ull << i))
+			Resolver::HitPlayer(i, onGround & (1ull << i), resolvedAngle[i]);
 }
 
 static void ProcessWorldImpacts()
