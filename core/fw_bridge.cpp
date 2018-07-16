@@ -92,6 +92,7 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 
 	lpData.eyePos = Weapon_ShootPosition(localPlayer);
 	lpData.velocity = localPlayer->velocity();
+	lpData.origin = localPlayer->origin();
 	lpData.time = globalVars->interval_per_tick * localPlayer->tickBase();
 
 	float recoilScale = 1.f;
@@ -201,12 +202,13 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		playerTrack.UndoPush();
 }
 
-void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket)
+void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
 {
 	maxBacktrack = Engine::CalculateBacktrackTime();
 
 	SourceBhop::Run(cmd, &lpData);
 	SourceAutostrafer::Run(cmd, &lpData);
+	SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
 	//Aimbot part
 	Target target;
 	target.id = -1;

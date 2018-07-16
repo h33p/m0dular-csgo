@@ -13,8 +13,8 @@
 #include "macros.h"
 
 #if defined(__linux__)
-#define RUNFRAME_TICK 0x2
-#define RUNFRAME_SERVERTICK 0x6
+#define RUNFRAME_TICK 0x3
+#define RUNFRAME_SERVERTICK 0x4
 #elif defined(__APPLE__)
 #define RUNFRAME_TICK 0xb
 #define RUNFRAME_SERVERTICK 0x1
@@ -97,7 +97,7 @@ namespace FwBridge
 	extern int hitboxToHitbox[];
 	void UpdatePlayers(CUserCmd* cmd);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
-	void RunFeatures(CUserCmd* cmd, bool* bSendPacket);
+	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
 }
 
 #endif

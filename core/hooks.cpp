@@ -20,10 +20,19 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 		return ret;
 
 	bool* bSendPacket = nullptr;
+	void* runFrameFp = ****(void*****)FRAME_POINTER();
 
-	FwBridge::UpdateLocalData(cmd, ****(void*****)FRAME_POINTER());
+#if defined(__linux__)
+	bSendPacket = **(bool***)FRAME_POINTER() - 0x18;
+#elif defined(__APPLE__)
+	bSendPacket = **(bool***)FRAME_POINTER() - 0x8;
+#else
+	bSendPacket = *(bool**)FRAME_POINTER() - 0x1C;
+#endif
+
+	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
-	FwBridge::RunFeatures(cmd, bSendPacket);
+	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
 	if (cmd->buttons & IN_ATTACK2)
 		Unload();
 
