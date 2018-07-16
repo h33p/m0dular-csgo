@@ -29,7 +29,6 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			CCSGOPlayerAnimState* animState = ent->animState();
 			AnimationLayer* layers = ent->animationLayers();
 			isMoving[pID] = (layers[4].weight != 0.0 || layers[6].cycle != 0.0 || layers[5].weight != 0.0) && ent->velocity().LengthSqr<2>() > 0.01f;
 		}

@@ -20,7 +20,7 @@
 #define RUNFRAME_SERVERTICK 0x1
 #else
 #define RUNFRAME_TICK 0x6
-#define RUNFRAME_SERVERTICK 0x15
+#define RUNFRAME_SERVERTICK 0x10
 #endif
 
 extern CBaseClient* cl;
