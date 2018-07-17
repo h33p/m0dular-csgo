@@ -4,8 +4,9 @@
 bool Visuals::shouldDraw = false;
 
 //Temporary debugging of the hit shot resolver
-HistoryList<zvec3, 6> starts;
-HistoryList<zvec3, 6> ends;
+constexpr int HISTORY_COUNT = 2;
+HistoryList<zvec3, HISTORY_COUNT> starts;
+HistoryList<zvec3, HISTORY_COUNT> ends;
 vec3_t start;
 vec3_t end;
 int best = 0;
@@ -53,7 +54,7 @@ void Visuals::Draw()
 		}
 	}
 
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < HISTORY_COUNT; i++) {
 
 		bool flags[16];
 		zvec3 screenStartPos = w2s.WorldToScreen(starts.GetLastItem(i), screen, flags);

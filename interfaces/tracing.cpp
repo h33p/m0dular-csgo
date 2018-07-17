@@ -1,14 +1,15 @@
 #include "../sdk/framework/interfaces/tracing.h"
+#include "../core/tracing.h"
 #include "../core/fw_bridge.h"
 #include "../core/engine.h"
 #include "../core/spread.h"
 
-static void TracePart1(vec3_t* eyePos, vec3_t point, trace_t* tr, C_BasePlayer* skipEnt)
+static void TracePart1(vec3_t eyePos, vec3_t point, trace_t* tr, C_BasePlayer* skipEnt)
 {
 	Ray_t ray;
 	CTraceFilter filter;
 
-	ray.Init(*eyePos, point);
+	ray.Init(eyePos, point);
 	filter.pSkip = skipEnt;
 
 	memset(tr, 0, sizeof(trace_t));
@@ -16,9 +17,12 @@ static void TracePart1(vec3_t* eyePos, vec3_t point, trace_t* tr, C_BasePlayer* 
 	engineTrace->TraceRay(ray, MASK_SHOT, &filter, tr);
 }
 
-static float TracePart2(LocalPlayer* localPlayer, Players* players, trace_t* tr, int eID)
+static float TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, trace_t* tr, int eID)
 {
-	if ((void*)tr->ent != players->instance[eID])
+	if (eID < 0 && tr->ent != FwBridge::localPlayer)
+		return -1.f;
+
+	if (eID >= 0 && (void*)tr->ent != players->instance[eID])
 		return -1.f;
 
 	int hbID = FwBridge::hitboxIDs[tr->hitbox];
@@ -26,17 +30,39 @@ static float TracePart2(LocalPlayer* localPlayer, Players* players, trace_t* tr,
 	if (hbID < 0)
 		return -1.f;
 
-	float distance = ((vec3)localPlayer->eyePos - tr->endpos).Length();
-	float damage = localPlayer->weaponDamage * powf(localPlayer->weaponRangeModifier, distance * 0.002f);
+	float distance = ((vec3)eyePos - tr->endpos).Length();
+	float damage = weaponDamage * powf(weaponRangeModifier, distance * 0.002f);
 
+	//HACK HACK HACK this is very unsafe, we just assume there will be a player
+	if (eID < 0)
+		return damage * players->hitboxes[0].damageMul[hbID];
 	return (int)(damage * players->hitboxes[eID].damageMul[hbID]);
 }
+
+int Tracing2::TracePlayers(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, vec3_t point, int eID, int depth, C_BasePlayer* skipEnt)
+{
+	trace_t tr;
+	TracePart1(eyePos, point, &tr, skipEnt);
+	return TracePart2(eyePos, weaponDamage, weaponRangeModifier, players, &tr, eID);
+}
+
+template<size_t N>
+void Tracing2::TracePlayersSIMD(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, vec3soa<float, N> point, int eID, int out[N], int depth, C_BasePlayer* skipEnt)
+{
+	trace_t tr[N];
+	for (size_t i = 0; i < N; i++)
+		TracePart1(eyePos, (vec3_t)point.acc[i], tr + i, skipEnt);
+	for (size_t i = 0; i < N; i++)
+		out[i] = TracePart2(eyePos, weaponDamage, weaponRangeModifier, players, tr + i, eID);
+}
+
+template void Tracing2::TracePlayersSIMD<MULTIPOINT_COUNT>(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, mvec3 point, int eID, int out[MULTIPOINT_COUNT], int depth, C_BasePlayer* skipEnt);
 
 int Tracing::TracePlayers(LocalPlayer* localPlayer, Players* players, vec3_t point, int eID, int depth, bool skipLocal)
 {
 	trace_t tr;
-	TracePart1(&localPlayer->eyePos, point, &tr, skipLocal ? FwBridge::localPlayer : nullptr);
-	return TracePart2(localPlayer, players, &tr, eID);
+	TracePart1(localPlayer->eyePos, point, &tr, skipLocal ? FwBridge::localPlayer : nullptr);
+	return TracePart2(localPlayer->eyePos, localPlayer->weaponDamage, localPlayer->weaponRangeModifier, players, &tr, eID);
 }
 
 template<size_t N>
@@ -45,9 +71,9 @@ void Tracing::TracePlayersSIMD(LocalPlayer* localPlayer, Players* players, vec3s
 	trace_t tr[N];
 	C_BasePlayer* skipEnt = skipLocal ? FwBridge::localPlayer : nullptr;
 	for (size_t i = 0; i < N; i++)
-		TracePart1(&localPlayer->eyePos, (vec3_t)point.acc[i], tr + i, skipEnt);
+		TracePart1(localPlayer->eyePos, (vec3_t)point.acc[i], tr + i, skipEnt);
 	for (size_t i = 0; i < N; i++)
-		out[i] = TracePart2(localPlayer, players, tr + i, eID);
+		out[i] = TracePart2(localPlayer->eyePos, localPlayer->weaponDamage, localPlayer->weaponRangeModifier, players, tr + i, eID);
 }
 
 //Template size definitions to make the linking successful

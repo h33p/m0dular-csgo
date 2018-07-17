@@ -18,7 +18,7 @@ if build_machine.system() != 'windows'
 	linker_args += ['-fno-rtti']
 endif
 
-core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp']
+core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp']
 interface_files = ['interfaces/tracing.cpp']
 framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp', 'sdk/framework/utils/intersect.cpp']
 

@@ -55,6 +55,7 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent);
   About the game side - not much you can do.
 */
 static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPlayers);
+static void UpdateEyePos(Players& __restrict players, Players& __restrict prevPlayers);
 static void UpdateBoundsStart(Players& __restrict players, Players& __restrict prevPlayers);
 static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict prevPlayers);
 static void UpdateVelocity(Players& __restrict players, Players& __restrict prevPlayers);
@@ -194,6 +195,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		//While it is being done, let's update other data on a seperate thread
 		//Flags depend on the animation fix fixing up the player.
 		UpdateOrigin(data.players, data.prevPlayers);
+		UpdateEyePos(data.players, data.prevPlayers);
 		Impacts::Tick();
 		Engine::StartAnimationFix(&data.players, &data.prevPlayers);
 		Threading::QueueJobRef(ThreadedUpdate, &data);
@@ -235,50 +237,53 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 	Target target;
 	target.id = -1;
 
-	//We can only shoot once until we take a shot
-	if (lastPrimary != activeWeapon->nextPrimaryAttack())
-		allowShoot = false;
-	lastPrimary = activeWeapon->nextPrimaryAttack();
-	if (!allowShoot)
-		allowShoot = (state == FakelagState::REAL);
-	if (!allowShoot)
-		lpData.keys &= ~Keys::ATTACK1;
+	if (activeWeapon) {
+		//We can only shoot once until we take a shot
+		if (lastPrimary != activeWeapon->nextPrimaryAttack())
+			allowShoot = false;
+		lastPrimary = activeWeapon->nextPrimaryAttack();
+		if (!allowShoot)
+			allowShoot = (state == FakelagState::REAL);
+		if (!allowShoot)
+			lpData.keys &= ~Keys::ATTACK1;
 
-	if (allowShoot && activeWeapon && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (true || lpData.keys & Keys::ATTACK1)) {
-		bool hitboxList[MAX_HITBOXES];
-		memset(hitboxList, 0xff, sizeof(hitboxList));
+		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (true || lpData.keys & Keys::ATTACK1)) {
+			bool hitboxList[MAX_HITBOXES];
+			memset(hitboxList, 0x0, sizeof(hitboxList));
+			hitboxList[0] = true;
 
-		target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack, hitboxList);
-		//Disable the actual aimbot for now
-		//lpData.angles = cmd->viewangles;
+			target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack, hitboxList);
+			//Disable the actual aimbot for now
+			//lpData.angles = cmd->viewangles;
+
+			if (target.id >= 0) {
+				cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+				if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+					lpData.keys &= ~Keys::ATTACK1;
+			} else
+				lpData.angles -= lpData.aimOffset;
+			Spread::CompensateSpread(cmd);
+		}
 
 		if (target.id >= 0) {
-			cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-			if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
-				lpData.keys &= ~Keys::ATTACK1;
-		} else
-			lpData.angles -= lpData.aimOffset;
-		Spread::CompensateSpread(cmd);
-	}
+			vec3_t dir, up, down;
+			(lpData.angles + lpData.aimOffset).GetVectors(dir, up, down, true);
+			vec3_t endPoint = dir * lpData.weaponRange + lpData.eyePos;
 
-	if (target.id >= 0) {
-		vec3_t dir, up, down;
-		(lpData.angles + lpData.aimOffset).GetVectors(dir, up, down, true);
-		vec3_t endPoint = dir * lpData.weaponRange + lpData.eyePos;
+			CapsuleColliderSOA<SIMD_COUNT>* colliders = playerTrack.GetLastItem(target.backTick).colliders[target.id];
 
-		CapsuleColliderSOA<SIMD_COUNT>* colliders = playerTrack.GetLastItem(target.backTick).colliders[target.id];
+			unsigned int flags = 0;
 
-		unsigned int flags = 0;
+			if (playerTrack.GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
+				for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
+					flags |= colliders[i].Intersect(lpData.eyePos, endPoint);
 
-		if (lpData.keys & Keys::ATTACK1)
-			for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
-				flags |= colliders[i].Intersect(lpData.eyePos, endPoint);
-
-		if (!flags)
-			target.id = -1;
-		else {
-			lpData.keys |= Keys::ATTACK1;
-			cmd->buttons |= IN_ATTACK;
+			if (!flags)
+				target.id = -1;
+			else if (false) { //TODO: autoshoot option
+				lpData.keys |= Keys::ATTACK1;
+				cmd->buttons |= IN_ATTACK;
+			}
 		}
 	}
 
@@ -321,6 +326,22 @@ static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPl
 			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
 			if (pID < prevPlayers.count)
 				players.origin[i] = prevPlayers.origin[pID];
+		}
+	}
+}
+
+static void UpdateEyePos(Players& __restrict players, Players& __restrict prevPlayers)
+{
+	for (int i = 0; i < players.count; i++) {
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		if (players.flags[i] & Flags::UPDATED) {
+			float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
+			players.eyePos[i] = players.origin[i];
+			players.eyePos[i][2] += eyeOffset;
+		} else if (players.flags[i] & Flags::EXISTS) {
+			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			if (pID < prevPlayers.count)
+				players.eyePos[i] = prevPlayers.eyePos[pID];
 		}
 	}
 }

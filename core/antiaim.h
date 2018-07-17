@@ -5,9 +5,13 @@
 
 struct CUserCmd;
 
+constexpr int FREESTAND_ANGLES = 36;
+constexpr float ANGLE_STEP = 360.f / FREESTAND_ANGLES;
+
 namespace Antiaim
 {
 	void Run(CUserCmd* cmd, FakelagState state);
+	float CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES] = nullptr);
 }
 
 #endif

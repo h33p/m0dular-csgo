@@ -3,6 +3,7 @@
 #include "engine.h"
 #include "visuals.h"
 #include "resolver.h"
+#include "temporary_animations.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 
@@ -280,13 +281,8 @@ static void ProcessHitEntity(BulletData data)
 	vec3_t entBOrigin = (vec3)ent->GetClientRenderable()->GetRenderOrigin();
 	float eyeYaw = ent->eyeAngles()[1];
 	vec3 angsBackup = ent->angles();
-	AnimationLayer animationLayers[13];
 	matrix3x4_t matrix[128];
-	CCSGOPlayerAnimState animStateBackup = *animState;
-	memcpy(animationLayers, ent->animationLayers(), sizeof(AnimationLayer) * 13);
-	float curtime = globalVars->curtime;
-	float frametime = globalVars->frametime;
-	int framecount = globalVars->framecount;
+	TemporaryAnimations anims(ent, -lerpTicks);
 
 	PlayerBackup& backup = historyStates.GetLastItem(lerpTicks);
 	vec3_t entOrigin = backup.origin[data.hitEnt];
@@ -300,10 +296,6 @@ static void ProcessHitEntity(BulletData data)
 	float shootAngles = (rend - start).GetAngles(true)[1];
 	float goalFeetYawDelta = NormalizeFloat(animState->goalFeetYaw - eyeYaw, -180.f, 180.f);
 	float rotationDelta = NormalizeFloat(ent->angles()[1] - eyeYaw, -180.f, 180.f);
-
-	globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick - lerpTicks;
-	globalVars->frametime = globalVars->interval_per_tick;
-	globalVars->framecount = animState->frameCount + 1;
 
 	Visuals::PassStart(start, rend);
 	ent->clientSideAnimation() = true;
@@ -338,7 +330,7 @@ static void ProcessHitEntity(BulletData data)
 			vec3 angs = ent->angles();
 			angs[1] = NormalizeFloat(rotationDelta + ent->eyeAngles()[1], 0.f, 360.f);
 			SetAbsAngles(ent, angs);
-			memcpy(ent->animationLayers(), backup.layers[data.hitEnt], sizeof(AnimationLayer) * 13);
+			anims.RestoreState();
 			Engine::UpdatePlayer(ent, matrix);
 
 			collider.start.acc[o] = matrix[hitbox->bone].Vector3Transform(hitbox->bbmin);
@@ -349,10 +341,8 @@ static void ProcessHitEntity(BulletData data)
 
 			SetAbsAngles(ent, angsBackup);
 			ent->eyeAngles()[1] = eyeYaw;
-			*animState = animStateBackup;
 		}
 
-		memcpy(ent->animationLayers(), animationLayers, sizeof(AnimationLayer) * 13);
 		Visuals::PassColliders(collider.start, collider.end);
 		unsigned int flags = collider.Intersect(start, end, &closestDir);
 
@@ -375,9 +365,6 @@ static void ProcessHitEntity(BulletData data)
 		resolvedAngle[data.hitEnt] = NormalizeFloat(bestAngle, 0.f, 360.f);
 	}
 
-	globalVars->curtime = curtime;
-	globalVars->frametime = frametime;
-	globalVars->framecount = framecount;
 }
 
 static void ProcessLocalImpacts(bool hitShot, int hitbox)
