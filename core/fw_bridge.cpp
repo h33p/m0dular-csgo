@@ -1,5 +1,6 @@
 #include "fw_bridge.h"
 
+#define SOURCE_DEFINITIONS
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/features/features.h"

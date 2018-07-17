@@ -5,7 +5,11 @@
 #include "tracing.h"
 #include "visuals.h"
 
+#include "../sdk/features/features.h"
+
 static void CalculateBases();
+static void LBYTimer(LocalPlayer& lp);
+static void LBYBreaker(LocalPlayer& lp);
 
 static float viewAngle = 0.f;
 static float atTargetAngle = 0.f;
@@ -13,8 +17,6 @@ static float atTargetAverageAngle = 0.f;
 static float freeStandAngle = 0.f;
 static bool safeAngles[FREESTAND_ANGLES];
 static int lastFreeStandID = 0;
-
-static bool applyAngles = false;
 
 constexpr float FREESTAND_THRESHOLD = 10.f;
 
@@ -26,8 +28,14 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 	LocalPlayer& lp = FwBridge::lpData;
 	lp.angles.x = 89;
 	CalculateBases();
-	lp.angles.y = freeStandAngle + 180.f;
-	applyAngles = true;
+
+	if (state == FakelagState::FAKE) {
+		lp.angles.y = atTargetAngle;
+	} else if (state == FakelagState::REAL) {
+		lp.angles.y = freeStandAngle - 180.f;
+		LBYTimer(lp);
+		LBYBreaker(lp);
+	}
 }
 
 float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
@@ -79,7 +87,6 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 	if (!closestEnt)
 		return 0.f;
 
-	cvar->ConsoleDPrintf("CLOSEST\n");
 	float bestAngle = (closestPlayer - origin).GetAngles(true)[1];
 
 	//Get the index of the head bone
@@ -197,7 +204,7 @@ static void CalculateBases()
 	*((char*)FwBridge::localPlayer + 0x42BD) = 1;
 	{
 		vec3_t vPitch = FwBridge::localPlayer->localAngles();
-		TemporaryAnimations anims(FwBridge::localPlayer, 1.f, true);
+		TemporaryAnimations anims(FwBridge::localPlayer, 10.f, true);
 		FwBridge::localPlayer->localAngles()[0] = FwBridge::lpData.angles.x;
 		freeStandAngle = Antiaim::CalculateFreestanding(-1, safeAngles);
 		anims.RestoreState();
@@ -206,10 +213,62 @@ static void CalculateBases()
 		anims.RestoreState();
 	}
 	*((char*)FwBridge::localPlayer + 0x42BD) = val;
+	FwBridge::localPlayer->angles()[0] = 0.f;
 	SetAbsAngles(FwBridge::localPlayer, FwBridge::localPlayer->angles());
 	Engine::UpdatePlayer(FwBridge::localPlayer, nullptr);
 
 	if (safeAngles[lastFreeStandID])
 		freeStandAngle = lastFreeStandID * ANGLE_STEP;
 	lastFreeStandID = (int)(freeStandAngle / ANGLE_STEP + 0.5f);
+}
+
+static float MinBreakerDelta(int chokeTicks)
+{
+	return 100.f;
+}
+
+static vec3_t prevOrigin;
+static float prevCurtime = 0.f;
+static float nextCurtime = 0.f;
+static float targetLBY = 0.f;
+static bool shouldBreak = false;
+static bool isMoving = false;
+static bool onGround = false;
+
+static void LBYTimer(LocalPlayer& lp)
+{
+	vec3_t velocity = (lp.origin - prevOrigin) * (1.f / (lp.time - prevCurtime));
+
+	C_BasePlayer* ent = FwBridge::localPlayer;
+	AnimationLayer* layers = ent->animationLayers();
+
+	isMoving = (layers[4].weight != 0.0 || layers[6].cycle != 0.0 || layers[5].weight != 0.0) && velocity.LengthSqr<2>() > 0.01f;
+	onGround = SourceEnginePred::prevFlags & FL_ONGROUND;
+
+	prevCurtime = lp.time;
+	prevOrigin = lp.origin;
+
+	shouldBreak = false;
+
+	if (onGround) {
+		if (isMoving) {
+			nextCurtime = lp.time + 0.22f;
+			targetLBY = lp.angles.y;
+		}
+
+		if (lp.time > nextCurtime) {
+			nextCurtime = lp.time + 1.1f;
+		    shouldBreak = true;
+		}
+	}
+}
+
+static void LBYBreaker(LocalPlayer& lp)
+{
+	C_BasePlayer* ent = FwBridge::localPlayer;
+
+	if (shouldBreak)
+		lp.angles.y = targetLBY;
+	else if (!isMoving)
+		lp.angles.y = targetLBY + 170.f;
 }
