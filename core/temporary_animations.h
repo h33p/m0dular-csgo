@@ -8,8 +8,11 @@ class TemporaryAnimations
 {
   public:
 	TemporaryAnimations(C_BasePlayer* ent, float timeOffset = 0, bool setTime = false);
+	TemporaryAnimations();
 	~TemporaryAnimations();
+	void Init(C_BasePlayer* ent, float timeOffset = 0, bool setTime = false);
 	void RestoreState();
+	void SetTime(float timeOffset = 0);
   private:
 	C_BasePlayer* ent;
 	vec3_t angles;
@@ -20,6 +23,7 @@ class TemporaryAnimations
 	float curtime;
 	float frametime;
 	int framecount;
+	bool init;
 };
 
 #endif

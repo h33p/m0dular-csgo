@@ -8,16 +8,22 @@
 
 bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 {
+	//TODO: put these to the player class
 	*(int*)((uintptr_t)ent + x64x32(0xFEC, 0xA30)) = globalVars->framecount;
 	*(int*)((uintptr_t)ent + x64x32(0xFE4, 0xA28)) = 0;
-	*(unsigned long*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
+	*(int*)((uintptr_t)ent + x64x32(0xFE0, 0xA24)) = -1;
+	*(float*)((uintptr_t)ent + x64x32(0x2F80, 0x2914)) = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
+	*(uintptr_t*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
+
+	ent->lastBoneFrameCount() = globalVars->framecount - 2;
+	ent->prevBoneMask() = 0;//~BONE_USED_BY_ANYTHING;
 
 	ent->varMapping().interpolatedEntries = 0;
 
-	int flags = ent->flags();
-	ent->flags() |= EF_NOINTERP;
-	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, globalVars->curtime);
-	ent->flags() = flags;
+	int flags = ent->effects();
+	ent->effects() |= EF_NOINTERP;
+	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
+	ent->effects() = flags;
 
 	return ret;
 }
@@ -105,12 +111,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			CCSGOPlayerAnimState* animState = ent->animState();
 			ent->clientSideAnimation() = true;
-
-			globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick;
-			globalVars->frametime = globalVars->interval_per_tick;
-			globalVars->framecount = animState->frameCount + 1;
 
 			int pID = players->unsortIDs[i];
 			pFlags[i] = ent->flags();
@@ -123,7 +124,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 				else
 					ent->flags() &= ~FL_ONGROUND;
 			} else
-				ent->flags() |= FL_ONGROUND;
+				  ent->flags() |= FL_ONGROUND;
 
 			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
@@ -137,7 +138,12 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			CCSGOPlayerAnimState* animState = ent->animState();
 			int pID = players->unsortIDs[i];
+
+			globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick;
+			globalVars->frametime = globalVars->interval_per_tick;
+			globalVars->framecount = animState->frameCount + 1;
 
 			//Here we will resolve the player
 			//ent->eyeAngles()[1] = 180.f;
@@ -201,8 +207,10 @@ float Engine::LerpTime()
 	if (minUdRate && maxUdRate)
 		updateRate = std::clamp(updateRate, (float)(int)minUdRate->GetFloat(), (float)(int)maxUdRate->GetFloat());
 
+	interpRatio->SetValue(32.f);
 	float ratio = interpRatio->GetFloat();
 
+	clInterp->SetValue(0.2f);
 	float lerp = clInterp->GetFloat();
 
 	if (minInterp && maxInterp && minInterp->GetFloat() != -1)

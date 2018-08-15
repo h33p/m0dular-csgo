@@ -1,5 +1,6 @@
 #include "visuals.h"
 #include "fw_bridge.h"
+#include "lagcompensation.h"
 
 bool Visuals::shouldDraw = false;
 
@@ -11,8 +12,12 @@ vec3_t start;
 vec3_t end;
 int best = 0;
 int besti = 0;
+int btTick = -1;
 
 #ifdef PT_VISUALS
+static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen);
+void RenderPlayerCapsules(Players& pl, Color col);
+
 void Visuals::Draw()
 {
 	if (!engine->IsInGame()) {
@@ -23,7 +28,6 @@ void Visuals::Draw()
 	if (!shouldDraw)
 		return;
 
-	auto& pl = FwBridge::playerTrack.GetLastItem(0);
 	static matrix4x4& w2s = (matrix4x4&)engine->WorldToScreenMatrix();
 
 	vec2 screen;
@@ -32,26 +36,10 @@ void Visuals::Draw()
 	screen[0] = w;
 	screen[1] = h;
 
-	int count = pl.count;
-
-	for (int i = 0; i < count; i++) {
-		for (int o = 0; o < MAX_HITBOXES; o++) {
-			mvec3 mpVec = pl.hitboxes[i].mpOffset[o];
-			mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o];
-			mpVec += ptVec;
-			mpVec = pl.hitboxes[i].wm[o].VecSoaTransform(mpVec);
-
-			bool flags[mpVec.Yt];
-			mvec3 screenPos = w2s.WorldToScreen(mpVec, screen, flags);
-
-			for (size_t u = 0; u < MULTIPOINT_COUNT; u++) {
-				if (!flags[u])
-					continue;
-				vec3 screen = (vec3)screenPos.acc[u];
-				surface->DrawSetColor(Color(1.f, 0.f, 0.f, 1.f));
-				surface->DrawFilledRect(screen[0]-2, screen[1]-2, screen[0]+2, screen[1]+2);
-			}
-		}
+	//RenderPlayer(FwBridge::playerTrack.GetLastItem(0), w2s, screen);
+	if (LagCompensation::futureTrack) {
+	    for (int i = 0; i < LagCompensation::futureTrack->Count(); i+=1)
+			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen);
 	}
 
 	for (int i = 0; i < HISTORY_COUNT; i++) {
@@ -88,6 +76,58 @@ void Visuals::Draw()
 		surface->DrawLine(startPos[0], startPos[1], endPos[0], endPos[1]);
 	}
 }
+
+static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen)
+{
+
+	int count = pl.count;
+
+	for (int i = 0; i < count; i++) {
+		for (int o = 0; o < MAX_HITBOXES; o++) {
+			mvec3 mpVec = pl.hitboxes[i].mpOffset[o];
+			mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o];
+			mpVec += ptVec;
+			mpVec = pl.hitboxes[i].wm[o].VecSoaTransform(mpVec);
+
+			bool flags[mpVec.Yt];
+			mvec3 screenPos = w2s.WorldToScreen(mpVec, screen, flags);
+
+			for (size_t u = 0; u < MULTIPOINT_COUNT; u++) {
+				if (!flags[u])
+					continue;
+				vec3 screen = (vec3)screenPos.acc[u];
+				surface->DrawSetColor(Color(1.f, 0.f, 0.f, 1.f));
+				surface->DrawFilledRect(screen[0]-2, screen[1]-2, screen[0]+2, screen[1]+2);
+			}
+		}
+
+		vec3_t start = pl.origin[i];
+		vec3_t end = start + (vec3_t){{{0, 0, 30}}};
+		bool flags = false, flags2 = false;
+		vec3_t screenPos = w2s.WorldToScreen(start, screen, flags);
+		vec3_t screenPosEnd = w2s.WorldToScreen(end, screen, flags2);
+
+		if (flags && flags2) {
+			surface->DrawSetColor((pl.flags[i] & Flags::ONGROUND) ? Color(1.f, 0.3f, 0.f, 1.f) : Color(0.f, 0.3f, 1.f));
+			surface->DrawFilledRect(screenPosEnd[0]-2, screenPosEnd[1]-2, screenPos[0]+2, screenPos[1]+2);
+		}
+	}
+
+}
+
+void RenderPlayerCapsules(Players& pl, Color col)
+{
+	int count = pl.count;
+
+	for (int i = 0; i < count; i++) {
+		for (int o = 0; o < MAX_HITBOXES; o++) {
+			vec3 mins = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].start[o]);
+			vec3 maxs = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].end[o]);
+			debugOverlay->DrawPill(mins, maxs, pl.hitboxes[i].radius[o], col, 5.f);
+		}
+	}
+}
+
 #endif
 
 void Visuals::PassColliders(vec3soa<float, 16> start, vec3soa<float, 16> end)

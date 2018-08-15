@@ -19,6 +19,8 @@ static float resolveBases[MAX_PLAYERS][ResolveBase::BASE_MAX];
 static RandomResolver groundResolver;
 static RandomResolver inAirResolver;
 
+float Resolver::resolvedAngles[MAX_PLAYERS];
+
 void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 {
 	bool isMoving[MAX_PLAYERS];
@@ -76,7 +78,9 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 			} else
 				targetAng = inAirResolver.ResolvePlayer(pID);
 
+			resolvedAngles[pID] = targetAng;
 			ent->eyeAngles()[1] = targetAng;
+			ent->eyeAngles()[0] = 89.f;
 		}
 	}
 }

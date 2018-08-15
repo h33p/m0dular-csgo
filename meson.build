@@ -9,6 +9,8 @@ add_project_arguments('-DPT_VISUALS', language : 'cpp')
 compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '-DRESOLVEBASECOUNT=7', '-DMULTIPOINT_COUNT=8', '-DNUM_THREADS=4']
 if not get_option('buildtype').startswith('debug')
 	compile_args += ['-flto']
+else
+  compile_args += ['-g', '-O0']
 endif
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
 linker_args = compile_args
@@ -18,7 +20,7 @@ if build_machine.system() != 'windows'
 	linker_args += ['-fno-rtti']
 endif
 
-core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp']
+core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/lagcompensation.cpp']
 interface_files = ['interfaces/tracing.cpp']
 framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp', 'sdk/framework/utils/intersect.cpp']
 

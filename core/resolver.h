@@ -5,6 +5,8 @@
 
 namespace Resolver
 {
+	extern float resolvedAngles[MAX_PLAYERS];
+
 	void Run(Players* __restrict players, Players* __restrict prevPlayers);
 	void ShootPlayer(int player, bool onGround);
 	void HitPlayer(int player, bool onGround, float angle);

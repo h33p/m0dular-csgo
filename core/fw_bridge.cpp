@@ -12,11 +12,14 @@
 #include "visuals.h"
 #include "impacts.h"
 #include "antiaim.h"
+#include "lagcompensation.h"
 
 #include <algorithm>
 
 
 C_BasePlayer* FwBridge::localPlayer = nullptr;
+int FwBridge::playerCount = 0;
+uint64_t FwBridge::playersFl = 0;
 C_BaseCombatWeapon* FwBridge::activeWeapon = nullptr;
 float FwBridge::maxBacktrack = 0;
 int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
@@ -34,14 +37,6 @@ struct SortData {
 };
 
 static SortData players[64];
-
-struct UpdateData
-{
-	Players& players;
-	Players& prevPlayers;
-
-	UpdateData(Players& p1, Players& p2) : players(p1), prevPlayers(p2) {}
-};
 
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state);
@@ -120,7 +115,7 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
-	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1));
+	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1), false);
 	data.players.count = engine->GetMaxClients();
 
 	int count = 0;
@@ -128,12 +123,17 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		data.players.sortIDs[i] = MAX_PLAYERS;
 
-	for (int i = 1; i < 64; i++)
-	{
+	playerCount = 0;
+	playersFl = 0;
+
+	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
 
 		if (!ent || !ent->IsPlayer() || ent->IsDormant() || i == 0)
 			continue;
+
+		playerCount = i;
+		playersFl |= (1ull << i);
 
 #ifdef _WIN32
 		C_BasePlayer* hookEnt = ent+1;
@@ -192,20 +192,28 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	//We want to push empty lists only if the previous list was not empty.
 	if (count > 0 || data.prevPlayers.count > 0) {
-		//Updating the hitboxes calls engine functions that only work on the main thread
-		//While it is being done, let's update other data on a seperate thread
-		//Flags depend on the animation fix fixing up the player.
-		UpdateOrigin(data.players, data.prevPlayers);
-		UpdateEyePos(data.players, data.prevPlayers);
-		Impacts::Tick();
-		Engine::StartAnimationFix(&data.players, &data.prevPlayers);
-		Threading::QueueJobRef(ThreadedUpdate, &data);
-		UpdateHitboxes(data.players, data.prevPlayers);
-		UpdateColliders(data.players, data.prevPlayers);
-		Threading::FinishQueue();
-		SwitchFlags(data.players, data.prevPlayers);
+		FinishUpdating(&data);
+		LagCompensation::Run();
 	} else
 		playerTrack.UndoPush();
+}
+
+void FwBridge::FinishUpdating(UpdateData* data)
+{
+	//Updating the hitboxes calls engine functions that only work on the main thread
+	//While it is being done, let's update other data on a seperate thread
+	//Flags depend on the animation fix fixing up the player.
+	UpdateOrigin(data->players, data->prevPlayers);
+	UpdateEyePos(data->players, data->prevPlayers);
+	if (!data->additionalUpdate) {
+		Impacts::Tick();
+		Engine::StartAnimationFix(&data->players, &data->prevPlayers);
+	}
+	Threading::QueueJobRef(ThreadedUpdate, data);
+	UpdateHitboxes(data->players, data->prevPlayers);
+	UpdateColliders(data->players, data->prevPlayers);
+	Threading::FinishQueue();
+	SwitchFlags(data->players, data->prevPlayers);
 }
 
 void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
@@ -232,6 +240,8 @@ using namespace FwBridge;
 static bool allowShoot = false;
 float lastPrimary = 0.f;
 
+void RenderPlayerCapsules(Players& pl, Color col);
+extern int btTick;
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 {
 	//Aimbot part
@@ -248,44 +258,58 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 		if (!allowShoot)
 			lpData.keys &= ~Keys::ATTACK1;
 
-		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (true || lpData.keys & Keys::ATTACK1)) {
+		btTick = -1;
+
+		if (!LagCompensation::futureTrack)
+			return;
+
+		auto& track = FwBridge::playerTrack;
+
+		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (lpData.keys & Keys::ATTACK1)) {
 			bool hitboxList[MAX_HITBOXES];
 			memset(hitboxList, 0x0, sizeof(hitboxList));
 			hitboxList[0] = true;
 
-			target = Aimbot::RunAimbot(&playerTrack, &lpData, maxBacktrack, hitboxList);
+			target = Aimbot::RunAimbot(&track, &lpData, maxBacktrack, hitboxList);
 			//Disable the actual aimbot for now
 			//lpData.angles = cmd->viewangles;
 
 			if (target.id >= 0) {
-				cmd->tick_count = TimeToTicks(playerTrack.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-				if (false && !Spread::HitChance(&playerTrack.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+				btTick = target.backTick;
+				cmd->tick_count = TimeToTicks(track.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+				if (false && !Spread::HitChance(&track.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
 					lpData.keys &= ~Keys::ATTACK1;
+
+				if (btTick >= 0)
+					RenderPlayerCapsules(track.GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f));
 			} else
 				lpData.angles -= lpData.aimOffset;
-			Spread::CompensateSpread(cmd);
 		}
+
+		if (btTick > BACKTRACK_TICKS)
+			btTick = BACKTRACK_TICKS;
 
 		if (target.id >= 0) {
 			vec3_t dir, up, down;
 			(lpData.angles + lpData.aimOffset).GetVectors(dir, up, down, true);
 			vec3_t endPoint = dir * lpData.weaponRange + lpData.eyePos;
 
-			CapsuleColliderSOA<SIMD_COUNT>* colliders = playerTrack.GetLastItem(target.backTick).colliders[target.id];
+			CapsuleColliderSOA<SIMD_COUNT>* colliders = track.GetLastItem(target.backTick).colliders[target.id];
 
 			unsigned int flags = 0;
 
-			if (playerTrack.GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
+			if (track.GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
 				for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
 					flags |= colliders[i].Intersect(lpData.eyePos, endPoint);
 
-			if (!flags)
+			if (false && !flags)
 				target.id = -1;
 			else if (false) { //TODO: autoshoot option
 				lpData.keys |= Keys::ATTACK1;
 				cmd->buttons |= IN_ATTACK;
 			}
 		}
+		Spread::CompensateSpread(cmd);
 	}
 
 	aimbotTargets.Push(target);
@@ -298,6 +322,8 @@ static void ThreadedUpdate(UpdateData* data)
 	UpdateVelocity(data->players, data->prevPlayers);
 	UpdateHealth(data->players, data->prevPlayers);
 	UpdateArmor(data->players, data->prevPlayers);
+	if (!data->additionalUpdate)
+		LagCompensation::PreRun();
 }
 
 //Sort the players for better data layout, in this case - by FOV
@@ -395,6 +421,7 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 		HitboxList& hbList = players.hitboxes[i];
 		int hb = -1;
 		if (players.flags[i] & Flags::UPDATED) {
+
 			studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 			if (!hdr)
 				continue;

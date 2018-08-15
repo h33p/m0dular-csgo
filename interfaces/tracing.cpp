@@ -101,6 +101,7 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 	for (int i = 0; i < count; i++) {
 		int id = players->unsortIDs[i];
 		if (players->flags[i] & Flags::HITBOXES_UPDATED &&
+			FwBridge::playersFl & (1ull << id) &&
 			~backtrackMask[id] & BTMask::NON_BACKTRACKABLE &&
 			(~backtrackMask[id] & FIRST_TIME_DONE || (players->origin[i] - prevOrigin[id]).LengthSqr() < 4096)) {
 			validPlayer = true; //In CSGO 3D length square is used to check for lagcomp breakage
@@ -113,7 +114,7 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 	if (validPlayer) {
 		for (int i = 0; i < count; i++) {
 			int id = players->unsortIDs[i];
-			if (players->flags[i] & Flags::HITBOXES_UPDATED && ~backtrackMask[id] & BTMask::NON_BACKTRACKABLE) {
+			if (players->flags[i] & Flags::HITBOXES_UPDATED && FwBridge::playersFl & (1ull << id) && ~backtrackMask[id] & BTMask::NON_BACKTRACKABLE) {
 				C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
 				vec3 origin = (vec3)players->origin[i];
 				SetAbsOrigin(ent, origin);

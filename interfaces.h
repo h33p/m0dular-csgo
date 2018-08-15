@@ -21,6 +21,7 @@ const InterfaceDefinition interfaceList[] = {
 	INTERFACE(panel, vguiLib, "VGUI_Panel", false),
 	INTERFACE(surface, surfaceLib, "VGUI_Surface", false),
 	INTERFACE(gameEvents, engineLib, "GAMEEVENTSMANAGER002", true),
+	INTERFACE(debugOverlay, engineLib, "VDebugOverlay", false),
 };
 
 #endif

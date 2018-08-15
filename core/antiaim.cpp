@@ -30,9 +30,9 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 	CalculateBases();
 
 	if (state == FakelagState::FAKE) {
-		lp.angles.y = atTargetAngle;
+		lp.angles.y = atTargetAngle + RandomFloat(-180.f, 180.f);
 	} else if (state == FakelagState::REAL) {
-		lp.angles.y = freeStandAngle - 180.f;
+		lp.angles.y = atTargetAngle - 180.f;
 		LBYTimer(lp);
 		LBYBreaker(lp);
 	}

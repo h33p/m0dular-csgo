@@ -32,6 +32,7 @@ IViewRender* viewRender = nullptr;
 void* weaponDatabase = nullptr;
 CClientEffectRegistration** effectsHead = nullptr;
 IGameEventManager* gameEvents = nullptr;
+IVDebugOverlay* debugOverlay = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
@@ -220,4 +221,14 @@ void Unload()
 	shuttingDown = true;
 	thread_t t;
 	Threading::StartThread((threadFn)UnloadThread, (void*)&t, true, &t);
+}
+
+InterfaceReg** GetInterfaceRegs(MHandle library)
+{
+#if defined(__linux__) || defined(__APPLE__)
+    return (InterfaceReg**)dlsym(library, StackString("s_pInterfaceRegs"));
+#elif defined(_WIN32)
+	uintptr_t jmp = (uintptr_t)GetProcAddress(library, StackString("CreateInterface")) + 4;
+    return *(InterfaceReg***)(GetAbsoluteAddress(jmp, 1, 5) + 6);
+#endif
 }

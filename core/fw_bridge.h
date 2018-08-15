@@ -39,6 +39,7 @@ extern IViewRender* viewRender;
 extern void* weaponDatabase;
 extern CClientEffectRegistration** effectsHead;
 extern IGameEventManager* gameEvents;
+extern IVDebugOverlay* debugOverlay;
 
 typedef void (*CL_RunPredictionFn)(void);
 typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
@@ -73,6 +74,18 @@ extern RandomFloatExpFn RandomFloatExp;
 extern RandomIntFn RandomInt;
 extern RandomGaussianFloatFn RandomGaussianFloat;
 
+
+struct UpdateData
+{
+	Players& players;
+	Players& prevPlayers;
+	bool additionalUpdate;
+
+	UpdateData(Players& p1, Players& p2, bool b1)
+		: players(p1), prevPlayers(p2), additionalUpdate(b1) {}
+};
+
+
 #define TICK_INTERVAL globalVars->interval_per_tick
 
 inline float TicksToTime(int ticks)
@@ -88,6 +101,8 @@ inline int TimeToTicks(float time)
 namespace FwBridge
 {
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
+	extern int playerCount;
+	extern uint64_t playersFl;
 	extern LocalPlayer lpData;
 	extern C_BasePlayer* localPlayer;
 	extern C_BaseCombatWeapon* activeWeapon;
@@ -96,6 +111,7 @@ namespace FwBridge
 	extern HistoryList<Target, BACKTRACK_TICKS> aimbotTargets;
 	extern int hitboxToHitbox[];
 	void UpdatePlayers(CUserCmd* cmd);
+	void FinishUpdating(UpdateData* data);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
 }

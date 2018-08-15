@@ -25,8 +25,8 @@ struct PlayerBackup
 static HistoryList<BulletData, 20> eventsQueue;
 static HistoryList<BulletData, 20> worldImpacts;
 static HistoryList<BulletData, 20> localImpacts;
-static unsigned long long hitFlags = 0;
-static unsigned long long onGround = 0;
+static uint64_t hitFlags = 0;
+static uint64_t onGround = 0;
 static HistoryList<vec3_t, BACKTRACK_TICKS> prevShootOrigins;
 
 //There are problems in debug mode when loading having a large chunk of memory allocated in the data segment.
