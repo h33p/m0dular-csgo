@@ -244,6 +244,8 @@ float lastPrimary = 0.f;
 
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 extern int btTick;
+
+
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 {
 	//Aimbot part

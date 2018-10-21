@@ -124,7 +124,8 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 		}
 
 		vec3_t start = pl.origin[i];
-		vec3_t end = start + (vec3_t){{{0, 0, 30}}};
+		vec3_t offset = {{{0, 0, 30}}};
+		vec3_t end = start + offset;
 		bool flags = false, flags2 = false;
 		vec3_t screenPos = w2s.WorldToScreen(start, screen, flags);
 		vec3_t screenPosEnd = w2s.WorldToScreen(end, screen, flags2);
