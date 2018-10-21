@@ -18,6 +18,7 @@ static float freeStandAngle = 0.f;
 static bool safeAngles[FREESTAND_ANGLES];
 static int lastFreeStandID = 0;
 
+float sw = 0;
 constexpr float FREESTAND_THRESHOLD = 10.f;
 
 void Antiaim::Run(CUserCmd* cmd, FakelagState state)
@@ -26,13 +27,18 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 		return;
 
 	LocalPlayer& lp = FwBridge::lpData;
-	lp.angles.x = 89;
+	lp.angles.x = 91;
 	CalculateBases();
+
+	if (sw > 0)
+		sw = -1;
+	else
+		sw = 1;
 
 	if (state == FakelagState::FAKE) {
 		lp.angles.y = atTargetAngle + RandomFloat(-180.f, 180.f);
 	} else if (state == FakelagState::REAL) {
-		lp.angles.y = atTargetAngle - 180.f;
+		lp.angles.y = atTargetAngle - 180 + 15 * sw;
 		LBYTimer(lp);
 		LBYBreaker(lp);
 	}
@@ -206,10 +212,11 @@ static void CalculateBases()
 		vec3_t vPitch = FwBridge::localPlayer->localAngles();
 		TemporaryAnimations anims(FwBridge::localPlayer, 10.f, true);
 		FwBridge::localPlayer->localAngles()[0] = FwBridge::lpData.angles.x;
-		freeStandAngle = Antiaim::CalculateFreestanding(-1, safeAngles);
+		//TODO: Rework freestanding to do without animation updates -- rotate the bone matrix
+		//freeStandAngle = Antiaim::CalculateFreestanding(-1, safeAngles);
 		anims.RestoreState();
 		FwBridge::localPlayer->localAngles() = vPitch;
-		FwBridge::localPlayer->UpdateClientSideAnimation();
+		//FwBridge::localPlayer->UpdateClientSideAnimation();
 		anims.RestoreState();
 	}
 	*((char*)FwBridge::localPlayer + 0x42BD) = val;

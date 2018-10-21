@@ -84,31 +84,42 @@ enum BTMask
 {
 	NON_BACKTRACKABLE = (1 << 0),
 	FIRST_TIME_DONE = (1 << 1),
+	BREAKING_LC = (1 << 2)
 };
 
 static vec3_t prevOrigin[MAX_PLAYERS];
+static ConVar* cl_lagcompensation = nullptr;
 
 bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char backtrackMask[MAX_PLAYERS])
 {
+	if (!cl_lagcompensation)
+		cl_lagcompensation = cvar->FindVar(ST("cl_lagcompensation"));
+
+	bool lcBreak = cl_lagcompensation && !cl_lagcompensation->GetBool();
+
 	int count = players->count;
 
 	for (int i = 0; i < count; i++)
-		if (players->flags[i] & Flags::HITBOXES_UPDATED && players->time[i] < FwBridge::maxBacktrack && backtrackMask[players->unsortIDs[i]] & FIRST_TIME_DONE)
+		if (players->flags[i] & Flags::HITBOXES_UPDATED && (lcBreak || fabsf(players->time[i] - FwBridge::backtrackCurtime) > 0.2f) && backtrackMask[players->unsortIDs[i]] & FIRST_TIME_DONE)
 			return false;
 
 	bool validPlayer = false;
 
 	for (int i = 0; i < count; i++) {
 		int id = players->unsortIDs[i];
+		float distDelta = (players->origin[i] - prevOrigin[id]).LengthSqr();
 		if (players->flags[i] & Flags::HITBOXES_UPDATED &&
 			FwBridge::playersFl & (1ull << id) &&
 			~backtrackMask[id] & BTMask::NON_BACKTRACKABLE &&
-			(~backtrackMask[id] & FIRST_TIME_DONE || (players->origin[i] - prevOrigin[id]).LengthSqr() < 4096)) {
+			(~backtrackMask[id] & FIRST_TIME_DONE || distDelta < 4096.f)) {
 			validPlayer = true; //In CSGO 3D length square is used to check for lagcomp breakage
 			backtrackMask[id] |= FIRST_TIME_DONE;
 			prevOrigin[id] = players->origin[i];
-		} else
+		} else {
 			backtrackMask[id] |= NON_BACKTRACKABLE;
+			if (distDelta >= 4096.f)
+				backtrackMask[id] |= BREAKING_LC;
+		}
 	}
 
 	if (validPlayer) {
@@ -127,4 +138,12 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 	}
 
 	return validPlayer;
+}
+
+bool Tracing::VerifyTarget(Players* players, int id, char backtrackMask[MAX_PLAYERS])
+{
+	bool lcBreak = cl_lagcompensation && !cl_lagcompensation->GetBool();
+	float timeDelta = fabsf(players->time[id] - FwBridge::backtrackCurtime);
+	cvar->ConsoleDPrintf("%d %f\n", id, timeDelta);
+	return (backtrackMask[id] & BREAKING_LC) || lcBreak || timeDelta <= 0.2f;
 }

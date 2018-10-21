@@ -23,6 +23,7 @@ float Resolver::resolvedAngles[MAX_PLAYERS];
 
 void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 {
+	return;
 	bool isMoving[MAX_PLAYERS];
 	int count = players->count;
 	vec3_t atTarget = FwBridge::lpData.eyePos;

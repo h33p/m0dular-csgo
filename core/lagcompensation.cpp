@@ -111,6 +111,7 @@ static void UpdatePart1(uint64_t copyFlags)
 	INetChannelInfo* nci = engine->GetNetChannelInfo();
 	float latency = nci ? nci->GetLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) : 0.f;
 	latency += Engine::LerpTime();
+	latency = 0;
 	int futureTicks = latency / globalVars->interval_per_tick;
 	int cnt = 0;
 
@@ -167,7 +168,7 @@ static void UpdatePart1(uint64_t copyFlags)
 				dirty |= (1ull << o);
 				unsortIDs[pc] = o;
 				sortIDs[o] = pc++;
-				velocityTime[i] = mul[i] * (4096.f / fmaxf(0.001f, velocities[i][0].LengthSqr()));
+				velocityTime[o] = mul[o] * (4096.f / fmaxf(0.001f, velocities[o][0].LengthSqr()));
 				nextSimtime[o] += TicksToTime(TimeToTicks(fminf(velocityTime[o] + chokeAverage[o][mul[o]], MAX_CHOKESIM)));
 			}
 		}
@@ -178,8 +179,12 @@ static void UpdatePart1(uint64_t copyFlags)
 			memcpy(next.sortIDs, sortIDs, sizeof(next.sortIDs));
 			memcpy(next.unsortIDs, unsortIDs, sizeof(next.sortIDs));
 			memset(next.flags, 0, sizeof(next.flags));
-			for (int o = 0; o < next.count; o++)
+			for (int o = 0; o < next.count; o++) {
 				next.time[o] = nextSimtime[unsortIDs[o]];
+				next.flags[o] |= Flags::EXISTS;
+				if (FwBridge::localPlayer->teamNum() == instances[unsortIDs[o]]->teamNum())
+					next.flags[o] |= Flags::FRIENDLY;
+			}
 		}
 	}
 
@@ -224,7 +229,7 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 		vec3_t torig = origin;
 
 		if (LagCompensation::quality > 0 || vel.LengthSqr() > 10)
-			SourceGameMovement::PlayerMove(ent, &torig, &vel, &onGround, false, interval);
+			SourceGameMovement::PlayerMove(ent, &torig, &vel, &onGround, true, interval);
 		velocity = vel;
 		origin = torig;
 		interval = fmaxf(fminf(interval, ct - *curtime), globalVars->interval_per_tick);
@@ -267,7 +272,8 @@ static void UpdatePart2()
 			anims[i].Init(instances[i]);
 			circles[i] = Circle(origins[i][0], origins[i][1], origins[i][2]);
 			origin[i] = origins[i][0];
-			velocity[i] = velocities[i][0];
+			velocity[i] = instances[i]->velocity();
+			instances[i]->velocity() = Engine::velocities[i];
 			tcSim[i] = 0;
 			tmSim[i] = 0;
 		}
@@ -280,7 +286,7 @@ static void UpdatePart2()
 		UpdateData data(p, *prevTrack, true);
 		for (int o = 0; o < p.count; o++) {
 			int pID = p.unsortIDs[o];
-			if (!instances[pID])
+			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY)
 				continue;
 			tmSim[pID] += p.time[o] - csimtimes[pID];
 			tcSim[pID]++;

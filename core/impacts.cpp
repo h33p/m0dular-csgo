@@ -378,13 +378,14 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 	float ping = nci ? nci->GetAvgLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) + Engine::LerpTime(): 0.f;
 	int pingTicks = ping / globalVars->interval_per_tick;
 	int margin = 0.05f / globalVars->interval_per_tick;
-	Target* aimbotTarget = nullptr;
+	AimbotTarget* aimbotTarget = nullptr;
 	int pb = 1024;
 	int pbi = 0;
 
 	for (int i = std::max(pingTicks - margin, 0); i < pingTicks + margin; i++) {
-		Target& target = FwBridge::aimbotTargets.GetLastItem(i);
+		AimbotTarget& target = FwBridge::aimbotTargets.GetLastItem(i);
 
+		//TODO: handle future ticks
 		if (target.id < 0 || std::abs(i - pingTicks) > pb)
 			continue;
 

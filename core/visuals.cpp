@@ -13,15 +13,17 @@ vec3_t end;
 int best = 0;
 int besti = 0;
 int btTick = -1;
+float lastSimtimes[MAX_PLAYERS];
 
 #ifdef PT_VISUALS
-static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen);
-void RenderPlayerCapsules(Players& pl, Color col);
+static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
+void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 
 void Visuals::Draw()
 {
 	if (!engine->IsInGame()) {
 		shouldDraw = false;
+		memset(lastSimtimes, 0, sizeof(lastSimtimes));
 		return;
 	}
 
@@ -36,10 +38,30 @@ void Visuals::Draw()
 	screen[0] = w;
 	screen[1] = h;
 
-	//RenderPlayer(FwBridge::playerTrack.GetLastItem(0), w2s, screen);
+	RenderPlayer(FwBridge::playerTrack.GetLastItem(0), w2s, screen, Color(1.f, 0.f, 0.f, 1.f));
 	if (LagCompensation::futureTrack) {
-	    for (int i = 0; i < LagCompensation::futureTrack->Count(); i+=1)
-			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen);
+	    for (int i = 0; i < 1 && i < LagCompensation::futureTrack->Count(); i+=1)
+			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen, Color(0.f, 0.f, 1.f, 1.f));
+	}
+
+	Players& curP = FwBridge::playerTrack[0];
+
+	bool rendered[MAX_PLAYERS];
+	memset(rendered, 0, MAX_PLAYERS);
+
+	for (int i = 10000; i < FwBridge::playerTrack.Count(); i++) {
+		Players& p = FwBridge::playerTrack[i];
+		for (int o = 0; o < curP.count; o++) {
+			int pID = curP.Resort(p, o);
+			if (pID < p.count) {
+				//TODO: Compare hitboxes and draw the same ones
+				if (!rendered[o] && lastSimtimes[curP.unsortIDs[o]] < p.time[pID] && false) {
+					lastSimtimes[curP.unsortIDs[o]] = p.time[pID];
+					RenderPlayerCapsules(p, Color(1.f, 0.f, 0.f, 1.f), pID);
+					rendered[o] = true;
+				}
+			}
+		}
 	}
 
 	for (int i = 0; i < HISTORY_COUNT; i++) {
@@ -77,7 +99,7 @@ void Visuals::Draw()
 	}
 }
 
-static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen)
+static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 {
 
 	int count = pl.count;
@@ -96,7 +118,7 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen)
 				if (!flags[u])
 					continue;
 				vec3 screen = (vec3)screenPos.acc[u];
-				surface->DrawSetColor(Color(1.f, 0.f, 0.f, 1.f));
+				surface->DrawSetColor(col);
 				surface->DrawFilledRect(screen[0]-2, screen[1]-2, screen[0]+2, screen[1]+2);
 			}
 		}
@@ -115,16 +137,17 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen)
 
 }
 
-void RenderPlayerCapsules(Players& pl, Color col)
+void RenderPlayerCapsules(Players& pl, Color col, int id)
 {
 	int count = pl.count;
 
 	for (int i = 0; i < count; i++) {
-		for (int o = 0; o < MAX_HITBOXES; o++) {
-			vec3 mins = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].start[o]);
-			vec3 maxs = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].end[o]);
-			debugOverlay->DrawPill(mins, maxs, pl.hitboxes[i].radius[o], col, 5.f);
-		}
+		if (id < 0 || id == i)
+			for (int o = 0; o < MAX_HITBOXES; o++) {
+				vec3 mins = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].start[o]);
+				vec3 maxs = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].end[o]);
+				debugOverlay->DrawPill(mins, maxs, pl.hitboxes[i].radius[o], col, 5.f);
+			}
 	}
 }
 

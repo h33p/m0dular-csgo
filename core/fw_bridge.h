@@ -106,9 +106,9 @@ namespace FwBridge
 	extern LocalPlayer lpData;
 	extern C_BasePlayer* localPlayer;
 	extern C_BaseCombatWeapon* activeWeapon;
-	extern float maxBacktrack;
+	extern float backtrackCurtime;
 	extern int hitboxIDs[];
-	extern HistoryList<Target, BACKTRACK_TICKS> aimbotTargets;
+	extern HistoryList<AimbotTarget, BACKTRACK_TICKS> aimbotTargets;
 	extern int hitboxToHitbox[];
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);

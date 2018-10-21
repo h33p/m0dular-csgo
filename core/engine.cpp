@@ -42,6 +42,9 @@ void Engine::StartLagCompensation()
 
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 
+		if (!ent)
+			continue;
+
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 		if (!hdr) {
 			numBones[id] = 0;
@@ -65,6 +68,9 @@ void Engine::EndLagCompensation()
 		int id = players.unsortIDs[i];
 
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+
+		if (!ent)
+			continue;
 
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 		if (!hdr)
@@ -96,7 +102,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	size_t count = players->count;
 
 	for (size_t i = 0; i < count; i++) {
-		if (prevPlayers->sortIDs[players->unsortIDs[i]] >= prevPlayers->count)
+		if (players->Resort(*prevPlayers, i) >= prevPlayers->count)
 			continue;
 		C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
 		memcpy(serverAnimations[i], ent->animationLayers(), sizeof(AnimationLayer) * 13);
@@ -128,7 +134,8 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
-			velocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
+			if (ent->simulationTime() - prevSimulationTime[pID] > 0.f)
+				velocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
 			SetAbsVelocity(ent, velocities[pID]);
 		}
 	}
@@ -169,7 +176,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	globalVars->framecount = framecount;
 
 	for (size_t i = 0; i < count; i++) {
-		if (prevPlayers->sortIDs[players->unsortIDs[i]] >= prevPlayers->count)
+		if (players->Resort(*prevPlayers, i) >= prevPlayers->count)
 			continue;
 		C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
 		memcpy(ent->animationLayers(), serverAnimations[i], sizeof(AnimationLayer) * 13);
@@ -232,7 +239,7 @@ float Engine::CalculateBacktrackTime()
 	correct += lerpTime;
 	correct = fmaxf(0.f, fminf(correct, 1.f));
 
-	return globalVars->curtime - 0.2f - correct;
+	return globalVars->curtime - correct;
 }
 
 void Engine::Shutdown()

@@ -21,11 +21,11 @@ C_BasePlayer* FwBridge::localPlayer = nullptr;
 int FwBridge::playerCount = 0;
 uint64_t FwBridge::playersFl = 0;
 C_BaseCombatWeapon* FwBridge::activeWeapon = nullptr;
-float FwBridge::maxBacktrack = 0;
+float FwBridge::backtrackCurtime = 0;
 int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer FwBridge::lpData;
-HistoryList<Target, BACKTRACK_TICKS> FwBridge::aimbotTargets;
+HistoryList<AimbotTarget, BACKTRACK_TICKS> FwBridge::aimbotTargets;
 
 
 static ConVar* weapon_recoil_scale = nullptr;
@@ -133,7 +133,6 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 			continue;
 
 		playerCount = i;
-		playersFl |= (1ull << i);
 
 #ifdef _WIN32
 		C_BasePlayer* hookEnt = ent+1;
@@ -154,6 +153,8 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 			lpData.ID = i;
 			continue;
 		}
+
+		playersFl |= (1ull << i);
 
 		vec3_t angle = ((vec3_t)ent->origin() - lpData.eyePos).GetAngles(true);
 		vec3_t angleDiff = (lpData.angles - angle).NormalizeAngles<2>(-180.f, 180.f);
@@ -181,8 +182,9 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		int cflags;
 		UpdateFlags(flags, cflags, ent);
 
-		if (data.players.time[i] != data.prevPlayers.time[data.prevPlayers.sortIDs[data.players.unsortIDs[i]]] && ent->lifeState() == LIFE_ALIVE)
-			cflags |= Flags::UPDATED;
+		int pID = data.players.Resort(data.prevPlayers, i);
+		if (ent->lifeState() == LIFE_ALIVE && (pID >= MAX_PLAYERS || data.players.time[i] != data.prevPlayers.time[pID]))
+				cflags |= Flags::UPDATED;
 
 		data.players.flags[i] = cflags;
 	}
@@ -218,14 +220,14 @@ void FwBridge::FinishUpdating(UpdateData* data)
 
 void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
 {
-	maxBacktrack = Engine::CalculateBacktrackTime();
+	backtrackCurtime = Engine::CalculateBacktrackTime();
 
 	SourceBhop::Run(cmd, &lpData);
 	SourceAutostrafer::Run(cmd, &lpData);
-	FakelagState state = SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
+	FakelagState state = FakelagState::REAL;//SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
 	ExecuteAimbot(cmd, bSendPacket, state);
 
-	Antiaim::Run(cmd, state);
+	//Antiaim::Run(cmd, state);
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
 	Engine::EndLagCompensation();
@@ -240,12 +242,12 @@ using namespace FwBridge;
 static bool allowShoot = false;
 float lastPrimary = 0.f;
 
-void RenderPlayerCapsules(Players& pl, Color col);
+void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 extern int btTick;
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 {
 	//Aimbot part
-	Target target;
+	AimbotTarget target;
 	target.id = -1;
 
 	if (activeWeapon) {
@@ -260,19 +262,19 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 		btTick = -1;
 
-		if (!LagCompensation::futureTrack)
-			return;
-
 		auto& track = FwBridge::playerTrack;
 
-		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (lpData.keys & Keys::ATTACK1)) {
+		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (0 || lpData.keys & Keys::ATTACK1)) {
 			bool hitboxList[MAX_HITBOXES];
 			memset(hitboxList, 0x0, sizeof(hitboxList));
 			hitboxList[0] = true;
 
-			target = Aimbot::RunAimbot(&track, &lpData, maxBacktrack, hitboxList);
-			//Disable the actual aimbot for now
-			//lpData.angles = cmd->viewangles;
+			target = Aimbot::RunAimbot(&track, LagCompensation::futureTrack, &lpData, hitboxList);
+
+			if (target.future) {
+				track = *LagCompensation::futureTrack;
+				cvar->ConsoleDPrintf("FUTURE AIM %d\n", target.backTick);
+			}
 
 			if (target.id >= 0) {
 				btTick = target.backTick;
@@ -280,8 +282,10 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 				if (false && !Spread::HitChance(&track.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
 					lpData.keys &= ~Keys::ATTACK1;
 
+#ifdef PT_VISUALS
 				if (btTick >= 0)
-					RenderPlayerCapsules(track.GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f));
+					RenderPlayerCapsules(track.GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
+#endif
 			} else
 				lpData.angles -= lpData.aimOffset;
 		}
@@ -304,13 +308,16 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 			if (false && !flags)
 				target.id = -1;
-			else if (false) { //TODO: autoshoot option
+			else if (true || false) { //TODO: autoshoot option
 				lpData.keys |= Keys::ATTACK1;
 				cmd->buttons |= IN_ATTACK;
 			}
 		}
 		Spread::CompensateSpread(cmd);
 	}
+
+	//Disable the actual aimbot for now
+	lpData.angles = cmd->viewangles;
 
 	aimbotTargets.Push(target);
 }
@@ -350,7 +357,7 @@ static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPl
 		if (players.flags[i] & Flags::UPDATED)
 			players.origin[i] = ent->origin();
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.origin[i] = prevPlayers.origin[pID];
 		}
@@ -366,7 +373,7 @@ static void UpdateEyePos(Players& __restrict players, Players& __restrict prevPl
 			players.eyePos[i] = players.origin[i];
 			players.eyePos[i][2] += eyeOffset;
 		} else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.eyePos[i] = prevPlayers.eyePos[pID];
 		}
@@ -380,7 +387,7 @@ static void UpdateBoundsStart(Players& __restrict players, Players& __restrict p
 		if (players.flags[i] & Flags::UPDATED)
 			players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->mins();
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT].Set(prevPlayers.boundsStart[pID / SIMD_COUNT].acc[pID % SIMD_COUNT]);
 		}
@@ -394,7 +401,7 @@ static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict pre
 		if (players.flags[i] & Flags::UPDATED)
 			players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->maxs();
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.boundsEnd[i / SIMD_COUNT].acc[i % SIMD_COUNT].Set(prevPlayers.boundsEnd[pID / SIMD_COUNT].acc[pID % SIMD_COUNT]);
 		}
@@ -597,7 +604,7 @@ static void UpdateHitboxes(Players& __restrict players, Players& __restrict prev
 			players.flags[i] |= Flags::HITBOXES_UPDATED;
 		}
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.hitboxes[i] = prevPlayers.hitboxes[pID];
 		}
@@ -628,7 +635,7 @@ static void UpdateColliders(Players& __restrict players, Players& __restrict pre
 					players.colliders[i][o].radius[u] = hitboxes.radius[o * SIMD_COUNT + u];
 			}
 		} else {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				for (int o = 0; o < NumOfSIMD(MAX_HITBOXES); o++)
 					players.colliders[i][o] = prevPlayers.colliders[pID][o];
@@ -643,7 +650,7 @@ static void UpdateVelocity(Players& __restrict players, Players& __restrict prev
 		if (players.flags[i] & Flags::UPDATED)
 			players.velocity[i] = ent->velocity();
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.velocity[i] = prevPlayers.velocity[pID];
 		}
@@ -657,7 +664,7 @@ static void UpdateHealth(Players& __restrict players, Players& __restrict prevPl
 		if (players.flags[i] & Flags::UPDATED)
 			players.health[i] = ent->health();
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.health[i] = prevPlayers.health[pID];
 		}
@@ -671,7 +678,7 @@ static void UpdateArmor(Players& __restrict players, Players& __restrict prevPla
 		if (players.flags[i] & Flags::UPDATED)
 			players.armor[i] = ent->armorValue();
 		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
+			int pID = players.Resort(prevPlayers, i);
 			if (pID < prevPlayers.count)
 				players.armor[i] = prevPlayers.armor[pID];
 		}
@@ -681,8 +688,8 @@ static void UpdateArmor(Players& __restrict players, Players& __restrict prevPla
 static void SwitchFlags(Players& __restrict players, Players& __restrict prevPlayers)
 {
 	for (int i = 0; i < players.count; i++) {
-		int pID = prevPlayers.sortIDs[players.unsortIDs[i]];
-		if (pID < prevPlayers.count && players.flags[i] & Flags::EXISTS && (~players.flags[i]) & Flags::UPDATED && prevPlayers.flags[pID] & Flags::UPDATED) {
+		int pID = players.Resort(prevPlayers, i);
+		if (pID < prevPlayers.count && players.flags[i] & Flags::EXISTS && (~players.flags[i]) & Flags::UPDATED && prevPlayers.flags[pID] & Flags::UPDATED && players.instance[i] == prevPlayers.instance[pID]) {
 			int fl = players.flags[i];
 			players.flags[i] = prevPlayers.flags[pID];
 			prevPlayers.flags[pID] = fl;

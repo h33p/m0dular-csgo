@@ -7,13 +7,15 @@ endif
 add_project_arguments('-DPT_VISUALS', language : 'cpp')
 
 compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '-DRESOLVEBASECOUNT=7', '-DMULTIPOINT_COUNT=8', '-DNUM_THREADS=4']
+#pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
+linker_args = compile_args
+
 if not get_option('buildtype').startswith('debug')
-	compile_args += ['-flto']
+	compile_args += ['-flto', '-Ofast', '-msse4.2']
+  linker_args += ['-flto']
 else
   compile_args += ['-g', '-O0']
 endif
-#pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
-linker_args = compile_args
 
 if build_machine.system() != 'windows'
 	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing']
@@ -44,7 +46,7 @@ if meson.is_cross_build()
 		cpu_family = host_machine.cpu_family()
 		if build_machine.system() != 'windows'
 			linker_args += '-fuse-ld=lld'
-			add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas']
+			add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas', '-Wno-deprecated-declarations', '-Wno-macro-redefined']
 
 			bf_dir = get_option('msvc_dir')
 			includes += join_paths(bf_dir, 'include/clang')
