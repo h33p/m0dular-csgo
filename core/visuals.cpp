@@ -19,6 +19,21 @@ float lastSimtimes[MAX_PLAYERS];
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 
+static bool CheckHitboxes(Players& p1, int p1ID, Players& p2, int p2ID)
+{
+	vec3_t origDelta = p1.origin[p1ID] - p2.origin[p2ID];
+
+	if (origDelta.LengthSqr<3>() < 100)
+		return false;
+
+	float maxDist = 0;
+
+	for (int i = 0; i < MAX_HITBOXES; i++)
+		maxDist = fmaxf(maxDist, (p1.hitboxes[p1ID].wm[i].Vector3Transform((vec3_t){{{0, 0, 0}}}) - p2.hitboxes[p2ID].wm[i].Vector3Transform((vec3_t){{{0, 0, 0}}}) + origDelta).LengthSqr<3>());
+
+	return maxDist < 50;
+}
+
 void Visuals::Draw()
 {
 	if (!engine->IsInGame()) {
@@ -49,13 +64,13 @@ void Visuals::Draw()
 	bool rendered[MAX_PLAYERS];
 	memset(rendered, 0, MAX_PLAYERS);
 
-	for (int i = 10000; i < FwBridge::playerTrack.Count(); i++) {
+	for (int i = 1; i < FwBridge::playerTrack.Count(); i++) {
 		Players& p = FwBridge::playerTrack[i];
 		for (int o = 0; o < curP.count; o++) {
 			int pID = curP.Resort(p, o);
 			if (pID < p.count) {
 				//TODO: Compare hitboxes and draw the same ones
-				if (!rendered[o] && lastSimtimes[curP.unsortIDs[o]] < p.time[pID] && false) {
+				if (!rendered[o] && lastSimtimes[curP.unsortIDs[o]] < p.time[pID] && CheckHitboxes(p, pID, curP, o)) {
 					lastSimtimes[curP.unsortIDs[o]] = p.time[pID];
 					RenderPlayerCapsules(p, Color(1.f, 0.f, 0.f, 1.f), pID);
 					rendered[o] = true;

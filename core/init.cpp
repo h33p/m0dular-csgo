@@ -164,9 +164,13 @@ static void InitializeDynamicHooks()
 
 void Shutdown()
 {
+	cvar->ConsoleDPrintf("Ending threads...\n");
+	int ret = Threading::EndThreads();
 
-	Threading::EndThreads();
+	if (ret)
+		cvar->ConsoleDPrintf("Error ending threads! (%d)\n", ret);
 
+	cvar->ConsoleDPrintf("Removing static hooks...\n");
 	if (hookClientMode) {
 		delete hookClientMode;
 		hookClientMode = nullptr;
@@ -177,6 +181,7 @@ void Shutdown()
 		hookPanel = nullptr;
 	}
 
+	cvar->ConsoleDPrintf("Removing entity hooks...\n");
 	if (CSGOHooks::entityHooks) {
 		for (auto& i : *CSGOHooks::entityHooks)
 			delete i.second;
@@ -184,8 +189,10 @@ void Shutdown()
 		CSGOHooks::entityHooks = nullptr;
 	}
 
+	cvar->ConsoleDPrintf("Removing effect hooks...\n");
 	EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
 
+	cvar->ConsoleDPrintf("Shutting down engine...\n");
 	Engine::Shutdown();
 }
 

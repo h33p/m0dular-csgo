@@ -12,11 +12,11 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 	*(int*)((uintptr_t)ent + x64x32(0xFEC, 0xA30)) = globalVars->framecount;
 	*(int*)((uintptr_t)ent + x64x32(0xFE4, 0xA28)) = 0;
 	*(int*)((uintptr_t)ent + x64x32(0xFE0, 0xA24)) = -1;
-	*(float*)((uintptr_t)ent + x64x32(0x2F80, 0x2914)) = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
+	ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
 	*(uintptr_t*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
 
 	ent->lastBoneFrameCount() = globalVars->framecount - 2;
-	ent->prevBoneMask() = 0;//~BONE_USED_BY_ANYTHING;
+	ent->prevBoneMask() = 0;
 
 	ent->varMapping().interpolatedEntries = 0;
 
@@ -151,16 +151,11 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick;
 			globalVars->frametime = globalVars->interval_per_tick;
 			globalVars->framecount = animState->frameCount + 1;
-
-			//Here we will resolve the player
-			//ent->eyeAngles()[1] = 180.f;
-			//ent->eyeAngles()[1] += (((int)globalVars->curtime) % 180);// ent->lowerBodyYawTarget();
-
-			//WIP abs angle fix, there must be a more correct way of doing this
-			//cvar->ConsoleDPrintf("%f %f %f\n", ent->eyeAngles()[1], ent->angles()[1], ent->lowerBodyYawTarget());
+			animState->updateTime = globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
 			ent->UpdateClientSideAnimation();
-			ent->angles()[1] = ent->animState()->currentFeetYaw;
+
+			ent->angles()[1] = animState->goalFeetYaw;
 			SetAbsAngles(ent, ent->angles());
 			SetAbsOrigin(ent, ent->origin());
 			ent->clientSideAnimation() = false;

@@ -237,9 +237,9 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 
 	if (updateAnims) {
 		ent->eyeAngles()[1] = Resolver::resolvedAngles[pID];
-		ent->UpdateClientSideAnimation();
+		/*ent->UpdateClientSideAnimation();
 		ent->angles()[1] = ent->animState()->currentFeetYaw;
-		SetAbsAngles(ent, ent->angles());
+		SetAbsAngles(ent, ent->angles());*/
 		SetAbsOrigin(ent, origin);
 	}
 

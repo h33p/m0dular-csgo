@@ -27,7 +27,7 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 		return;
 
 	LocalPlayer& lp = FwBridge::lpData;
-	lp.angles.x = 91;
+	lp.angles.x = 89;
 	CalculateBases();
 
 	if (sw > 0)
@@ -35,7 +35,9 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 	else
 		sw = 1;
 
-	if (state == FakelagState::FAKE) {
+	if (true)
+		lp.angles.y = RandomFloat(-180.f, 180.f);
+	else if (state == FakelagState::FAKE) {
 		lp.angles.y = atTargetAngle + RandomFloat(-180.f, 180.f);
 	} else if (state == FakelagState::REAL) {
 		lp.angles.y = atTargetAngle - 180 + 15 * sw;
@@ -122,7 +124,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 		float ang = i * ANGLE_STEP;
 		(*angles)[1] = NormalizeFloat(ang, -180.f, 180.f);
 		ent->animState()->goalFeetYaw = NormalizeFloat(ang - gfyOffset, 0, 360);
-		ent->UpdateClientSideAnimation();
+		//ent->UpdateClientSideAnimation();
 		ent->angles()[0] = 0.f;
 		ent->angles()[1] = ang;
 		ent->angles()[2] = 0.f;

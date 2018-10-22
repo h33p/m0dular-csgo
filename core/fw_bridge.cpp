@@ -224,10 +224,10 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 
 	SourceBhop::Run(cmd, &lpData);
 	SourceAutostrafer::Run(cmd, &lpData);
-	FakelagState state = FakelagState::REAL;//SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
+	FakelagState state = FakelagState::REAL; //SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
 	ExecuteAimbot(cmd, bSendPacket, state);
 
-	//Antiaim::Run(cmd, state);
+	Antiaim::Run(cmd, state);
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
 	Engine::EndLagCompensation();
@@ -264,29 +264,29 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 		btTick = -1;
 
-		auto& track = FwBridge::playerTrack;
+		auto* track = &FwBridge::playerTrack;
 
 		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (0 || lpData.keys & Keys::ATTACK1)) {
 			bool hitboxList[MAX_HITBOXES];
 			memset(hitboxList, 0x0, sizeof(hitboxList));
 			hitboxList[0] = true;
 
-			target = Aimbot::RunAimbot(&track, LagCompensation::futureTrack, &lpData, hitboxList);
+			target = Aimbot::RunAimbot(track, LagCompensation::futureTrack, &lpData, hitboxList);
 
 			if (target.future) {
-				track = *LagCompensation::futureTrack;
+				track = LagCompensation::futureTrack;
 				cvar->ConsoleDPrintf("FUTURE AIM %d\n", target.backTick);
 			}
 
 			if (target.id >= 0) {
 				btTick = target.backTick;
-				cmd->tick_count = TimeToTicks(track.GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-				if (false && !Spread::HitChance(&track.GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+				cmd->tick_count = TimeToTicks(track->GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
+				if (false && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
 					lpData.keys &= ~Keys::ATTACK1;
 
 #ifdef PT_VISUALS
 				if (btTick >= 0)
-					RenderPlayerCapsules(track.GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
+					RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
 #endif
 			} else
 				lpData.angles -= lpData.aimOffset;
@@ -300,11 +300,11 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 			(lpData.angles + lpData.aimOffset).GetVectors(dir, up, down, true);
 			vec3_t endPoint = dir * lpData.weaponRange + lpData.eyePos;
 
-			CapsuleColliderSOA<SIMD_COUNT>* colliders = track.GetLastItem(target.backTick).colliders[target.id];
+			CapsuleColliderSOA<SIMD_COUNT>* colliders = track->GetLastItem(target.backTick).colliders[target.id];
 
 			unsigned int flags = 0;
 
-			if (track.GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
+			if (track->GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
 				for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
 					flags |= colliders[i].Intersect(lpData.eyePos, endPoint);
 
@@ -319,7 +319,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 	}
 
 	//Disable the actual aimbot for now
-	lpData.angles = cmd->viewangles;
+	//lpData.angles = cmd->viewangles;
 
 	aimbotTargets.Push(target);
 }

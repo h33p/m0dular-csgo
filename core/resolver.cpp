@@ -81,7 +81,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 
 			resolvedAngles[pID] = targetAng;
 			ent->eyeAngles()[1] = targetAng;
-			ent->eyeAngles()[0] = 89.f;
+			//ent->eyeAngles()[0] = 89.f;
 		}
 	}
 }
