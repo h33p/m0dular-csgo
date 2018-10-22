@@ -69,6 +69,7 @@ if meson.is_cross_build()
 		linker_args += '-Bdynamic'
 		linker_args += '-lkernel32'
 		linker_args += '-lmsvcrt'
+		linker_args += '-Wl,-lldmap'
 	elif host_machine.system() == 'linux'
 		linker_args += '-fuse-ld=lld'
 		add_args = ['-target', 'x86_64-linux', '-flto']
@@ -81,6 +82,7 @@ endif
 
 if host_machine.system() == 'linux'
   linker_args += '-ldl'
+  linker_args += '-Wl,-Map=libm0dular.map'
 endif
 
 foreach p : libraries
