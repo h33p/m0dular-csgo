@@ -9,6 +9,7 @@
 void Unload();
 extern bool shuttingDown;
 
+[[gnu::flatten]]
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
 {
 	static auto origFn = hookClientMode->GetOriginal(SourceHooks::CreateMove);

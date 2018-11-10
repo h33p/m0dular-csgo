@@ -29,7 +29,7 @@ static bool CheckHitboxes(Players& p1, int p1ID, Players& p2, int p2ID)
 	float maxDist = 0;
 
 	for (int i = 0; i < MAX_HITBOXES; i++)
-		maxDist = fmaxf(maxDist, (p1.hitboxes[p1ID].wm[i].Vector3Transform((vec3_t){{{0, 0, 0}}}) - p2.hitboxes[p2ID].wm[i].Vector3Transform((vec3_t){{{0, 0, 0}}}) + origDelta).LengthSqr<3>());
+		maxDist = fmaxf(maxDist, (p1.hitboxes[p1ID].wm[i].Vector3Transform(vec3_t(0)) - p2.hitboxes[p2ID].wm[i].Vector3Transform(vec3_t(0)) + origDelta).LengthSqr<3>());
 
 	return maxDist < 50;
 }
@@ -139,7 +139,7 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 		}
 
 		vec3_t start = pl.origin[i];
-		vec3_t offset = {{{0, 0, 30}}};
+		vec3_t offset(0, 0, 30);
 		vec3_t end = start + offset;
 		bool flags = false, flags2 = false;
 		vec3_t screenPos = w2s.WorldToScreen(start, screen, flags);

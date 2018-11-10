@@ -128,7 +128,7 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 
 				int hbID = FwBridge::hitboxIDs[effectData.hitBox];
 
-				vec3_t addVec = {{{0, 0, 0}}};
+				vec3_t addVec(0, 0, 0);
 				if (hbID >= 0 && hbID < MAX_HITBOXES)
 					addVec.z = -effectOrigin.z -players.origin[pID][2] + players.hitboxes[pID].wm[hbID][2][3];
 
@@ -306,7 +306,7 @@ static void ProcessHitEntity(BulletData data)
 	ent->UpdateClientSideAnimation();
 	Engine::UpdatePlayer(ent, matrix);
 
-	vec3_t s = {{{0, 0, 0}}};
+	vec3_t s(0);
 	float boneOffset = (matrix[hitbox->bone].Vector3Transform(s) - entOrigin).GetAngles(true)[1] - eyeYaw;
 
 	//Get the direction we should move towards

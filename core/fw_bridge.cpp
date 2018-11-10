@@ -266,12 +266,12 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 		auto* track = &FwBridge::playerTrack;
 
-		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (0 || lpData.keys & Keys::ATTACK1)) {
+		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (lpData.keys & Keys::ATTACK1)) {
 			bool hitboxList[MAX_HITBOXES];
 			memset(hitboxList, 0x0, sizeof(hitboxList));
 			hitboxList[0] = true;
 
-			target = Aimbot::RunAimbot(track, LagCompensation::futureTrack, &lpData, hitboxList);
+			target = Aimbot::RunAimbot(track, nullptr, &lpData, hitboxList);
 
 			if (target.future) {
 				track = LagCompensation::futureTrack;
@@ -319,7 +319,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 	}
 
 	//Disable the actual aimbot for now
-	//lpData.angles = cmd->viewangles;
+	lpData.angles = cmd->viewangles;
 
 	aimbotTargets.Push(target);
 }

@@ -96,6 +96,7 @@ int prevFlags[MAX_PLAYERS];
 vec3_t prevOrigins[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
+float gFractionBackup[MAX_PLAYERS];
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
@@ -153,7 +154,10 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			globalVars->framecount = animState->frameCount + 1;
 			animState->updateTime = globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
+			animState->groundedFraction = gFractionBackup[pID];
 			ent->UpdateClientSideAnimation();
+			gFractionBackup[pID] = animState->groundedFraction;
+			animState->groundedFraction = 0;
 
 			ent->angles()[1] = animState->goalFeetYaw;
 			SetAbsAngles(ent, ent->angles());
@@ -223,6 +227,8 @@ float Engine::LerpTime()
 	return std::max(lerp, ratio / updateRate);
 }
 
+ConVar* sv_maxunlag = nullptr;
+
 float Engine::CalculateBacktrackTime()
 {
 	INetChannelInfo* nci = engine->GetNetChannelInfo();
@@ -230,9 +236,16 @@ float Engine::CalculateBacktrackTime()
 	float correct = nci ? nci->GetLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) : 0.f;
 
 	float lerpTime = LerpTime();
+	float maxunlag = 1.f;
+
+	if (!sv_maxunlag)
+		sv_maxunlag = cvar->FindVar("sv_maxunlag");
+
+	if (sv_maxunlag)
+		maxunlag = sv_maxunlag->GetFloat();
 
 	correct += lerpTime;
-	correct = fmaxf(0.f, fminf(correct, 1.f));
+	correct = fmaxf(0.f, fminf(correct, maxunlag));
 
 	return globalVars->curtime - correct;
 }

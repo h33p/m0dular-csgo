@@ -36,7 +36,7 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 		sw = 1;
 
 	if (true)
-		lp.angles.y = RandomFloat(-180.f, 180.f);
+		lp.angles.y = 90.f * sw;
 	else if (state == FakelagState::FAKE) {
 		lp.angles.y = atTargetAngle + RandomFloat(-180.f, 180.f);
 	} else if (state == FakelagState::REAL) {
@@ -68,7 +68,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 	}
 
 	//Find the closest enemy player
-	vec3_t closestPlayer = {{{0, 0, 0}}};
+	vec3_t closestPlayer(0);
 	float closestDistance = 10000000000000000.f;
 	float weaponDamage = 0.f;
 	float weaponRangeModifier = 0.f;
@@ -171,7 +171,7 @@ static void CalculateBases()
 	Players& players = FwBridge::playerTrack.GetLastItem(0);
 	int count = players.count;
 
-	vec3_t averagePlayer = {{{0, 0, 0}}};
+	vec3_t averagePlayer(0);
 	int cnt = 0;
 
 	for (int i = 0; i < count; i++) {
@@ -191,7 +191,7 @@ static void CalculateBases()
 	averagePlayer *= (1.f / cnt);
 	atTargetAverageAngle = (averagePlayer - FwBridge::lpData.eyePos).GetAngles(true)[1];
 
-	vec3_t closestPlayer = {{{0, 0, 0}}};
+	vec3_t closestPlayer(0);
 	float closestDistance = 10000000000000000.f;
 
 	for (int i = 0; i < count; i++) {
