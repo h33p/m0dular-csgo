@@ -109,10 +109,9 @@ static void UpdatePart1(uint64_t copyFlags)
 	track.Reset();
 
 	INetChannelInfo* nci = engine->GetNetChannelInfo();
-	float latency = nci ? nci->GetLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) : 0.f;
-	latency += Engine::LerpTime();
-	latency = 0;
+	float latency = nci ? nci->GetLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) - Engine::LerpTime() * 1: 0.f;
 	int futureTicks = latency / globalVars->interval_per_tick;
+
 	int cnt = 0;
 
 	float nextSimtime[MAX_PLAYERS];
@@ -134,6 +133,7 @@ static void UpdatePart1(uint64_t copyFlags)
 		}
 		if (instances[pID] != p.instance[i])
 			ignoreFlags |= (1ull << pID);
+
 		instances[pID] = (C_BasePlayer*)p.instance[i];
 	    velocities[pID].Push((vec3_t)instances[pID]->velocity());
 	}
@@ -164,6 +164,7 @@ static void UpdatePart1(uint64_t copyFlags)
 				continue;
 
 			velocity[o] += acceleration[o];
+
 			if (nextSimtime[o] <= simtimes[o][0] + interval * i) {
 				dirty |= (1ull << o);
 				unsortIDs[pc] = o;
@@ -236,10 +237,9 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	}
 
 	if (updateAnims) {
-		ent->eyeAngles()[1] = Resolver::resolvedAngles[pID];
-		/*ent->UpdateClientSideAnimation();
-		ent->angles()[1] = ent->animState()->currentFeetYaw;
-		SetAbsAngles(ent, ent->angles());*/
+		//ent->eyeAngles()[1] = Resolver::resolvedAngles[pID];
+		//ent->UpdateClientSideAnimation();
+		//SetAbsAngles(ent, ent->angles());
 		SetAbsOrigin(ent, origin);
 	}
 

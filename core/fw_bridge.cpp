@@ -13,6 +13,7 @@
 #include "impacts.h"
 #include "antiaim.h"
 #include "lagcompensation.h"
+#include "tracing.h"
 
 #include <algorithm>
 
@@ -271,8 +272,11 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 			memset(hitboxList, 0x0, sizeof(hitboxList));
 			hitboxList[0] = true;
 
-			target = Aimbot::RunAimbot(track, nullptr, &lpData, hitboxList);
+			int tc = Tracing2::traceCounter;
 
+			target = Aimbot::RunAimbot(track, LagCompensation::futureTrack, &lpData, hitboxList);
+
+			//cvar->ConsoleDPrintf("%zu %d\n", track->Count(), Tracing2::traceCounter - tc);
 			if (target.future) {
 				track = LagCompensation::futureTrack;
 				cvar->ConsoleDPrintf("FUTURE AIM %d\n", target.backTick);
