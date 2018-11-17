@@ -6,6 +6,7 @@
 #include "temporary_animations.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/framework/utils/intersect_impl.h"
+#include "../sdk/features/fakelag.h"
 
 /*
   Shot data is contained in both game events and effects.
@@ -375,9 +376,9 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 		return;
 
 	INetChannelInfo* nci = engine->GetNetChannelInfo();
-	float ping = nci ? nci->GetAvgLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) + Engine::LerpTime(): 0.f;
+	float ping = nci ? nci->GetAvgLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) + Engine::LerpTime() * globalVars->interval_per_tick: 0.f;
 	int pingTicks = ping / globalVars->interval_per_tick;
-	int margin = 0.05f / globalVars->interval_per_tick;
+	int margin = 0.05f / globalVars->interval_per_tick + SourceFakelag::prevChokeCount;
 	AimbotTarget* aimbotTarget = nullptr;
 	int pb = 1024;
 	int pbi = 0;
@@ -410,13 +411,15 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 		}
 	}
 
-	Players& players = FwBridge::playerTrack.GetLastItem(pbi);
-    CapsuleColliderSOA<SIMD_COUNT>* colliders = players.colliders[aimbotTarget->id];
+	Players& players = FwBridge::playerTrack.GetLastItem(pbi + aimbotTarget->backTick + 1);
+	CapsuleColliderSOA<SIMD_COUNT>* colliders = players.colliders[aimbotTarget->id];
 
 	unsigned int flags = 0;
 
+	vec3_t endPointPlus = endPoint + (endPoint - startPoint).Normalized() * 50.f;
+
 	for (size_t i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
-	    flags |= (colliders[i].Intersect(startPoint, endPoint) << (i * SIMD_COUNT));
+	    flags |= (colliders[i].Intersect(startPoint, endPointPlus) << (i * SIMD_COUNT));
 
 	Color colorOK = Color(0, 255, 0, 255);
 	Color colorMiss = Color(255, 0, 0, 255);
@@ -447,7 +450,13 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 			cvar->ConsoleColorPrintf(colorOK, ST("Hit shot due to spread!\n"));
 		else
 			cvar->ConsoleColorPrintf(colorOK, ST("Hit resolved shot!\n"));
+
 	}
+
+#ifdef PT_VISUALS
+	if (!flags && aimbotTarget)
+		Visuals::SetShotVectors(startPoint, endPoint, startPoint, aimbotTarget->targetVec);
+#endif
 }
 
 static void ProcessOtherHits()

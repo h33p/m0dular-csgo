@@ -177,6 +177,7 @@ static void UpdatePart1(uint64_t copyFlags)
 		if (pc > 0) {
 			Players& next = track.Push();
 			next.count = pc;
+			next.globalTime = globalVars->curtime + interval * (i + 1);
 			memcpy(next.sortIDs, sortIDs, sizeof(next.sortIDs));
 			memcpy(next.unsortIDs, unsortIDs, sizeof(next.sortIDs));
 			memset(next.flags, 0, sizeof(next.flags));
@@ -264,10 +265,13 @@ static void UpdatePart2()
 	int tcSim[MAX_PLAYERS];
 	float tmSim[MAX_PLAYERS];
 
+	vec3 originalOrigins[MAX_PLAYERS];
+
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & (1ull << i)) {
 			if (!instances[i])
 				continue;
+			originalOrigins[i] = instances[i]->GetClientRenderable()->GetRenderOrigin();
 			csimtimes[i] = simtimes[i][0];
 			anims[i].Init(instances[i]);
 			circles[i] = Circle(origins[i][0], origins[i][1], origins[i][2]);
@@ -306,6 +310,9 @@ static void UpdatePart2()
 
 			instances[i]->origin() = origin[i];
 			instances[i]->velocity() = velocity[i];
+
+			SetAbsOrigin(instances[i], originalOrigins[i]);
+			Engine::UpdatePlayer(instances[i], nullptr);
 		}
 	}
 }

@@ -20,9 +20,21 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 
 	ent->varMapping().interpolatedEntries = 0;
 
+	CCSGOPlayerAnimState* animState = ent->animState();
+
+	float fractionBackup = 0;
+	if (animState) {
+		fractionBackup = animState->groundedFraction;
+		animState->groundedFraction = 0;
+	}
+
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
 	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
+
+	if (animState)
+		animState->groundedFraction = fractionBackup;
+
 	ent->effects() = flags;
 
 	return ret;
@@ -96,7 +108,6 @@ int prevFlags[MAX_PLAYERS];
 vec3_t prevOrigins[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
-float gFractionBackup[MAX_PLAYERS];
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
@@ -154,10 +165,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			globalVars->framecount = animState->frameCount + 1;
 			animState->updateTime = globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
-			animState->groundedFraction = gFractionBackup[pID];
 			ent->UpdateClientSideAnimation();
-			gFractionBackup[pID] = animState->groundedFraction;
-			animState->groundedFraction = 0;
 
 			ent->angles()[1] = animState->goalFeetYaw;
 			SetAbsAngles(ent, ent->angles());
@@ -213,10 +221,8 @@ float Engine::LerpTime()
 	if (minUdRate && maxUdRate)
 		updateRate = std::clamp(updateRate, (float)(int)minUdRate->GetFloat(), (float)(int)maxUdRate->GetFloat());
 
-	interpRatio->SetValue(32.f);
 	float ratio = interpRatio->GetFloat();
 
-	clInterp->SetValue(0.2f);
 	float lerp = clInterp->GetFloat();
 
 	if (minInterp && maxInterp && minInterp->GetFloat() != -1)
@@ -252,8 +258,7 @@ float Engine::CalculateBacktrackTime()
 
 void Engine::Shutdown()
 {
-	for (int i = 1; i < 64; i++)
-	{
+	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
 
 		if (ent == FwBridge::localPlayer)

@@ -10,6 +10,7 @@
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
 #include "../sdk/framework/features/aimbot.h"
+#include "../sdk/framework/utils/settings.h"
 #include "macros.h"
 
 #if defined(__linux__)
@@ -110,6 +111,8 @@ namespace FwBridge
 	extern int hitboxIDs[];
 	extern HistoryList<AimbotTarget, BACKTRACK_TICKS> aimbotTargets;
 	extern int hitboxToHitbox[];
+	extern uint64_t immuneFlags;
+
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);

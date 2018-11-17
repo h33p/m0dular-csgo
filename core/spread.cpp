@@ -42,7 +42,7 @@ CapsuleCollider hitbox;
 static void PopulateRandomFloat();
 static void RunHitChance(HitChanceInput* inp);
 
-bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID)
+bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID, int chance)
 {
 	if (!randomPopulated)
 		PopulateRandomFloat();
@@ -79,7 +79,7 @@ bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int bo
 	for (int i = 0; i < HITCHANCE_JOBS; i++)
 		sum += tempOutput[i];
 
-	return (sum * 100) / 256 > 50;
+	return (sum * 100) / 256 >= chance;
 }
 
 static ConVar* sv_usercmd_custom_random_seed = nullptr;
@@ -103,7 +103,7 @@ void Spread::CompensateSpread(CUserCmd* cmd)
 
 	FwBridge::activeWeapon->UpdateAccuracyPenalty();
 
-	spreadVal = FwBridge::activeWeapon->GetSpread();
+	spreadVal = 0; //FwBridge::activeWeapon->GetSpread();
 	inaccuracyVal = FwBridge::activeWeapon->GetInaccuracy();
 
 	int randomSeed = cmd->random_seed % 256;

@@ -6,7 +6,7 @@
 
 namespace Spread
 {
-	bool HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID);
+	bool HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID, int chance);
 	void CompensateSpread(CUserCmd* cmd);
 }
 

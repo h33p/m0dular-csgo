@@ -15,6 +15,8 @@ int besti = 0;
 int btTick = -1;
 float lastSimtimes[MAX_PLAYERS];
 
+vec3_t sStart, sEnd, cStart, cEnd;
+
 #ifdef PT_VISUALS
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
@@ -33,6 +35,21 @@ static bool CheckHitboxes(Players& p1, int p1ID, Players& p2, int p2ID)
 
 	return maxDist < 50;
 }
+
+static void Draw3DLine(vec3_t start, vec3_t end, Color col, const matrix4x4& w2s, vec2 screen)
+{
+	bool flag1, flag2;
+
+	vec3_t startPos = w2s.WorldToScreen(start, screen, flag1);
+	vec3_t endPos = w2s.WorldToScreen(end, screen, flag2);
+
+	if (!flag1 || !flag2)
+		return;
+
+	surface->DrawSetColor(col);
+	surface->DrawLine(startPos[0], startPos[1], endPos[0], endPos[1]);
+}
+
 
 void Visuals::Draw()
 {
@@ -58,6 +75,10 @@ void Visuals::Draw()
 	    for (int i = 0; i < 1 && i < LagCompensation::futureTrack->Count(); i+=1)
 			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen, Color(0.f, 0.f, 1.f, 1.f));
 	}
+
+	Draw3DLine(cStart, cEnd, Color(1.f, 0.f, 0.f, 1.f), w2s, screen);
+	Draw3DLine(sStart, sEnd, Color(0.f, 1.f, 0.f, 1.f), w2s, screen);
+
 
 	Players& curP = FwBridge::playerTrack[0];
 
@@ -186,4 +207,12 @@ void Visuals::PassBest(int o, int i)
 {
 	besti = i;
 	best = o;
+}
+
+void Visuals::SetShotVectors(vec3_t serverStart, vec3_t serverEnd, vec3_t idealStart, vec3_t idealEnd)
+{
+	sStart = serverStart;
+	sEnd = serverEnd;
+	cStart = idealStart;
+	cEnd = idealEnd;
 }

@@ -14,6 +14,7 @@
 #include "antiaim.h"
 #include "lagcompensation.h"
 #include "tracing.h"
+#include "settings.h"
 
 #include <algorithm>
 
@@ -27,6 +28,7 @@ int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer FwBridge::lpData;
 HistoryList<AimbotTarget, BACKTRACK_TICKS> FwBridge::aimbotTargets;
+uint64_t FwBridge::immuneFlags = 0;
 
 
 static ConVar* weapon_recoil_scale = nullptr;
@@ -118,6 +120,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
 	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1), false);
 	data.players.count = engine->GetMaxClients();
+	data.players.globalTime = globalVars->curtime;
 
 	int count = 0;
 
@@ -126,6 +129,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	playerCount = 0;
 	playersFl = 0;
+	immuneFlags = 0;
 
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
@@ -183,6 +187,9 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		int cflags;
 		UpdateFlags(flags, cflags, ent);
 
+	    if (ent->health() <= 0 || ent->gunGameImmunity())
+			FwBridge::immuneFlags |= 1ull << players[i].id;
+
 		int pID = data.players.Resort(data.prevPlayers, i);
 		if (ent->lifeState() == LIFE_ALIVE && (pID >= MAX_PLAYERS || data.players.time[i] != data.prevPlayers.time[pID]))
 				cflags |= Flags::UPDATED;
@@ -219,19 +226,37 @@ void FwBridge::FinishUpdating(UpdateData* data)
 	SwitchFlags(data->players, data->prevPlayers);
 }
 
+static float prevBacktrackCurtime = 0;
+static int prevtc = 0;
+
 void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
 {
-	backtrackCurtime = Engine::CalculateBacktrackTime();
+	backtrackCurtime = Settings::aimbotBacktrack ? Engine::CalculateBacktrackTime() : TicksToTime(cmd->tick_count) + Engine::LerpTime();
 
-	SourceBhop::Run(cmd, &lpData);
-	SourceAutostrafer::Run(cmd, &lpData);
-	FakelagState state = FakelagState::REAL; //SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK));
-	ExecuteAimbot(cmd, bSendPacket, state);
+	if (Settings::aimbotSafeBacktrack)
+		backtrackCurtime = std::max(backtrackCurtime, prevBacktrackCurtime);
 
-	Antiaim::Run(cmd, state);
+	prevBacktrackCurtime = backtrackCurtime;
+
+	if (Settings::bunnyhopping)
+		SourceBhop::Run(cmd, &lpData);
+
+	if (Settings::autostrafer)
+		SourceAutostrafer::Run(cmd, &lpData);
+
+	FakelagState state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::REAL;
+
+	if (Settings::aimbot)
+		ExecuteAimbot(cmd, bSendPacket, state);
+
+	if (Settings::antiaim)
+		Antiaim::Run(cmd, state);
+
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
 	Engine::EndLagCompensation();
+
+	prevtc = cmd->tick_count;
 
 	Visuals::shouldDraw = true;
 }
@@ -267,25 +292,25 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 		auto* track = &FwBridge::playerTrack;
 
-		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (lpData.keys & Keys::ATTACK1)) {
+		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (Settings::aimbotAutoShoot || lpData.keys & Keys::ATTACK1)) {
 			bool hitboxList[MAX_HITBOXES];
 			memset(hitboxList, 0x0, sizeof(hitboxList));
 			hitboxList[0] = true;
 
-			int tc = Tracing2::traceCounter;
+			//int tc = Tracing2::traceCounter;
 
-			target = Aimbot::RunAimbot(track, LagCompensation::futureTrack, &lpData, hitboxList);
+			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags);
 
 			//cvar->ConsoleDPrintf("%zu %d\n", track->Count(), Tracing2::traceCounter - tc);
 			if (target.future) {
 				track = LagCompensation::futureTrack;
-				cvar->ConsoleDPrintf("FUTURE AIM %d\n", target.backTick);
+				//cvar->ConsoleDPrintf("FUTURE AIM %d\n", target.backTick);
 			}
 
 			if (target.id >= 0) {
 				btTick = target.backTick;
 				cmd->tick_count = TimeToTicks(track->GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-				if (false && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID))
+				if (!Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance))
 					lpData.keys &= ~Keys::ATTACK1;
 
 #ifdef PT_VISUALS
@@ -314,7 +339,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 			if (false && !flags)
 				target.id = -1;
-			else if (true || false) { //TODO: autoshoot option
+			else if (Settings::aimbotAutoShoot) {
 				lpData.keys |= Keys::ATTACK1;
 				cmd->buttons |= IN_ATTACK;
 			}
@@ -323,7 +348,8 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 	}
 
 	//Disable the actual aimbot for now
-	lpData.angles = cmd->viewangles;
+	if (!Settings::aimbotSetAngles)
+		lpData.angles = cmd->viewangles;
 
 	aimbotTargets.Push(target);
 }
