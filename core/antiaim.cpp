@@ -166,7 +166,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 
 static void CalculateBases()
 {
-	viewAngle = FwBridge::lpData.angles.y;
+	viewAngle = NormalizeFloat(FwBridge::lpData.angles.y, 0, 360);
 
 	Players& players = FwBridge::playerTrack.GetLastItem(0);
 	int count = players.count;

@@ -3,7 +3,7 @@
 namespace Settings
 {
 	SettingsGroup globalSettings;
-	BindSettingsGroup bindSettings;
+	SettingsGroup bindSettings;
 
 	OPTION(bool, bunnyhopping, bindSettings, globalSettings)(true);
 	OPTION(bool, autostrafer, bindSettings, globalSettings)(true);

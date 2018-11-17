@@ -254,6 +254,9 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	instances[pID]->flags() = fl;
 }
 
+static std::vector<int> updatedPlayers;
+static std::vector<int> nonUpdatedPlayers;
+
 static void UpdatePart2()
 {
 	auto& track = *LagCompensation::futureTrack;
@@ -287,16 +290,25 @@ static void UpdatePart2()
 
 	for (int i = track.Count() - 1; i >= 0; i--) {
 		Players& p = track[i];
-		UpdateData data(p, *prevTrack, true);
+		UpdateData data(p, *prevTrack, &updatedPlayers, &nonUpdatedPlayers, true);
+
+		updatedPlayers.clear();
+		nonUpdatedPlayers.clear();
+
 		for (int o = 0; o < p.count; o++) {
 			int pID = p.unsortIDs[o];
-			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY)
+			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY) {
+				if (p.Resort(*prevTrack, o) < prevTrack->count)
+					nonUpdatedPlayers.push_back(i);
 				continue;
+			}
+
 			tmSim[pID] += p.time[o] - csimtimes[pID];
 			tcSim[pID]++;
 			p.instance[o] = instances[pID];
 			SimulateUntil(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
 			p.flags[o] |= Flags::UPDATED;
+			updatedPlayers.push_back(i);
 		}
 
 		FwBridge::FinishUpdating(&data);
