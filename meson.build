@@ -15,6 +15,7 @@ if not get_option('buildtype').startswith('debug')
   linker_args += ['-flto']
 else
   compile_args += ['-g', '-O0']
+  #linker_args += ['-lasan']
 endif
 
 if build_machine.system() != 'windows'

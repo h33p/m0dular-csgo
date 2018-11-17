@@ -80,10 +80,12 @@ struct UpdateData
 {
 	Players& players;
 	Players& prevPlayers;
+	const std::vector<int>* updatedPlayers;
+	const std::vector<int>* nonUpdatedPlayers;
 	bool additionalUpdate;
 
-	UpdateData(Players& p1, Players& p2, bool b1)
-		: players(p1), prevPlayers(p2), additionalUpdate(b1) {}
+	UpdateData(Players& p1, Players& p2, const std::vector<int>* uP, const std::vector<int>* nuP, bool b1)
+		: players(p1), prevPlayers(p2), updatedPlayers(uP), nonUpdatedPlayers(nuP), additionalUpdate(b1) {}
 };
 
 

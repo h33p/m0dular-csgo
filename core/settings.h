@@ -64,7 +64,7 @@ class BindSettingsGroup : public SettingsGroupBase<BindAllocator>
 namespace Settings
 {
 	extern SettingsGroup globalSettings;
-	extern BindSettingsGroup bindSettings;
+	extern SettingsGroup bindSettings;
 
 	extern OPTION(bool, bunnyhopping, bindSettings, globalSettings);
 	extern OPTION(bool, autostrafer, bindSettings, globalSettings);

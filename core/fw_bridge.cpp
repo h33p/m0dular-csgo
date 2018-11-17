@@ -53,16 +53,19 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent);
   since that way memory read/write will be sequencial on our side.
   About the game side - not much you can do.
 */
-static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateEyePos(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateBoundsStart(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateVelocity(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateHealth(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateArmor(Players& __restrict players, Players& __restrict prevPlayers);
 static void SwitchFlags(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateHitboxes(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateColliders(Players& __restrict players, Players& __restrict prevPlayers);
+static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* updatedList, std::vector<int>* updatedHitboxList);
+static void UpdateColliders(Players& __restrict players, const std::vector<int>* updatedHitboxList);
+
+static void MoveOrigin(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveEyePos(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveBoundsStart(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveBoundsEnd(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveVelocity(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveHealth(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveArmor(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveHitboxes(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
+static void MoveColliders(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
 
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
@@ -116,11 +119,17 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	SourceEssentials::UpdateData(cmd, &lpData);
 }
 
+static std::vector<int> updatedPlayers;
+static std::vector<int> nonUpdatedPlayers;
+
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
-	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1), false);
+	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1), &updatedPlayers, &nonUpdatedPlayers, false);
 	data.players.count = engine->GetMaxClients();
 	data.players.globalTime = globalVars->curtime;
+
+	updatedPlayers.clear();
+	nonUpdatedPlayers.clear();
 
 	int count = 0;
 
@@ -191,8 +200,11 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 			FwBridge::immuneFlags |= 1ull << players[i].id;
 
 		int pID = data.players.Resort(data.prevPlayers, i);
-		if (ent->lifeState() == LIFE_ALIVE && (pID >= MAX_PLAYERS || data.players.time[i] != data.prevPlayers.time[pID]))
-				cflags |= Flags::UPDATED;
+		if (ent->lifeState() == LIFE_ALIVE && (pID >= MAX_PLAYERS || data.players.time[i] != data.prevPlayers.time[pID])) {
+			cflags |= Flags::UPDATED;
+			updatedPlayers.push_back(i);
+		} else if (data.players.Resort(data.prevPlayers, i) < data.prevPlayers.count)
+			nonUpdatedPlayers.push_back(i);
 
 		data.players.flags[i] = cflags;
 	}
@@ -208,20 +220,37 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		playerTrack.UndoPush();
 }
 
+static std::vector<int> hitboxUpdatedList;
+
 void FwBridge::FinishUpdating(UpdateData* data)
 {
 	//Updating the hitboxes calls engine functions that only work on the main thread
 	//While it is being done, let's update other data on a seperate thread
 	//Flags depend on the animation fix fixing up the player.
-	UpdateOrigin(data->players, data->prevPlayers);
-	UpdateEyePos(data->players, data->prevPlayers);
+	MoveOrigin(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveEyePos(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+
+	for (int i : *data->updatedPlayers) {
+		C_BasePlayer* ent = (C_BasePlayer*)data->players.instance[i];
+		data->players.origin[i] = ent->origin();
+		float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
+		data->players.eyePos[i] = data->players.origin[i];
+		data->players.eyePos[i][2] += eyeOffset;
+	}
+
+
 	if (!data->additionalUpdate) {
 		Impacts::Tick();
 		Engine::StartAnimationFix(&data->players, &data->prevPlayers);
 	}
+
+	hitboxUpdatedList.clear();
+
 	Threading::QueueJobRef(ThreadedUpdate, data);
-	UpdateHitboxes(data->players, data->prevPlayers);
-	UpdateColliders(data->players, data->prevPlayers);
+	UpdateHitboxes(data->players, data->updatedPlayers, &hitboxUpdatedList);
+	UpdateColliders(data->players, &hitboxUpdatedList);
+	MoveHitboxes(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveColliders(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 	Threading::FinishQueue();
 	SwitchFlags(data->players, data->prevPlayers);
 }
@@ -356,11 +385,21 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 static void ThreadedUpdate(UpdateData* data)
 {
-	UpdateBoundsStart(data->players, data->prevPlayers);
-	UpdateBoundsEnd(data->players, data->prevPlayers);
-	UpdateVelocity(data->players, data->prevPlayers);
-	UpdateHealth(data->players, data->prevPlayers);
-	UpdateArmor(data->players, data->prevPlayers);
+	for (int i : *data->updatedPlayers) {
+		C_BasePlayer* ent = (C_BasePlayer*)data->players.instance[i];
+		data->players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->mins();
+		data->players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->maxs();
+		data->players.velocity[i] = ent->velocity();
+		data->players.health[i] = ent->health();
+		data->players.armor[i] = ent->armorValue();
+	}
+
+	MoveBoundsStart(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveBoundsEnd(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveVelocity(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveHealth(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveArmor(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+
 	if (!data->additionalUpdate)
 		LagCompensation::PreRun();
 }
@@ -369,6 +408,70 @@ static void ThreadedUpdate(UpdateData* data)
 static bool PlayerSort(SortData& a, SortData& b)
 {
     return a.fov < b.fov;
+}
+
+static void MoveBoundsStart(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList) {
+		int pID = players.Resort(prevPlayers, i);
+		players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = prevPlayers.boundsStart[pID / SIMD_COUNT].acc[pID % SIMD_COUNT];
+	}
+}
+
+static void MoveBoundsEnd(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList) {
+		int pID = players.Resort(prevPlayers, i);
+		players.boundsEnd[i / SIMD_COUNT].acc[i % SIMD_COUNT] = prevPlayers.boundsEnd[pID / SIMD_COUNT].acc[pID % SIMD_COUNT];
+	}
+}
+
+static void MoveVelocity(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList)
+		players.velocity[i] = prevPlayers.velocity[players.Resort(prevPlayers, i)];
+}
+
+static void MoveHealth(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList)
+		players.health[i] = prevPlayers.health[players.Resort(prevPlayers, i)];
+}
+
+static void MoveArmor(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList)
+		players.armor[i] = prevPlayers.armor[players.Resort(prevPlayers, i)];
+}
+
+static void MoveOrigin(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList)
+		players.origin[i] = prevPlayers.origin[players.Resort(prevPlayers, i)];
+}
+
+static void MoveEyePos(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList)
+		players.eyePos[i] = prevPlayers.eyePos[players.Resort(prevPlayers, i)];
+}
+
+static void MoveColliders(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList) {
+		int pID = players.Resort(prevPlayers, i);
+		for (int o = 0; o < NumOfSIMD(MAX_HITBOXES); o++)
+			players.colliders[i][o] = prevPlayers.colliders[pID][o];
+	}
+}
+
+static void MoveHitboxes(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)
+{
+	for (int i : *nonUpdatedList) {
+		int pID = players.Resort(prevPlayers, i);
+		players.hitboxes[i] = prevPlayers.hitboxes[pID];
+		players.flags[i] |= prevPlayers.flags[pID] & Flags::HITBOXES_UPDATED;
+	}
 }
 
 static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent)
@@ -382,63 +485,6 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent)
 		cflags |= Flags::FRIENDLY;
 }
 
-static void UpdateOrigin(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED)
-			players.origin[i] = ent->origin();
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.origin[i] = prevPlayers.origin[pID];
-		}
-	}
-}
-
-static void UpdateEyePos(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED) {
-			float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
-			players.eyePos[i] = players.origin[i];
-			players.eyePos[i][2] += eyeOffset;
-		} else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.eyePos[i] = prevPlayers.eyePos[pID];
-		}
-	}
-}
-
-static void UpdateBoundsStart(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED)
-			players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->mins();
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT].Set(prevPlayers.boundsStart[pID / SIMD_COUNT].acc[pID % SIMD_COUNT]);
-		}
-	}
-}
-
-static void UpdateBoundsEnd(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED)
-			players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->maxs();
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.boundsEnd[i / SIMD_COUNT].acc[i % SIMD_COUNT].Set(prevPlayers.boundsEnd[pID / SIMD_COUNT].acc[pID % SIMD_COUNT]);
-		}
-	}
-}
 
 alignas(SIMD_COUNT * 4)
 static matrix3x4_t* boneMatrix = nullptr;
@@ -453,266 +499,237 @@ static float damageMul[MAX_HITBOXES];
   We could split it to smaller chunks.
 */
 
-static void UpdateHitboxes(Players& __restrict players, Players& __restrict prevPlayers)
+static void UpdateCapsuleHitbox(int idx, HitboxList* hbList, vec3_t camDir[MAX_HITBOXES], vec3_t hUp[MAX_HITBOXES])
 {
-	for (int i = 0; i < players.count; i++) {
+	vecSoa<float, MULTIPOINT_COUNT, 3> tOffset;
+	vecSoa<float, MULTIPOINT_COUNT, 3> tDir;
+
+	int o = 0;
+
+	vec3_t dir = hitboxes[idx]->bbmax - hitboxes[idx]->bbmin;
+	dir.Normalize();
+
+	vec3_t camCross = camDir[idx].Cross(dir);
+	camCross.Normalize();
+
+	vec3_t camCrossUp = camDir[idx].Cross(hUp[idx]).Cross(camDir[idx]);
+	camCrossUp.Normalize();
+
+	vec3_t camDirUp = camCross.Cross(camDir[idx]);
+	camDirUp.Normalize();
+
+	tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+	tDir.AssignCol(o++, 0);
+	tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+	tDir.AssignCol(o++, 0);
+
+	tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+	tDir.AssignCol(o++, camCrossUp * -1.f);
+	tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+	tDir.AssignCol(o++, camCrossUp);
+
+	tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+	tDir.AssignCol(o++, camCross * -1.f);
+	tOffset.AssignCol(o, hitboxes[idx]->bbmin);
+	tDir.AssignCol(o++, camCross);
+
+	tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+	tDir.AssignCol(o++, camCross * -1.f);
+	tOffset.AssignCol(o, hitboxes[idx]->bbmax);
+	tDir.AssignCol(o++, camCross);
+
+	hbList->mpOffset[idx] = tOffset.Rotate();
+	auto rot = tDir.Rotate();
+	hbList->mpDir[idx] = rot;
+}
+
+static void UpdateHitbox(int idx, HitboxList* hbList)
+{
+	//TODO: fix box orientation.
+	vecSoa<float, MULTIPOINT_COUNT, 3> tOffset;
+	vecSoa<float, MULTIPOINT_COUNT, 3> tDir;
+
+	int o = 0;
+
+	vec3_t bbmax = hitboxes[idx]->bbmax;
+	vec3_t bbmin = hitboxes[idx]->bbmin;
+
+	vec3_t s = bbmin;
+	tOffset.AssignCol(o, s);
+	tDir.AssignCol(o++, 0);
+
+	s = hitboxes[idx]->bbmax;
+	tOffset.AssignCol(o, s);
+	tDir.AssignCol(o++, 0);
+
+	for (int q = 0; q < 3; q++) {
+		s = bbmin;
+		s[q] = bbmax[q];
+		tOffset.AssignCol(o, s);
+		tDir.AssignCol(o++, 0);
+
+		s = bbmax;
+		s[q] = bbmin[q];
+		tOffset.AssignCol(o, s);
+		tDir.AssignCol(o++, 0);
+	}
+
+	hbList->mpOffset[idx] = tOffset.Rotate();
+	auto rot = tDir.Rotate();
+	hbList->mpDir[idx] = rot;
+}
+
+static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers)
+{
+	for (int i : *updatedPlayers) {
+
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+
+		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
+		if (!hdr)
+			continue;
+
+		mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
+		if (!set)
+			continue;
+
+		if (!Engine::UpdatePlayer(ent, players.bones[i]))
+			continue;
+
+		updatedHitboxPlayers->push_back(i);
+	}
+
+	for (int i : *updatedHitboxPlayers) {
+		boneMatrix = players.bones[i];
+
+		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
+		mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
+
 		HitboxList& hbList = players.hitboxes[i];
 		int hb = -1;
-		if (players.flags[i] & Flags::UPDATED) {
 
-			studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
-			if (!hdr)
+		for (int idx = 0; idx < set->numhitboxes && hb < MAX_HITBOXES; idx++) {
+			if (idx == Hitboxes::HITBOX_UPPER_CHEST ||
+				idx == Hitboxes::HITBOX_LEFT_UPPER_ARM || idx == Hitboxes::HITBOX_RIGHT_UPPER_ARM)
 				continue;
 
-			mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
-			if (!set)
+			hitboxes[++hb] = set->GetHitbox(idx);
+			FwBridge::hitboxIDs[idx] = hb;
+
+			if (!hitboxes[hb])
 				continue;
 
-			boneMatrix = players.bones[i];
+			bones[hb] = hdr->GetBone(hitboxes[hb]->bone);
+			boneIDs[hb] = hitboxes[hb]->bone;
+			radius[hb] = hitboxes[hb]->radius;
+			HitGroups hitGroup = (HitGroups)hitboxes[hb]->group;
 
-			if (!Engine::UpdatePlayer(ent, boneMatrix))
-				continue;
+			bool hasHeavyArmor = ent->hasHeavyArmor();
 
-			for (int idx = 0; idx < set->numhitboxes && hb < MAX_HITBOXES; idx++) {
-				if (idx == Hitboxes::HITBOX_UPPER_CHEST ||
-						idx == Hitboxes::HITBOX_LEFT_UPPER_ARM || idx == Hitboxes::HITBOX_RIGHT_UPPER_ARM)
-					continue;
+			float dmgMul = 1.f;
 
-				hitboxes[++hb] = set->GetHitbox(idx);
-				FwBridge::hitboxIDs[idx] = hb;
-				if (!hitboxes[hb])
-					continue;
-				bones[hb] = hdr->GetBone(hitboxes[hb]->bone);
-				boneIDs[hb] = hitboxes[hb]->bone;
-				radius[hb] = hitboxes[hb]->radius;
-				HitGroups hitGroup = (HitGroups)hitboxes[hb]->group;
-
-				bool hasHeavyArmor = ent->hasHeavyArmor();
-
-				float dmgMul = 1.f;
-
-				switch (hitGroup)
-				{
-				  case HitGroups::HITGROUP_HEAD:
-					dmgMul *= hasHeavyArmor ? 2.f : 4.f; //Heavy Armor does 1/2 damage
-					break;
-				  case HitGroups::HITGROUP_STOMACH:
-					dmgMul *= 1.25f;
-					break;
-				  case HitGroups::HITGROUP_LEFTLEG:
-				  case HitGroups::HITGROUP_RIGHTLEG:
-					dmgMul *= 0.75f;
-					break;
-				  default:
-					break;
-				}
-
-				damageMul[hb] = dmgMul;
+			switch (hitGroup)
+			{
+			  case HitGroups::HITGROUP_HEAD:
+				  dmgMul *= hasHeavyArmor ? 2.f : 4.f; //Heavy Armor does 1/2 damage
+				  break;
+			  case HitGroups::HITGROUP_STOMACH:
+				  dmgMul *= 1.25f;
+				  break;
+			  case HitGroups::HITGROUP_LEFTLEG:
+			  case HitGroups::HITGROUP_RIGHTLEG:
+				  dmgMul *= 0.75f;
+				  break;
+			  default:
+				  break;
 			}
 
-			for (; hb < Hitboxes::HITBOX_MAX; hb++)
-				FwBridge::hitboxIDs[hb] = -1;
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				if (hitboxes[idx])
-					hbList.start[idx] = hitboxes[idx]->bbmin;
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				if (hitboxes[idx])
-					hbList.end[idx] = hitboxes[idx]->bbmax;
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				hbList.wm[idx] = boneMatrix[boneIDs[idx]];
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				hbList.radius[idx] = radius[idx];
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				hbList.damageMul[idx] = damageMul[idx];
-
-			vec3_t camDir[MAX_HITBOXES];
-			vec3_t hUp[MAX_HITBOXES];
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				camDir[idx] = FwBridge::lpData.eyePos;
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
-				hUp[idx] = (vec3_t)hbList.wm[idx].vec.acc[3];
-				hUp[idx].z += 1;
-			}
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
-				matrix3x4_t transpose = hbList.wm[idx].InverseTranspose();
-				camDir[idx] = transpose.Vector3ITransform(camDir[idx]);
-				hUp[idx] = transpose.Vector3ITransform(hUp[idx]);
-			}
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++)
-				hUp[idx].Normalize();
-
-			for (int idx = 0; idx < MAX_HITBOXES; idx++) {
-				/*
-					MULTIPOINT_COUNT is 8
-					We will have 2 points on each end of the hitbox axis
-					and 3 points on each end of the hitbox
-					(extending along the axis, and perpendicular to the axis).
-					Side points will be rotated to face towards the camera,
-					thus are recalculated each tick.
-					Some hitboxes are box shaped and are needed to be set up differently.
-				*/
-
-				vecSoa<float, MULTIPOINT_COUNT, 3> tOffset;
-				vecSoa<float, MULTIPOINT_COUNT, 3> tDir;
-
-				int o = 0;
-
-				if (hitboxes[idx]->radius >= 0) {
-					vec3_t dir = hitboxes[idx]->bbmax - hitboxes[idx]->bbmin;
-					dir.Normalize();
-
-					vec3_t camCross = camDir[idx].Cross(dir);
-					camCross.Normalize();
-
-					vec3_t camCrossUp = camDir[idx].Cross(hUp[idx]).Cross(camDir[idx]);
-					camCrossUp.Normalize();
-
-					vec3_t camDirUp = camCross.Cross(camDir[idx]);
-					camDirUp.Normalize();
-
-					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
-					tDir.AssignCol(o++, 0);
-					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
-					tDir.AssignCol(o++, 0);
-
-					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
-					tDir.AssignCol(o++, camCrossUp * -1.f);
-					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
-					tDir.AssignCol(o++, camCrossUp);
-
-					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
-					tDir.AssignCol(o++, camCross * -1.f);
-					tOffset.AssignCol(o, hitboxes[idx]->bbmin);
-					tDir.AssignCol(o++, camCross);
-
-					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
-					tDir.AssignCol(o++, camCross * -1.f);
-					tOffset.AssignCol(o, hitboxes[idx]->bbmax);
-					tDir.AssignCol(o++, camCross);
-				} else {
-
-					//TODO: fix box orientation.
-
-					vec3_t bbmax = hitboxes[idx]->bbmax;
-					vec3_t bbmin = hitboxes[idx]->bbmin;
-
-					vec3_t s = bbmin;
-					tOffset.AssignCol(o, s);
-					tDir.AssignCol(o++, 0);
-
-					s = hitboxes[idx]->bbmax;
-					tOffset.AssignCol(o, s);
-					tDir.AssignCol(o++, 0);
-
-					for (int q = 0; q < 3; q++) {
-						s = bbmin;
-						s[q] = bbmax[q];
-						tOffset.AssignCol(o, s);
-						tDir.AssignCol(o++, 0);
-
-						s = bbmax;
-						s[q] = bbmin[q];
-						tOffset.AssignCol(o, s);
-						tDir.AssignCol(o++, 0);
-					}
-				}
-
-				hbList.mpOffset[idx] = tOffset.Rotate();
-				auto rot = tDir.Rotate();
-				hbList.mpDir[idx] = rot;
-
-			}
-
-			players.flags[i] |= Flags::HITBOXES_UPDATED;
+			damageMul[hb] = dmgMul;
 		}
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.hitboxes[i] = prevPlayers.hitboxes[pID];
+
+		for (; hb < Hitboxes::HITBOX_MAX; hb++)
+			FwBridge::hitboxIDs[hb] = -1;
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			if (hitboxes[idx])
+				hbList.start[idx] = hitboxes[idx]->bbmin;
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			if (hitboxes[idx])
+				hbList.end[idx] = hitboxes[idx]->bbmax;
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			hbList.wm[idx] = boneMatrix[boneIDs[idx]];
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			hbList.radius[idx] = radius[idx];
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			hbList.damageMul[idx] = damageMul[idx];
+
+		vec3_t camDir[MAX_HITBOXES];
+		vec3_t hUp[MAX_HITBOXES];
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			camDir[idx] = FwBridge::lpData.eyePos;
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++) {
+			hUp[idx] = (vec3_t)hbList.wm[idx].vec.acc[3];
+			hUp[idx].z += 1;
 		}
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++) {
+			matrix3x4_t transpose = hbList.wm[idx].InverseTranspose();
+			camDir[idx] = transpose.Vector3ITransform(camDir[idx]);
+			hUp[idx] = transpose.Vector3ITransform(hUp[idx]);
+		}
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			hUp[idx].Normalize();
+
+		for (int idx = 0; idx < MAX_HITBOXES; idx++) {
+			/*
+			  MULTIPOINT_COUNT is 8
+			  We will have 2 points on each end of the hitbox axis
+			  and 3 points on each end of the hitbox
+			  (extending along the axis, and perpendicular to the axis).
+			  Side points will be rotated to face towards the camera,
+			  thus are recalculated each tick.
+			  Some hitboxes are box shaped and are needed to be set up differently.
+			*/
+
+			if (hitboxes[idx]->radius >= 0)
+				UpdateCapsuleHitbox(idx, &hbList, camDir, hUp);
+			else
+				UpdateHitbox(idx, &hbList);
+		}
+
+		players.flags[i] |= Flags::HITBOXES_UPDATED;
 	}
 }
 
-static void UpdateColliders(Players& __restrict players, Players& __restrict prevPlayers)
+static void UpdateColliders(Players& __restrict players, const std::vector<int>* updatedHitboxPlayers)
 {
-	for (int i = 0; i < players.count; i++) {
-		if (players.flags[i] & Flags::HITBOXES_UPDATED) {
-			for (int o = 0; o < NumOfSIMD(MAX_HITBOXES); o++) {
+	for (int i : *updatedHitboxPlayers) {
+		for (int o = 0; o < NumOfSIMD(MAX_HITBOXES); o++) {
 
-				HitboxList& hitboxes = players.hitboxes[i];
+			HitboxList& hitboxes = players.hitboxes[i];
 
-				vecSoa<float, SIMD_COUNT, 3> start, end;
+			vecSoa<float, SIMD_COUNT, 3> start, end;
 
-				for (int u = 0; u < SIMD_COUNT; u++)
-					start.AssignCol(u, hitboxes.wm[o * SIMD_COUNT + u].Vector3Transform(hitboxes.start[o * SIMD_COUNT + u]));
+			for (int u = 0; u < SIMD_COUNT; u++)
+				start.AssignCol(u, hitboxes.wm[o * SIMD_COUNT + u].Vector3Transform(hitboxes.start[o * SIMD_COUNT + u]));
 
-				players.colliders[i][o].start = start.Rotate();
+			players.colliders[i][o].start = start.Rotate();
 
-				for (int u = 0; u < SIMD_COUNT; u++)
-					end.AssignCol(u, hitboxes.wm[o * SIMD_COUNT + u].Vector3Transform(hitboxes.end[o * SIMD_COUNT + u]));
+			for (int u = 0; u < SIMD_COUNT; u++)
+				end.AssignCol(u, hitboxes.wm[o * SIMD_COUNT + u].Vector3Transform(hitboxes.end[o * SIMD_COUNT + u]));
 
-				players.colliders[i][o].end = end.Rotate();
+			players.colliders[i][o].end = end.Rotate();
 
-				for (int u = 0; u < SIMD_COUNT; u++)
-					players.colliders[i][o].radius[u] = hitboxes.radius[o * SIMD_COUNT + u];
-			}
-		} else {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				for (int o = 0; o < NumOfSIMD(MAX_HITBOXES); o++)
-					players.colliders[i][o] = prevPlayers.colliders[pID][o];
-		}
-	}
-}
-
-static void UpdateVelocity(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED)
-			players.velocity[i] = ent->velocity();
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.velocity[i] = prevPlayers.velocity[pID];
-		}
-	}
-}
-
-static void UpdateHealth(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED)
-			players.health[i] = ent->health();
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.health[i] = prevPlayers.health[pID];
-		}
-	}
-}
-
-static void UpdateArmor(Players& __restrict players, Players& __restrict prevPlayers)
-{
-	for (int i = 0; i < players.count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
-		if (players.flags[i] & Flags::UPDATED)
-			players.armor[i] = ent->armorValue();
-		else if (players.flags[i] & Flags::EXISTS) {
-			int pID = players.Resort(prevPlayers, i);
-			if (pID < prevPlayers.count)
-				players.armor[i] = prevPlayers.armor[pID];
+			for (int u = 0; u < SIMD_COUNT; u++)
+				players.colliders[i][o].radius[u] = hitboxes.radius[o * SIMD_COUNT + u];
 		}
 	}
 }
