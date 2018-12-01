@@ -35,7 +35,12 @@ const Signature signatures[] = {
 	SIGNATURE(SetAbsVelocity, clientLib, "[E8 *? ? ? ?] EB 22 0F 1F 40 00"),
 	SIGNATURE(SetupBones, clientLib, "5B 44 89 E1 4C 89 EE 44 89 F2 41 5C 41 5D 41 5E 5D [E9 *? ? ? ?]"),
 	SIGNATURE(effectsHead, clientLib, "75 1E [48 8B 1D *? ? ? ?] 48 85 DB 0F"),
-	SIGNATURE(Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 89 FB 48 83 EC 38 E8 ? ? ? ? 80 BB")
+	SIGNATURE(Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 89 FB 48 83 EC 38 E8 ? ? ? ? 80 BB"),
+	SIGNATURE(IntersectRayWithBox, engineLib, "[E8 *? ? ? ?] B8 01 00 00 00 E9 74 FB FF FF"),
+	SIGNATURE(ClipRayToBSP, engineLib, "[E8 *? ? ? ?] 84 C0 0F 84 C8 FE"),
+	SIGNATURE(ClipRayToOBB, engineLib, "E4 [E8 *? ? ? ?] E9 F4 FE"),
+	SIGNATURE(ClipRayToVPhysics, engineLib, "[E8 *? ? ? ?] 3C 01 0F 84 48 01 00"),
+	SIGNATURE(modelLoader, engineLib, "E9 B3 FE FF FF 66 90 [48 8B 05 ***? ? ? ?]"),
 };
 #elif defined(__APPLE__)
 const Signature signatures[] = {
@@ -50,7 +55,12 @@ const Signature signatures[] = {
 	SIGNATURE(SetupBones, clientLib, "55 48 89 E5 41 57 41 56 41 55 41 54 53 48 81 EC ? ? ? ? F3 ? ? ? ? ? ? ? 89 CB 89 95"),
 	SIGNATURE(effectsHead, clientLib, "[4C 8B 3D *? ? ? ?] 4D 85 FF 0F 84 ? ? ? ? 48 8D 1D"),
 	SIGNATURE(viewRender, clientLib, "[48 89 05 *? ? ? ?] 48 C7 05 ? ? ? ? 00 00 00 00 48 8D ? ? ? ? ? 48 8D ? ? ? ? ? 48 89 DE 48 83 C4 08"),
-	SIGNATURE(Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 83 EC 18 48 89 FB E8 ? ? ? ? 0F 13 45 E8 F3 0F 11 4D F0 80 BB")
+	SIGNATURE(Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 83 EC 18 48 89 FB E8 ? ? ? ? 0F 13 45 E8 F3 0F 11 4D F0 80 BB"),
+	SIGNATURE(IntersectRayWithBox, engineLib, ""),
+	SIGNATURE(ClipRayToBSP, engineLib, ""),
+	SIGNATURE(ClipRayToOBB, engineLib, ""),
+	SIGNATURE(ClipRayToVPhysics, engineLib, ""),
+	SIGNATURE(modelLoader, engineLib, "03 75 2D [48 8D 05 **? ? ? ?]"),
 };
 #elif defined(_WIN32)
 const Signature signatures[] = {
@@ -65,7 +75,12 @@ const Signature signatures[] = {
 	SIGNATURE(SetAbsVelocity, clientLib, "F3 0F 11 44 24 24 [E8 *? ? ? ?] 5F"),
 	SIGNATURE(SetupBones, clientLib, "55 8B EC 83 E4 F0 B8 D8 1C 00 00 E8 ? ? ? ? 56"),
 	SIGNATURE(effectsHead, clientLib, "8B 35 *? ? ? ? 85 F6 0F 84 ? ? ? ? BB FF FF 00 00 8B 0E"),
-	SIGNATURE(Weapon_ShootPosition, clientLib, "55 8B EC 56 8B 75 08 57 8B F9 56 8B 07 FF ? ? ? ? ? 80")
+	SIGNATURE(Weapon_ShootPosition, clientLib, "55 8B EC 56 8B 75 08 57 8B F9 56 8B 07 FF ? ? ? ? ? 80"),
+	SIGNATURE(IntersectRayWithBox, engineLib, "[E8 *? ? ? ?] 83 C4 0C 5F B0 01"),
+	SIGNATURE(ClipRayToBSP, engineLib, "53 [E8 *? ? ? ?] 84 C0 75 09"),
+	SIGNATURE(ClipRayToOBB, engineLib, "53 [E8 *? ? ? ?] 8A 54"),
+	SIGNATURE(ClipRayToVPhysics, engineLib, "53 [E8 *? ? ? ?] 84 C0 75 29"),
+	SIGNATURE(modelLoader, engineLib, "75 2F 50 A1 *"),
 };
 #endif
 

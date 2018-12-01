@@ -41,15 +41,21 @@ extern void* weaponDatabase;
 extern CClientEffectRegistration** effectsHead;
 extern IGameEventManager* gameEvents;
 extern IVDebugOverlay* debugOverlay;
+extern IMDLCache* mdlCache;
+extern CSpatialPartition* spatialPartition;
+extern IStaticPropMgr* staticPropMgr;
+extern CStaticPropMgr* staticPropMgrClient;
+extern IModelLoader* modelLoader;
+extern IPhysicsSurfaceProps* physProp;
 
 typedef void (*CL_RunPredictionFn)(void);
-typedef vec3(__thiscall*Weapon_ShootPositionFn)(void*);
+typedef vec3(__thiscall* Weapon_ShootPositionFn)(void*);
 typedef CCSWeaponInfo*(__thiscall*GetWeaponInfoFn)(void*, ItemDefinitionIndex);
 typedef void(__thiscall* SetAbsFn)(void*, const vec3& origin);
 typedef bool(__thiscall* SetupBonesFn)(C_BasePlayer*, matrix3x4_t*, int, int, float);
 
 #ifdef _WIN32
-typedef void(__vectorcall*RunSimulationFn)(void*, void*, float, float, float, int, CUserCmd*, C_BaseEntity*);
+typedef void(__vectorcall* RunSimulationFn)(void*, void*, float, float, float, int, CUserCmd*, C_BaseEntity*);
 #else
 typedef void(*RunSimulationFn)(void*, float, int, CUserCmd*, C_BaseEntity*);
 #endif
@@ -59,6 +65,15 @@ typedef float (*RandomFloatFn)(float, float);
 typedef float (*RandomFloatExpFn)(float, float, float);
 typedef int (*RandomIntFn)(int, int);
 typedef float (*RandomGaussianFloatFn)(float, float);
+
+typedef bool (OWin(__vectorcall)* IntersectRayWithBoxFn)(const Ray_t&, const vec3_t&, const vec3_t&, const vec3_t&, trace_t*__restrict);
+typedef bool (__thiscall* ClipRayToFn)(IEngineTrace*, const Ray_t&, unsigned int, ICollideable*, trace_t*);
+typedef bool (__thiscall* ClipRayToVPhysicsFn)(IEngineTrace*, const Ray_t&, unsigned int, ICollideable*, studiohdr_t*, trace_t*);
+typedef bool (__thiscall* EnumerateElementsAlongRayFn)(CVoxelTree*, unsigned int, const Ray_t&, const vec3&, const vec3&, IEntityEnumerator*);
+
+
+typedef int (*ThreadIDFn)(void);
+
 
 extern CL_RunPredictionFn CL_RunPrediction;
 extern Weapon_ShootPositionFn Weapon_ShootPosition;
@@ -75,6 +90,13 @@ extern RandomFloatExpFn RandomFloatExp;
 extern RandomIntFn RandomInt;
 extern RandomGaussianFloatFn RandomGaussianFloat;
 
+extern IntersectRayWithBoxFn IntersectRayWithBox;
+extern ClipRayToFn ClipRayToBSP;
+extern ClipRayToFn ClipRayToOBB;
+extern ClipRayToVPhysicsFn ClipRayToVPhysics;
+
+extern ThreadIDFn AllocateThreadID;
+extern ThreadIDFn FreeThreadID;
 
 struct UpdateData
 {

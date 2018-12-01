@@ -23,10 +23,11 @@ constexpr float FREESTAND_THRESHOLD = 10.f;
 
 void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 {
-	if (cmd->buttons & (IN_ATTACK | IN_ATTACK2 | IN_USE))
+	LocalPlayer& lp = FwBridge::lpData;
+
+	if (cmd->buttons & (IN_ATTACK | IN_ATTACK2 | IN_USE) || lp.keys & (Keys::ATTACK1 | Keys::ATTACK2))
 		return;
 
-	LocalPlayer& lp = FwBridge::lpData;
 	lp.angles.x = 89;
 	CalculateBases();
 
@@ -130,7 +131,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 		ent->angles()[2] = 0.f;
 		SetAbsAngles(ent, ent->angles());
 		anims.RestoreState();
-		Engine::UpdatePlayer(ent, matrix);
+		//Engine::UpdatePlayer(ent, matrix);
 
 		vec3_t headPos;
 		headPos.x = matrix[boneID][0][3];
@@ -160,7 +161,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 
 	*angles = anglesBackup;
 	SetAbsAngles(ent, ent->angles());
-	Engine::UpdatePlayer(ent, matrix);
+	//Engine::UpdatePlayer(ent, matrix);
 	return bestAngle;
 }
 

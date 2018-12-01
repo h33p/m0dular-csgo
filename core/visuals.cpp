@@ -43,7 +43,7 @@ static void Draw3DLine(vec3_t start, vec3_t end, Color col, const matrix4x4& w2s
 	vec3_t startPos = w2s.WorldToScreen(start, screen, flag1);
 	vec3_t endPos = w2s.WorldToScreen(end, screen, flag2);
 
-	if (!flag1 || !flag2)
+	if (!flag1 && !flag2)
 		return;
 
 	surface->DrawSetColor(col);

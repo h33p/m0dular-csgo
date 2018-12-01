@@ -5,17 +5,17 @@ namespace Settings
 	SettingsGroup globalSettings;
 	SettingsGroup bindSettings;
 
-	OPTION(bool, bunnyhopping, bindSettings, globalSettings)(true);
-	OPTION(bool, autostrafer, bindSettings, globalSettings)(true);
-	OPTION(bool, antiaim, bindSettings, globalSettings)(true);
+	OPTIONDEF(bunnyhopping)(true);
+	OPTIONDEF(autostrafer)(true);
+	OPTIONDEF(antiaim)(true);
 
-	OPTION(bool, fakelag, bindSettings, globalSettings)(true);
+	OPTIONDEF(fakelag)(true);
 
-	OPTION(bool, aimbot, bindSettings, globalSettings)(true);
-	OPTION(bool, aimbotSetAngles, bindSettings, globalSettings)(true);
-	OPTION(int, aimbotLagCompensation, bindSettings, globalSettings)(true);
-	OPTION(int, aimbotHitChance, bindSettings, globalSettings)(0);
-	OPTION(bool, aimbotSafeBacktrack, bindSettings, globalSettings)(false);
-	OPTION(bool, aimbotBacktrack, bindSettings, globalSettings)(true);
-	OPTION(bool, aimbotAutoShoot, bindSettings, globalSettings)(false);
+	OPTIONDEF(aimbot)(true);
+	OPTIONDEF(aimbotSetAngles)(true);
+	OPTIONDEF(aimbotLagCompensation)(true);
+	OPTIONDEF(aimbotHitChance)(0);
+	OPTIONDEF(aimbotSafeBacktrack)(false);
+	OPTIONDEF(aimbotBacktrack)(true);
+	OPTIONDEF(aimbotAutoShoot)(true);
 }

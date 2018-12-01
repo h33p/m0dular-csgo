@@ -308,7 +308,7 @@ static void UpdatePart2()
 			p.instance[o] = instances[pID];
 			SimulateUntil(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
 			p.flags[o] |= Flags::UPDATED;
-			updatedPlayers.push_back(i);
+			updatedPlayers.push_back(o);
 		}
 
 		FwBridge::FinishUpdating(&data);

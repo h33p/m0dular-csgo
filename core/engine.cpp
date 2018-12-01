@@ -202,19 +202,19 @@ float Engine::LerpTime()
 {
 
 	if (!bigUdRate)
-		bigUdRate = cvar->FindVar(StackString("cl_updaterate"));
+		bigUdRate = cvar->FindVar(ST("cl_updaterate"));
 	if (!minUdRate)
-		minUdRate = cvar->FindVar(StackString("sv_minupdaterate"));
+		minUdRate = cvar->FindVar(ST("sv_minupdaterate"));
 	if (!maxUdRate)
-		maxUdRate = cvar->FindVar(StackString("sv_maxupdaterate"));
+		maxUdRate = cvar->FindVar(ST("sv_maxupdaterate"));
 	if (!interpRatio)
-		interpRatio = cvar->FindVar(StackString("cl_interp_ratio"));
+		interpRatio = cvar->FindVar(ST("cl_interp_ratio"));
 	if (!clInterp)
-		clInterp = cvar->FindVar(StackString("cl_interp"));
+		clInterp = cvar->FindVar(ST("cl_interp"));
 	if (!minInterp)
-		minInterp = cvar->FindVar(StackString("sv_client_min_interp_ratio"));
+		minInterp = cvar->FindVar(ST("sv_client_min_interp_ratio"));
 	if (!maxInterp)
-		maxInterp = cvar->FindVar(StackString("sv_client_max_interp_ratio"));
+		maxInterp = cvar->FindVar(ST("sv_client_max_interp_ratio"));
 
 	float updateRate = bigUdRate->GetFloat();
 
@@ -245,7 +245,7 @@ float Engine::CalculateBacktrackTime()
 	float maxunlag = 1.f;
 
 	if (!sv_maxunlag)
-		sv_maxunlag = cvar->FindVar("sv_maxunlag");
+		sv_maxunlag = cvar->FindVar(ST("sv_maxunlag"));
 
 	if (sv_maxunlag)
 		maxunlag = sv_maxunlag->GetFloat();

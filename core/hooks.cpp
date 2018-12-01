@@ -5,6 +5,9 @@
 #include "engine.h"
 #include "visuals.h"
 #include "impacts.h"
+#include "tracing.h"
+#include "../sdk/framework/utils/mutex.h"
+#include "../sdk/framework/utils/threading.h"
 
 void Unload();
 extern bool shuttingDown;
@@ -13,6 +16,7 @@ extern bool shuttingDown;
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
 {
 	static auto origFn = hookClientMode->GetOriginal(SourceHooks::CreateMove);
+
 	auto ret = origFn(CFASTARGS, inputSampleTime, cmd);
 
 	//CL_ExtraMouseUpdate branch eventually calls clientMode createMove with null command_number and tick_count
@@ -34,6 +38,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
+
 	if (cmd->buttons & IN_ATTACK2)
 		Unload();
 
@@ -92,5 +97,5 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 
 void CSGOHooks::VecAnglesProxy(const CRecvProxyData* data, void* ent, void* out)
 {
-	cvar->ConsoleDPrintf("New ang: %f %p\n", data->value.Float, ent);
+	cvar->ConsoleDPrintf(ST("New ang: %f %p\n"), data->value.Float, ent);
 }

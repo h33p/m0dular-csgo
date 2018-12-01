@@ -22,6 +22,10 @@ const InterfaceDefinition interfaceList[] = {
 	INTERFACE(surface, surfaceLib, "VGUI_Surface", false),
 	INTERFACE(gameEvents, engineLib, "GAMEEVENTSMANAGER002", true),
 	INTERFACE(debugOverlay, engineLib, "VDebugOverlay", false),
+	INTERFACE(mdlCache, datacacheLib, "MDLCache", false),
+	INTERFACE(spatialPartition, engineLib, "SpatialPartition", false),
+	INTERFACE(staticPropMgr, engineLib, "StaticPropMgrClient", false),
+	INTERFACE(physProp, physicsLib, "VPhysicsSurfaceProps", false),
 };
 
 #endif

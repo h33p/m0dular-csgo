@@ -1,6 +1,7 @@
 #include "hooks.h"
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
+#include "../sdk/framework/utils/shared_mutex.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/memutils.h"
 #include <atomic>
@@ -12,9 +13,12 @@
 #include "../signatures.h"
 #include "../hook_indices.h"
 #include "../interfaces.h"
+#include "tracing.h"
 
 VFuncHook* hookClientMode = nullptr;
 VFuncHook* hookPanel = nullptr;
+VFuncHook* hookMdlCache = nullptr;
+VFuncHook* hookSpatialPartition = nullptr;
 
 CBaseClient* cl = nullptr;
 IClientMode* clientMode = nullptr;
@@ -33,6 +37,12 @@ void* weaponDatabase = nullptr;
 CClientEffectRegistration** effectsHead = nullptr;
 IGameEventManager* gameEvents = nullptr;
 IVDebugOverlay* debugOverlay = nullptr;
+IMDLCache* mdlCache = nullptr;
+CSpatialPartition* spatialPartition = nullptr;
+IStaticPropMgr* staticPropMgr = nullptr;
+CStaticPropMgr* staticPropMgrClient = nullptr;
+IModelLoader* modelLoader = nullptr;
+IPhysicsSurfaceProps* physProp = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
@@ -49,6 +59,14 @@ RandomFloatExpFn RandomFloatExp = nullptr;
 RandomIntFn RandomInt = nullptr;
 RandomGaussianFloatFn RandomGaussianFloat = nullptr;
 
+IntersectRayWithBoxFn IntersectRayWithBox = nullptr;
+ClipRayToFn ClipRayToBSP = nullptr;
+ClipRayToFn ClipRayToOBB = nullptr;
+ClipRayToVPhysicsFn ClipRayToVPhysics = nullptr;
+
+ThreadIDFn AllocateThreadID = nullptr;
+ThreadIDFn FreeThreadID = nullptr;
+
 EventListener listener({Impacts::ImpactEvent});
 
 static void InitializeOffsets();
@@ -57,11 +75,22 @@ static void InitializeDynamicHooks();
 void Shutdown();
 void Unload();
 
+template<auto& Fn>
+static void DispatchToAllThreads(void*);
+
+volatile bool cont = false;
+
 void* __stdcall EntryPoint(void*)
 {
+#ifndef _WIN32
+	freopen("/tmp/csout.txt", "w", stdout);
+#endif
 	Threading::InitThreads();
 #ifndef LOADER_INITIALIZATION
 	InitializeOffsets();
+#endif
+    DispatchToAllThreads<AllocateThreadID>(nullptr);
+#ifndef LOADER_INITIALIZATION
 	InitializeHooks();
 #endif
 	InitializeDynamicHooks();
@@ -95,9 +124,15 @@ int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 	return 1;
 }
 
-void SigOffset(Signature* sig)
+void SigOffset(const Signature* sig)
 {
 	sig->result = PatternScan::FindPattern(sig->pattern, sig->module);
+#ifdef DEBUG
+	if (!sig->result) {
+		printf(ST("Pattern scan fail on pattern %s [%s]\n"), sig->pattern, sig->module);
+		fflush(stdout);
+	}
+#endif
 }
 
 static void PlatformSpecificOffsets()
@@ -124,15 +159,57 @@ static void FindVSTDFunctions()
 	RandomGaussianFloat = (RandomGaussianFloatFn)paddr(handle, ST("RandomGaussianFloat"));
 }
 
+static void GatherTierExports()
+{
+	MHandle handle = Handles::GetModuleHandle(tierLib);
+
+	AllocateThreadID = (ThreadIDFn)paddr(handle, ST("AllocateThreadID"));
+	FreeThreadID = (ThreadIDFn)paddr(handle, ST("FreeThreadID"));
+}
+
 static void InitializeOffsets()
 {
 	for (size_t i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
 		Threading::QueueJobRef(SigOffset, signatures + i);
 
-	FindVSTDFunctions();
 	FindAllInterfaces(interfaceList, sizeof(interfaceList)/sizeof((interfaceList)[0]));
+	FindVSTDFunctions();
+	GatherTierExports();
+
+	staticPropMgrClient = (CStaticPropMgr*)(staticPropMgr - 1);
+
 	PlatformSpecificOffsets();
 	SourceNetvars::Initialize(cl);
+	Threading::FinishQueue();
+}
+
+static Semaphore dispatchSem;
+static Semaphore waitSem;
+static SharedMutex smtx;
+
+template<auto& Fn>
+static void AllThreadsStub(void*)
+{
+	dispatchSem.Post();
+	smtx.rlock();
+	smtx.runlock();
+	Fn();
+}
+
+//TODO: Build this into the threading library
+template<auto& Fn>
+static void DispatchToAllThreads(void* data)
+{
+	smtx.wlock();
+
+	for (int i = 0; i < Threading::numThreads; i++)
+		Threading::QueueJobRef(AllThreadsStub<Fn>, data);
+
+	for (int i = 0; i < Threading::numThreads; i++)
+	    dispatchSem.Wait();
+
+	smtx.wunlock();
+
 	Threading::FinishQueue();
 }
 
@@ -140,6 +217,8 @@ static void InitializeHooks()
 {
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
+	hookMdlCache = new VFuncHook(mdlCache, false, 34);
+	hookSpatialPartition = new VFuncHook(spatialPartition, false, 20);
 #ifdef PT_VISUALS
 	hookPanel = new VFuncHook(panel, false, 5);
 #endif
@@ -155,33 +234,37 @@ static void InitializeDynamicHooks()
 	listener.Initialize(ST("bullet_impact"));
 
 #ifdef DEBUG
-	cvar->ConsoleDPrintf("Effect list:\n");
+	cvar->ConsoleDPrintf(ST("Effect list:\n"));
 	Color col = Color(0, 255, 0, 255);
     for (auto head = *effectsHead; head; head = head->next)
 		cvar->ConsoleColorPrintf(col, "%s\n", head->effectName);
 #endif
 }
 
+static bool firstTime = true;
+
 void Shutdown()
 {
-	cvar->ConsoleDPrintf("Ending threads...\n");
-	int ret = Threading::EndThreads();
+	if (firstTime) {
+		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
+		DispatchToAllThreads<FreeThreadID>(nullptr);
+		int ret = Threading::EndThreads();
 
-	if (ret)
-		cvar->ConsoleDPrintf("Error ending threads! (%d)\n", ret);
-
-	cvar->ConsoleDPrintf("Removing static hooks...\n");
-	if (hookClientMode) {
-		delete hookClientMode;
-		hookClientMode = nullptr;
+		if (ret)
+			cvar->ConsoleDPrintf(ST("Error ending threads! (%d)\n"), ret);
 	}
 
-	if (hookPanel) {
-		delete hookPanel;
-		hookPanel = nullptr;
+	firstTime = false;
+
+	cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
+	for (HookDefine& i : hookIds) {
+		if (i.hook) {
+			delete i.hook;
+			i.hook = nullptr;
+		}
 	}
 
-	cvar->ConsoleDPrintf("Removing entity hooks...\n");
+	cvar->ConsoleDPrintf(ST("Removing entity hooks...\n"));
 	if (CSGOHooks::entityHooks) {
 		for (auto& i : *CSGOHooks::entityHooks)
 			delete i.second;
@@ -189,11 +272,12 @@ void Shutdown()
 		CSGOHooks::entityHooks = nullptr;
 	}
 
-	cvar->ConsoleDPrintf("Removing effect hooks...\n");
+	cvar->ConsoleDPrintf(ST("Removing effect hooks...\n"));
 	EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
 
-	cvar->ConsoleDPrintf("Shutting down engine...\n");
+	cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 	Engine::Shutdown();
+	cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
 }
 
 void* __stdcall UnloadThread(thread_t* thisThread)

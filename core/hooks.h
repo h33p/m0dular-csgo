@@ -16,6 +16,7 @@
 extern VFuncHook* hookClientMode;
 extern VFuncHook* hookCl;
 extern VFuncHook* hookPanel;
+extern VFuncHook* hookMdlCache;
 
 namespace CSGOHooks
 {

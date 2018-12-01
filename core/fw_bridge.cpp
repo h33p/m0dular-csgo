@@ -104,7 +104,7 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	float recoilScale = 1.f;
 
 	if (!weapon_recoil_scale)
-		weapon_recoil_scale = cvar->FindVar(StackString("weapon_recoil_scale"));
+		weapon_recoil_scale = cvar->FindVar(ST("weapon_recoil_scale"));
 
 	if (weapon_recoil_scale)
 		recoilScale = weapon_recoil_scale->GetFloat();
@@ -249,8 +249,6 @@ void FwBridge::FinishUpdating(UpdateData* data)
 	Threading::QueueJobRef(ThreadedUpdate, data);
 	UpdateHitboxes(data->players, data->updatedPlayers, &hitboxUpdatedList);
 	UpdateColliders(data->players, &hitboxUpdatedList);
-	MoveHitboxes(data->players, data->prevPlayers, data->nonUpdatedPlayers);
-	MoveColliders(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 	Threading::FinishQueue();
 	SwitchFlags(data->players, data->prevPlayers);
 }
@@ -260,7 +258,7 @@ static int prevtc = 0;
 
 void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
 {
-	backtrackCurtime = Settings::aimbotBacktrack ? Engine::CalculateBacktrackTime() : TicksToTime(cmd->tick_count) + Engine::LerpTime();
+	backtrackCurtime = Settings::aimbotBacktrack ? Engine::CalculateBacktrackTime() + globalVars->interval_per_tick : TicksToTime(cmd->tick_count) + Engine::LerpTime();
 
 	if (Settings::aimbotSafeBacktrack)
 		backtrackCurtime = std::max(backtrackCurtime, prevBacktrackCurtime);
@@ -300,6 +298,15 @@ float lastPrimary = 0.f;
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 extern int btTick;
 
+#ifdef DEBUG
+static HistoryList<int, 64> traceCountHistory;
+static HistoryList<unsigned long, 64> traceTimeHistory;
+volatile int traceCountAvg = 0;
+volatile int traceTimeAvg = 0;
+
+#include <chrono>
+typedef std::chrono::high_resolution_clock Clock;
+#endif
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 {
@@ -322,19 +329,56 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 		auto* track = &FwBridge::playerTrack;
 
 		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (Settings::aimbotAutoShoot || lpData.keys & Keys::ATTACK1)) {
-			bool hitboxList[MAX_HITBOXES];
-			memset(hitboxList, 0x0, sizeof(hitboxList));
-			hitboxList[0] = true;
+			unsigned char hitboxList[MAX_HITBOXES];
+			memset(hitboxList, 0, sizeof(hitboxList));
 
-			//int tc = Tracing2::traceCounter;
+			//TODO: Move this out somewhere else, globally accessible
+			hitboxList[hitboxIDs[HITBOX_HEAD]] = SCAN_MULTIPOINT;
+			hitboxList[hitboxIDs[HITBOX_NECK]] = SCAN_SIMPLE;
+			//hitboxList[hitboxIDs[HITBOX_LOWER_NECK]] = SCAN_SIMPLE;
+			hitboxList[hitboxIDs[HITBOX_PELVIS]] = SCAN_SIMPLE;
+			//hitboxList[hitboxIDs[HITBOX_STOMACH]] = SCAN_SIMPLE;
+			//hitboxList[hitboxIDs[HITBOX_LOWER_CHEST]] = SCAN_SIMPLE;
+			hitboxList[hitboxIDs[HITBOX_CHEST]] = SCAN_SIMPLE;
+			hitboxList[hitboxIDs[HITBOX_RIGHT_THIGH]] = SCAN_SIMPLE;
+			hitboxList[hitboxIDs[HITBOX_LEFT_THIGH]] = SCAN_SIMPLE;
+			//hitboxList[hitboxIDs[HITBOX_RIGHT_CALF]] = SCAN_SIMPLE;
+			//hitboxList[hitboxIDs[HITBOX_LEFT_CALF]] = SCAN_SIMPLE;
+			hitboxList[hitboxIDs[HITBOX_RIGHT_FOOT]] = SCAN_MULTIPOINT;
+			hitboxList[hitboxIDs[HITBOX_LEFT_FOOT]] = SCAN_MULTIPOINT;
 
+			hitboxList[0] = 0xff;
+
+#ifdef DEBUG
+			Tracing2::traceCounter = 0;
+
+			auto t1 = Clock::now();
+#endif
 			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags);
+#ifdef DEBUG
+			auto t2 = Clock::now();
 
-			//cvar->ConsoleDPrintf("%zu %d\n", track->Count(), Tracing2::traceCounter - tc);
-			if (target.future) {
-				track = LagCompensation::futureTrack;
-				//cvar->ConsoleDPrintf("FUTURE AIM %d\n", target.backTick);
+			traceCountHistory.Push(Tracing2::traceCounter);
+			traceTimeHistory.Push(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+
+			traceTimeAvg = 0;
+			traceCountAvg = 0;
+
+			int u = 0;
+
+			for (; u < traceCountHistory.Count(); u++) {
+				traceCountAvg += traceCountHistory[u];
+				traceTimeAvg += traceTimeHistory[u];
 			}
+
+			if (u) {
+				traceCountAvg /= u;
+				traceTimeAvg /= u;
+			}
+#endif
+
+			if (target.future)
+				track = LagCompensation::futureTrack;
 
 			if (target.id >= 0) {
 				btTick = target.backTick;
@@ -368,12 +412,13 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 			if (false && !flags)
 				target.id = -1;
-			else if (Settings::aimbotAutoShoot) {
+
+			else if (Settings::aimbotAutoShoot)
 				lpData.keys |= Keys::ATTACK1;
-				cmd->buttons |= IN_ATTACK;
-			}
 		}
-		Spread::CompensateSpread(cmd);
+
+		if (lpData.keys & Keys::ATTACK1)
+			Spread::CompensateSpread(cmd);
 	}
 
 	//Disable the actual aimbot for now
@@ -387,8 +432,8 @@ static void ThreadedUpdate(UpdateData* data)
 {
 	for (int i : *data->updatedPlayers) {
 		C_BasePlayer* ent = (C_BasePlayer*)data->players.instance[i];
-		data->players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->mins();
-		data->players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = ent->maxs();
+		data->players.boundsStart[i] = ent->mins();
+		data->players.boundsEnd[i] = ent->maxs();
 		data->players.velocity[i] = ent->velocity();
 		data->players.health[i] = ent->health();
 		data->players.armor[i] = ent->armorValue();
@@ -399,6 +444,9 @@ static void ThreadedUpdate(UpdateData* data)
 	MoveVelocity(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 	MoveHealth(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 	MoveArmor(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+
+	MoveHitboxes(data->players, data->prevPlayers, data->nonUpdatedPlayers);
+	MoveColliders(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 
 	if (!data->additionalUpdate)
 		LagCompensation::PreRun();
@@ -414,7 +462,7 @@ static void MoveBoundsStart(Players& __restrict players, Players& __restrict pre
 {
 	for (int i : *nonUpdatedList) {
 		int pID = players.Resort(prevPlayers, i);
-		players.boundsStart[i / SIMD_COUNT].acc[i % SIMD_COUNT] = prevPlayers.boundsStart[pID / SIMD_COUNT].acc[pID % SIMD_COUNT];
+		players.boundsStart[i] = prevPlayers.boundsStart[pID];
 	}
 }
 
@@ -422,7 +470,7 @@ static void MoveBoundsEnd(Players& __restrict players, Players& __restrict prevP
 {
 	for (int i : *nonUpdatedList) {
 		int pID = players.Resort(prevPlayers, i);
-		players.boundsEnd[i / SIMD_COUNT].acc[i % SIMD_COUNT] = prevPlayers.boundsEnd[pID / SIMD_COUNT].acc[pID % SIMD_COUNT];
+		players.boundsEnd[i] = prevPlayers.boundsEnd[pID];
 	}
 }
 
