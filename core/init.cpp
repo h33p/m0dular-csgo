@@ -60,9 +60,16 @@ RandomIntFn RandomInt = nullptr;
 RandomGaussianFloatFn RandomGaussianFloat = nullptr;
 
 IntersectRayWithBoxFn IntersectRayWithBox = nullptr;
+ClipRayToVPhysicsFn ClipRayToVPhysics = nullptr;
+
+#ifdef __APPLE__
+IntersectRayWithOBBFn IntersectRayWithOBB = nullptr;
+CM_InlineModelNumberFn CM_InlineModelNumber = nullptr;
+TransformedBoxTraceFn TransformedBoxTrace = nullptr;
+#else
 ClipRayToFn ClipRayToBSP = nullptr;
 ClipRayToFn ClipRayToOBB = nullptr;
-ClipRayToVPhysicsFn ClipRayToVPhysics = nullptr;
+#endif
 
 ThreadIDFn AllocateThreadID = nullptr;
 ThreadIDFn FreeThreadID = nullptr;

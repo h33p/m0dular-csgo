@@ -67,10 +67,17 @@ typedef int (*RandomIntFn)(int, int);
 typedef float (*RandomGaussianFloatFn)(float, float);
 
 typedef bool (OWin(__vectorcall)* IntersectRayWithBoxFn)(const Ray_t&, const vec3_t&, const vec3_t&, const vec3_t&, trace_t*__restrict);
-typedef bool (__thiscall* ClipRayToFn)(IEngineTrace*, const Ray_t&, unsigned int, ICollideable*, trace_t*);
 typedef bool (__thiscall* ClipRayToVPhysicsFn)(IEngineTrace*, const Ray_t&, unsigned int, ICollideable*, studiohdr_t*, trace_t*);
 typedef bool (__thiscall* EnumerateElementsAlongRayFn)(CVoxelTree*, unsigned int, const Ray_t&, const vec3&, const vec3&, IEntityEnumerator*);
 
+//MacOS version has some intersection functions inlined yet Windows one uses weird calling conventions for the calls inside them, so we are going to rebuild them only for MacOS. Later on, we might fully rebuild the functions so we do not have platform dependant paths
+#ifdef __APPLE__
+typedef bool (*IntersectRayWithOBBFn)(const Ray_t&, const vec3&, const vec3&, const vec3&, const vec3&, trace_t*, float);
+typedef cmodel_t* (*CM_InlineModelNumberFn)(int);
+typedef void (*TransformedBoxTraceFn)(const Ray_t&, int, int, const vec3&, const vec3&, trace_t*);
+#else
+typedef bool (__thiscall* ClipRayToFn)(IEngineTrace*, const Ray_t&, unsigned int, ICollideable*, trace_t*);
+#endif
 
 typedef int (*ThreadIDFn)(void);
 
@@ -91,9 +98,16 @@ extern RandomIntFn RandomInt;
 extern RandomGaussianFloatFn RandomGaussianFloat;
 
 extern IntersectRayWithBoxFn IntersectRayWithBox;
+extern ClipRayToVPhysicsFn ClipRayToVPhysics;
+
+#ifdef __APPLE__
+extern IntersectRayWithOBBFn IntersectRayWithOBB;
+extern CM_InlineModelNumberFn CM_InlineModelNumber;
+extern TransformedBoxTraceFn TransformedBoxTrace;
+#else
 extern ClipRayToFn ClipRayToBSP;
 extern ClipRayToFn ClipRayToOBB;
-extern ClipRayToVPhysicsFn ClipRayToVPhysics;
+#endif
 
 extern ThreadIDFn AllocateThreadID;
 extern ThreadIDFn FreeThreadID;

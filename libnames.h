@@ -20,7 +20,7 @@ LIBNAME(engineLib, "engine");
 LIBNAME(matSystemLib, "materialsystem");
 LIBNAME(surfaceLib, "vguimatsurface");
 LIBNAME(vguiLib, "vgui2");
-LIBNAME(vstdLib, "vstdlib");
+LIBNAME(vstdLib, OPosix("lib") "vstdlib");
 LIBNAME(datacacheLib, "datacache");
 LIBNAME(physicsLib, "vphysics");
 LIBNAME(tierLib, OPosix("lib")"tier0");

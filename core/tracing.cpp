@@ -25,7 +25,7 @@ static void CM_ClearTrace(trace_t* tr)
 	tr->surface = emptyStruct;
 }
 
-static bool ClipTraceToTrace_(const trace_t& __restrict cliptrace, trace_t* __restrict finalTrace)
+static bool ClipTraceToTrace(const trace_t& __restrict cliptrace, trace_t* __restrict finalTrace)
 {
 	if (cliptrace.allsolid || cliptrace.startsolid || (cliptrace.fraction < finalTrace->fraction)) {
 		if (finalTrace->startsolid) {
@@ -135,6 +135,26 @@ static void SetTraceEntity(ICollideable* collideable, trace_t* trace, IHandleEnt
 		trace->hitbox = 0; //TODO: GetStaticPropIndex
 	}
 }
+
+#ifdef __APPLE__
+static bool ClipRayToBSP(IEngineTrace* tracer, const Ray_t& ray, unsigned int mask, ICollideable* entity, trace_t* trace)
+{
+	int modelIndex = entity->GetCollisionModelIndex();
+	cmodel_t* model = CM_InlineModelNumber(modelIndex - 1);
+
+	TransformedBoxTrace(ray, model->headnode, mask, entity->GetCollisionOrigin(), entity->GetCollisionAngles(), trace);
+	return true;
+}
+
+static bool ClipRayToOBB(IEngineTrace* tracer, const Ray_t& ray, unsigned int mask, ICollideable* entity, trace_t* trace)
+{
+	if (entity->GetSolid() != SolidType_t::SOLID_OBB)
+		return false;
+
+	IntersectRayWithOBB(ray, entity->GetCollisionOrigin(), entity->GetCollisionAngles(), entity->OBBMins(), entity->OBBMaxs(), trace, 0.03125); //DIST_EPSILON
+	return true;
+}
+#endif
 
 static void ClipRayToCollideable(const Ray_t& ray, unsigned int mask, ICollideable* entity, trace_t* trace, IHandleEntity* ent, bool staticProp)
 {
@@ -325,7 +345,7 @@ void Tracing2::ClipWorldTracesToWorldEntitiesTargetOptimized(size_t n, trace_t* 
 				continue;
 
 			ClipRayToCollideable(entRay, mask, col, trace, handle, staticProp);
-			ClipTraceToTrace_(*trace, tr);
+			ClipTraceToTrace(*trace, tr);
 
 			if (tr->allsolid)
 				break;
@@ -388,7 +408,7 @@ void Tracing2::GameTraceRay(const Ray_t& ray, unsigned int mask, ITraceFilter* f
 			continue;
 
 		ClipRayToCollideable(entRay, mask, col, &trace, handle, staticProp);
-		ClipTraceToTrace_(trace, tr);
+		ClipTraceToTrace(trace, tr);
 
 		if (tr->allsolid)
 			break;

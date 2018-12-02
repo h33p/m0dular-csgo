@@ -23,8 +23,8 @@ struct Signature
 #define SIGNATURE(out, lib, sig) {(uintptr_t&)out, lib, sig}
 #endif
 
-#if defined(__linux__)
 const Signature signatures[] = {
+#if defined(__linux__)
 	SIGNATURE(clientMode, clientLib, "[48 8D 05 *? ? ? ?] 48 89 E5 48 89 05 ? ? ? ? E8 ? ? ? ? 5D 48"),
 	SIGNATURE(CL_RunPrediction, engineLib, "F3 0F 11 40 24 [E8 *? ? ? ?] E8 ? ? ? ? BF 01"),
 	SIGNATURE(RunSimulationFunc, clientLib, "[E8 *? ? ? ?] 48 8B 05 ? ? ? ? 0F 57 C0"),
@@ -41,9 +41,7 @@ const Signature signatures[] = {
 	SIGNATURE(ClipRayToOBB, engineLib, "E4 [E8 *? ? ? ?] E9 F4 FE"),
 	SIGNATURE(ClipRayToVPhysics, engineLib, "[E8 *? ? ? ?] 3C 01 0F 84 48 01 00"),
 	SIGNATURE(modelLoader, engineLib, "E9 B3 FE FF FF 66 90 [48 8B 05 ***? ? ? ?]"),
-};
 #elif defined(__APPLE__)
-const Signature signatures[] = {
 	SIGNATURE(clientMode, clientLib, "[48 8B 3D **? ? ? ?] 48 8B 07 5D FF A0 D8"),
 	SIGNATURE(CL_RunPrediction, engineLib, "55 48 89 E5 53 50 E8 ? ? ? ? 48 89 C3 83 BB ? ? ? 00 06 75 1D"),
 	SIGNATURE(RunSimulationFunc, clientLib, "55 48 89 E5 41 57 41 56 41 55 41 54 53 48 83 EC 18 49 89 CE 48 89 D3 F3 0F 11 45 D0"),
@@ -56,14 +54,13 @@ const Signature signatures[] = {
 	SIGNATURE(effectsHead, clientLib, "[4C 8B 3D *? ? ? ?] 4D 85 FF 0F 84 ? ? ? ? 48 8D 1D"),
 	SIGNATURE(viewRender, clientLib, "[48 89 05 *? ? ? ?] 48 C7 05 ? ? ? ? 00 00 00 00 48 8D ? ? ? ? ? 48 8D ? ? ? ? ? 48 89 DE 48 83 C4 08"),
 	SIGNATURE(Weapon_ShootPosition, clientLib, "55 48 89 E5 53 48 83 EC 18 48 89 FB E8 ? ? ? ? 0F 13 45 E8 F3 0F 11 4D F0 80 BB"),
-	SIGNATURE(IntersectRayWithBox, engineLib, ""),
-	SIGNATURE(ClipRayToBSP, engineLib, ""),
-	SIGNATURE(ClipRayToOBB, engineLib, ""),
-	SIGNATURE(ClipRayToVPhysics, engineLib, ""),
+	SIGNATURE(IntersectRayWithBox, engineLib, "B0 4D 89 F0 [E8 *? ? ? ?]"),
+	SIGNATURE(IntersectRayWithOBB, engineLib, "4D 89 F1 [E8 *? ? ? ?] B0 01 EB 02"),
+	SIGNATURE(CM_InlineModelNumber, engineLib, "[E8 *? ? ? ?] 48 85 C0 0F 84 1F 02"),
+	SIGNATURE(TransformedBoxTrace, engineLib, "[E8 *? ? ? ?] EB 62 84"),
+	SIGNATURE(ClipRayToVPhysics, engineLib, "[E8 *? ? ? ?] 4D 85 ED 74 56"),
 	SIGNATURE(modelLoader, engineLib, "03 75 2D [48 8D 05 **? ? ? ?]"),
-};
 #elif defined(_WIN32)
-const Signature signatures[] = {
 	SIGNATURE(clientMode, clientLib, "A1 *? ? ? ? 8B 80 ? ? ? ? 5D"),
 	SIGNATURE(clientState, engineLib, "A1 *? ? ? ? 8B 80 ? ? ? ? C3"),
 	SIGNATURE(CL_RunPrediction, engineLib, "57 8B 3D ? ? ? ? 83 BF 08 01 00 00 06 75 4A"),
@@ -81,7 +78,7 @@ const Signature signatures[] = {
 	SIGNATURE(ClipRayToOBB, engineLib, "53 [E8 *? ? ? ?] 8A 54"),
 	SIGNATURE(ClipRayToVPhysics, engineLib, "53 [E8 *? ? ? ?] 84 C0 75 29"),
 	SIGNATURE(modelLoader, engineLib, "75 2F 50 A1 *"),
-};
 #endif
+};
 
 #endif
