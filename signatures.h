@@ -5,10 +5,12 @@
 
 struct Signature
 {
-	uintptr_t& result;
+	uintptr_t* result;
 	const char* module;
 	const char* pattern;
 
+	template<typename T>
+	constexpr Signature(T& ref, const char* lib, const char* sig) : result((uintptr_t*)(uintptr_t)&ref), module(lib), pattern(sig) {}
 #ifdef STACK_STRING
 	~Signature()
 	{
@@ -18,9 +20,9 @@ struct Signature
 };
 
 #ifdef STACK_STRING
-#define SIGNATURE(out, lib, sig) {(uintptr_t&)out, lib, (new StackString(sig))->val()}
+#define SIGNATURE(out, lib, sig) Signature(out, lib, (new StackString(sig))->val())
 #else
-#define SIGNATURE(out, lib, sig) {(uintptr_t&)out, lib, sig}
+#define SIGNATURE(out, lib, sig) Signature(out, lib, sig)
 #endif
 
 const Signature signatures[] = {

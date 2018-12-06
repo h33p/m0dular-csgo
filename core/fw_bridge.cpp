@@ -593,7 +593,6 @@ static void UpdateCapsuleHitbox(int idx, HitboxList* hbList, vec3_t camDir[MAX_H
 
 static void UpdateHitbox(int idx, HitboxList* hbList)
 {
-	//TODO: fix box orientation.
 	vecSoa<float, MULTIPOINT_COUNT, 3> tOffset;
 	vecSoa<float, MULTIPOINT_COUNT, 3> tDir;
 
@@ -709,6 +708,22 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 
 		for (int idx = 0; idx < MAX_HITBOXES; idx++)
 			hbList.wm[idx] = boneMatrix[boneIDs[idx]];
+
+		//Fix box shaped hitbox orientataion. TODO: Come up with a better/less hard-coded way of solving this.
+		constexpr matrix3x4_t rotMatrixFeet = matrix3x4_t::GetMatrix(vec3_t(0, 25, 0), true);
+		constexpr vec3 offsetVecFeet = rotMatrixFeet.Vector3Rotate(vec3_t(0, 1, 0)) * 4.5f;
+		constexpr matrix3x4_t rotMatrixHand = matrix3x4_t::GetMatrix(vec3_t(0, 15, 0), true);
+
+		matrix3x4_t& lfMatrix = hbList.wm[FwBridge::hitboxIDs[Hitboxes::HITBOX_LEFT_FOOT]];
+		lfMatrix.vec.AddRow(3, lfMatrix.Vector3Transform(offsetVecFeet * -1.f) - (vec3)lfMatrix.vec.acc[3]);
+		lfMatrix *= rotMatrixFeet;
+
+		matrix3x4_t& rfMatrix = hbList.wm[FwBridge::hitboxIDs[Hitboxes::HITBOX_RIGHT_FOOT]];
+		rfMatrix.vec.AddRow(3, rfMatrix.Vector3Transform(offsetVecFeet) - (vec3)rfMatrix.vec.acc[3]);
+		rfMatrix *= rotMatrixFeet;
+
+		hbList.wm[FwBridge::hitboxIDs[Hitboxes::HITBOX_LEFT_HAND]] *= rotMatrixHand;
+		hbList.wm[FwBridge::hitboxIDs[Hitboxes::HITBOX_RIGHT_HAND]] *= rotMatrixHand;
 
 		for (int idx = 0; idx < MAX_HITBOXES; idx++)
 			hbList.radius[idx] = radius[idx];

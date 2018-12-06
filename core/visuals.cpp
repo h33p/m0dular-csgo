@@ -178,12 +178,23 @@ void RenderPlayerCapsules(Players& pl, Color col, int id)
 {
 	int count = pl.count;
 
+	Color faceCol = col;
+	faceCol[3] /= 10;
+
 	for (int i = 0; i < count; i++) {
 		if (id < 0 || id == i)
 			for (int o = 0; o < MAX_HITBOXES; o++) {
-				vec3 mins = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].start[o]);
-				vec3 maxs = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].end[o]);
-				debugOverlay->DrawPill(mins, maxs, pl.hitboxes[i].radius[o], col, 5.f);
+				if (pl.hitboxes[i].radius[o] >= 0) {
+					vec3 mins = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].start[o]);
+					vec3 maxs = pl.hitboxes[i].wm[o].Vector3Transform(pl.hitboxes[i].end[o]);
+					debugOverlay->AddCapsuleOverlay(mins, maxs, pl.hitboxes[i].radius[o], col, 5.f);
+				} else {
+					vec3 origin = pl.hitboxes[i].wm[o].Vector3Transform(vec3(0, 0, 0));
+					vec3 ang = pl.hitboxes[i].wm[o].GetAngles(true);
+					vec3 mins = pl.hitboxes[i].start[o];
+					vec3 maxs = pl.hitboxes[i].end[o];
+					debugOverlay->AddBoxOverlay2(origin, mins, maxs, ang, faceCol, col, 5.f);
+				}
 			}
 	}
 }

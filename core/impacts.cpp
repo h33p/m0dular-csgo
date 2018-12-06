@@ -242,7 +242,7 @@ static void ProcessHitEntity(BulletData data)
 	  case Hitboxes::HITBOX_STOMACH:
 	  case Hitboxes::HITBOX_LOWER_CHEST:
 	  case Hitboxes::HITBOX_CHEST:
-	  case Hitboxes::HITBOX_LOWER_NECK:
+	  //case Hitboxes::HITBOX_LOWER_NECK:
 		  return;
 	  case Hitboxes::HITBOX_HEAD:
 	  case Hitboxes::HITBOX_NECK:
