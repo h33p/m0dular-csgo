@@ -143,7 +143,13 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
 
-		if (!ent || !ent->IsPlayer() || ent->IsDormant() || i == 0)
+		if (!ent)
+			continue;
+
+		bool player = ent->IsPlayer();
+		bool dormant = ent->IsDormant();
+
+		if (!ent || !player || dormant || i == 0)
 			continue;
 
 		playerCount = i;

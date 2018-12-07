@@ -152,7 +152,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 		}
 	}
 
-	Resolver::Run(players, prevPlayers);
+	//Resolver::Run(players, prevPlayers);
 
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
@@ -160,10 +160,10 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			CCSGOPlayerAnimState* animState = ent->animState();
 			int pID = players->unsortIDs[i];
 
-			globalVars->curtime = ent->prevSimulationTime() + globalVars->interval_per_tick;
+			globalVars->curtime = ent->simulationTime();
 			globalVars->frametime = globalVars->interval_per_tick;
 			globalVars->framecount = animState->frameCount + 1;
-			animState->updateTime = globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
+			animState->updateTime = prevSimulationTime[pID]; //globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
 			ent->UpdateClientSideAnimation();
 
