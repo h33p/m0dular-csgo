@@ -96,7 +96,8 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	SourceEnginePred::Prepare(cmd, localPlayer, hostRunFrameFp);
 	SourceEnginePred::Run(cmd, localPlayer);
 
-	lpData.eyePos = Weapon_ShootPosition(localPlayer);
+	Weapon_ShootPosition(localPlayer, lpData.eyePos);
+
 	lpData.velocity = localPlayer->velocity();
 	lpData.origin = localPlayer->origin();
 	lpData.time = globalVars->interval_per_tick * localPlayer->tickBase();
@@ -716,9 +717,9 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 			hbList.wm[idx] = boneMatrix[boneIDs[idx]];
 
 		//Fix box shaped hitbox orientataion. TODO: Come up with a better/less hard-coded way of solving this.
-		constexpr matrix3x4_t rotMatrixFeet = matrix3x4_t::GetMatrix(vec3_t(0, 25, 0), true);
-		constexpr vec3 offsetVecFeet = rotMatrixFeet.Vector3Rotate(vec3_t(0, 1, 0)) * 4.5f;
-		constexpr matrix3x4_t rotMatrixHand = matrix3x4_t::GetMatrix(vec3_t(0, 15, 0), true);
+		matrix3x4_t rotMatrixFeet = matrix3x4_t::GetMatrix(vec3_t(0, 25, 0), true);
+		vec3 offsetVecFeet = rotMatrixFeet.Vector3Rotate(vec3_t(0, 1, 0)) * 4.5f;
+		matrix3x4_t rotMatrixHand = matrix3x4_t::GetMatrix(vec3_t(0, 15, 0), true);
 
 		matrix3x4_t& lfMatrix = hbList.wm[FwBridge::hitboxIDs[Hitboxes::HITBOX_LEFT_FOOT]];
 		lfMatrix.vec.AddRow(3, lfMatrix.Vector3Transform(offsetVecFeet * -1.f) - (vec3)lfMatrix.vec.acc[3]);

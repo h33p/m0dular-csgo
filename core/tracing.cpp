@@ -79,8 +79,8 @@ static bool ClipRayToBBox(const Ray_t &ray, unsigned int mask, ICollideable* ent
 	if (entity->GetSolid() != SolidType_t::SOLID_BBOX)
 		return false;
 
-	vec3_t vecAbsMins, vecAbsMaxs;
-	vec3_t vecInvDelta;
+	alignas(16) vec3_t vecAbsMins, vecAbsMaxs;
+	alignas(16) vec3_t vecInvDelta;
 	// NOTE: If rootMoveParent is set, then the boxes should be rotated into the root parent's space
 	if (!ray.isRay && rootMoveParent) {
 		Ray_t rayL;
@@ -100,7 +100,11 @@ static bool ClipRayToBBox(const Ray_t &ray, unsigned int mask, ICollideable* ent
 		vecAbsMins = localEntityOrigin + entity->OBBMins();
 		vecAbsMaxs = localEntityOrigin + entity->OBBMaxs();
 
+		//It is best to rebuilt this function, since it is not all that difficult, but in the meantime we will have to use this inline assembly hack
 		IntersectRayWithBox(rayL, vecInvDelta, vecAbsMins, vecAbsMaxs, trace);
+#ifdef _WIN32
+		_asm add esp, 0xC;
+#endif
 
 		if (trace->DidHit()) {
 		    trace->plane.normal = rootMoveParent->Vector3Rotate(trace->plane.normal);
@@ -123,6 +127,9 @@ static bool ClipRayToBBox(const Ray_t &ray, unsigned int mask, ICollideable* ent
 	vecAbsMins = entity->GetCollisionOrigin() + entity->OBBMins();
 	vecAbsMaxs = entity->GetCollisionOrigin() + entity->OBBMaxs();
 	IntersectRayWithBox(ray, vecInvDelta, vecAbsMins, vecAbsMaxs, trace);
+#ifdef _WIN32
+	_asm add esp, 0xC;
+#endif
 	return true;
 }
 

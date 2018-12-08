@@ -136,7 +136,7 @@ void SigOffset(const Signature* sig)
 	*sig->result = PatternScan::FindPattern(sig->pattern, sig->module);
 #ifdef DEBUG
 	if (!*sig->result) {
-		printf(ST("Pattern scan fail on pattern %s [%s]\n"), sig->pattern, sig->module);
+		printf("Pattern scan fail on pattern %s [%s]\n", sig->pattern, sig->module);
 		fflush(stdout);
 	}
 #endif

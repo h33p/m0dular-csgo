@@ -49,7 +49,7 @@ extern IModelLoader* modelLoader;
 extern IPhysicsSurfaceProps* physProp;
 
 typedef void (*CL_RunPredictionFn)(void);
-typedef vec3(__thiscall* Weapon_ShootPositionFn)(void*);
+typedef void(__thiscall* Weapon_ShootPositionFn)(void*, vec3_t&);
 typedef CCSWeaponInfo*(__thiscall*GetWeaponInfoFn)(void*, ItemDefinitionIndex);
 typedef void(__thiscall* SetAbsFn)(void*, const vec3& origin);
 typedef bool(__thiscall* SetupBonesFn)(C_BasePlayer*, matrix3x4_t*, int, int, float);
@@ -66,7 +66,7 @@ typedef float (*RandomFloatExpFn)(float, float, float);
 typedef int (*RandomIntFn)(int, int);
 typedef float (*RandomGaussianFloatFn)(float, float);
 
-typedef bool (OWin(__vectorcall)* IntersectRayWithBoxFn)(const Ray_t&, const vec3_t&, const vec3_t&, const vec3_t&, trace_t*__restrict);
+typedef bool (__fastcall* IntersectRayWithBoxFn)(const Ray_t&, const vec3_t&, const vec3_t&, const vec3_t&, trace_t*__restrict);
 typedef bool (__thiscall* ClipRayToVPhysicsFn)(IEngineTrace*, const Ray_t&, unsigned int, ICollideable*, studiohdr_t*, trace_t*);
 typedef bool (__thiscall* EnumerateElementsAlongRayFn)(CVoxelTree*, unsigned int, const Ray_t&, const vec3&, const vec3&, IEntityEnumerator*);
 
