@@ -19,6 +19,10 @@ else
   #linker_args += ['-lasan']
 endif
 
+#compile_args += ['-fsanitize=address']
+#linker_args += ['-lasan']
+
+
 if build_machine.system() != 'windows'
 	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing']
 	linker_args += ['-fno-rtti']

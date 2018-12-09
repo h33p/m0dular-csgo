@@ -28,6 +28,7 @@ int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer FwBridge::lpData;
 HistoryList<AimbotTarget, BACKTRACK_TICKS> FwBridge::aimbotTargets;
+HistoryList<unsigned int, BACKTRACK_TICKS> FwBridge::aimbotTargetIntersects;
 uint64_t FwBridge::immuneFlags = 0;
 
 
@@ -67,6 +68,25 @@ static void MoveArmor(Players& __restrict players, Players& __restrict prevPlaye
 static void MoveHitboxes(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
 static void MoveColliders(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
 
+static ConVar* game_type = nullptr;
+static ConVar* game_mode = nullptr;
+
+bool FwBridge::IsEnemy(C_BasePlayer* ent)
+{
+	if (!game_type)
+		game_type = cvar->FindVar(ST("game_type"));
+
+	if (!game_mode)
+		game_mode = cvar->FindVar(ST("game_mode"));
+
+	if (game_type->GetInt() == 6 && !game_mode->GetInt()) {
+		if (FwBridge::localPlayer->survivalTeamNum() == -1)
+			return true;
+		return FwBridge::localPlayer->survivalTeamNum() ^ ent->survivalTeamNum();
+	}
+
+	return ent->teamNum() ^ FwBridge::localPlayer->teamNum();
+}
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
@@ -96,7 +116,12 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	SourceEnginePred::Prepare(cmd, localPlayer, hostRunFrameFp);
 	SourceEnginePred::Run(cmd, localPlayer);
 
+	//TODO: Clean this up
+#ifdef _WIN32
 	Weapon_ShootPosition(localPlayer, lpData.eyePos);
+#else
+	lpData.eyePos = Weapon_ShootPosition(localPlayer);
+#endif
 
 	lpData.velocity = localPlayer->velocity();
 	lpData.origin = localPlayer->origin();
@@ -177,7 +202,9 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		playersFl |= (1ull << i);
 
-		vec3_t angle = ((vec3_t)ent->origin() - lpData.eyePos).GetAngles(true);
+		vec3_t origin = ent->origin();
+		origin.z += ((1.f - ent->duckAmount()) * 18.f + 46) / 2;
+		vec3_t angle = ((vec3_t)origin - lpData.eyePos).GetAngles(true);
 		vec3_t angleDiff = (lpData.angles - angle).NormalizeAngles<2>(-180.f, 180.f);
 
 		players[count].fov = angleDiff.Length<2>();
@@ -197,7 +224,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		data.players.sortIDs[players[i].id] = i;
 		data.players.unsortIDs[i] = players[i].id;
 
-		data.players.time[i] = ent->simulationTime();
+		data.players.time[i] = ent->simulationTime() - 1;
 
 		int flags = ent->flags();
 		int cflags;
@@ -209,6 +236,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		int pID = data.players.Resort(data.prevPlayers, i);
 		if (ent->lifeState() == LIFE_ALIVE && (pID >= MAX_PLAYERS || data.players.time[i] != data.prevPlayers.time[pID])) {
 			cflags |= Flags::UPDATED;
+			data.players.time[i] = ent->simulationTime();
 			updatedPlayers.push_back(i);
 		} else if (data.players.Resort(data.prevPlayers, i) < data.prevPlayers.count)
 			nonUpdatedPlayers.push_back(i);
@@ -278,7 +306,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 	if (Settings::autostrafer)
 		SourceAutostrafer::Run(cmd, &lpData);
 
-	FakelagState state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::REAL;
+	FakelagState state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::LAST;
 
 	if (Settings::aimbot)
 		ExecuteAimbot(cmd, bSendPacket, state);
@@ -305,15 +333,15 @@ float lastPrimary = 0.f;
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 extern int btTick;
 
-#ifdef DEBUG
+//#ifdef DEBUG
 static HistoryList<int, 64> traceCountHistory;
 static HistoryList<unsigned long, 64> traceTimeHistory;
-volatile int traceCountAvg = 0;
-volatile int traceTimeAvg = 0;
+int FwBridge::traceCountAvg = 0;
+int FwBridge::traceTimeAvg = 0;
 
 #include <chrono>
 typedef std::chrono::high_resolution_clock Clock;
-#endif
+//#endif
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 {
@@ -321,13 +349,16 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 	AimbotTarget target;
 	target.id = -1;
 
+	auto& targetIntersects = aimbotTargetIntersects.Push();
+	targetIntersects = 0;
+
 	if (activeWeapon) {
 		//We can only shoot once until we take a shot
 		if (lastPrimary != activeWeapon->nextPrimaryAttack())
 			allowShoot = false;
 		lastPrimary = activeWeapon->nextPrimaryAttack();
 		if (!allowShoot)
-			allowShoot = (state == FakelagState::REAL);
+			allowShoot = (state == FakelagState::LAST);
 		if (!allowShoot)
 			lpData.keys &= ~Keys::ATTACK1;
 
@@ -337,32 +368,24 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (Settings::aimbotAutoShoot || lpData.keys & Keys::ATTACK1)) {
 			unsigned char hitboxList[MAX_HITBOXES];
+		    float pointScale[MAX_HITBOXES];
 			memset(hitboxList, 0, sizeof(hitboxList));
 
-			//TODO: Move this out somewhere else, globally accessible
-			hitboxList[hitboxIDs[HITBOX_HEAD]] = SCAN_MULTIPOINT;
-			hitboxList[hitboxIDs[HITBOX_NECK]] = SCAN_SIMPLE;
-			//hitboxList[hitboxIDs[HITBOX_LOWER_NECK]] = SCAN_SIMPLE;
-			hitboxList[hitboxIDs[HITBOX_PELVIS]] = SCAN_SIMPLE;
-			//hitboxList[hitboxIDs[HITBOX_STOMACH]] = SCAN_SIMPLE;
-			//hitboxList[hitboxIDs[HITBOX_LOWER_CHEST]] = SCAN_SIMPLE;
-			hitboxList[hitboxIDs[HITBOX_CHEST]] = SCAN_SIMPLE;
-			hitboxList[hitboxIDs[HITBOX_RIGHT_THIGH]] = SCAN_SIMPLE;
-			hitboxList[hitboxIDs[HITBOX_LEFT_THIGH]] = SCAN_SIMPLE;
-			//hitboxList[hitboxIDs[HITBOX_RIGHT_CALF]] = SCAN_SIMPLE;
-			//hitboxList[hitboxIDs[HITBOX_LEFT_CALF]] = SCAN_SIMPLE;
-			hitboxList[hitboxIDs[HITBOX_RIGHT_FOOT]] = SCAN_MULTIPOINT;
-			hitboxList[hitboxIDs[HITBOX_LEFT_FOOT]] = SCAN_MULTIPOINT;
+			for (auto& i : Settings::aimbotHitboxes) {
+				printf("PHB: %d %d %d\n", i.hitbox, hitboxIDs[i.hitbox], i.mask);
+				if (i.hitbox >= 0 && hitboxIDs[i.hitbox] >= 0) {
+					hitboxList[hitboxIDs[i.hitbox]] = i.mask;
+					pointScale[hitboxIDs[i.hitbox]] = i.pointScale;
+				}
+			}
 
-			hitboxList[0] = 0xff;
-
-#ifdef DEBUG
+//#ifdef DEBUG
 			Tracing2::traceCounter = 0;
 
 			auto t1 = Clock::now();
-#endif
-			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags);
-#ifdef DEBUG
+//#endif
+			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags, pointScale);
+//#ifdef DEBUG
 			auto t2 = Clock::now();
 
 			traceCountHistory.Push(Tracing2::traceCounter);
@@ -382,7 +405,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 				traceCountAvg /= u;
 				traceTimeAvg /= u;
 			}
-#endif
+//#endif
 
 			if (target.future)
 				track = LagCompensation::futureTrack;
@@ -394,7 +417,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 					lpData.keys &= ~Keys::ATTACK1;
 
 #ifdef PT_VISUALS
-				if (btTick >= 0)
+				if (false && btTick >= 0)
 					RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
 #endif
 			} else
@@ -413,15 +436,17 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 
 			unsigned int flags = 0;
 
-			if (track->GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
+			if (1 || track->GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
 				for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
-					flags |= colliders[i].Intersect(lpData.eyePos, endPoint);
+					flags |= colliders[i].Intersect(lpData.eyePos, endPoint) << (16u * i);
 
 			if (false && !flags)
 				target.id = -1;
 
 			else if (Settings::aimbotAutoShoot)
 				lpData.keys |= Keys::ATTACK1;
+
+			targetIntersects = flags;
 		}
 
 		if (lpData.keys & Keys::ATTACK1)
@@ -536,8 +561,10 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent)
 		cflags |= Flags::ONGROUND;
 	if (flags & FL_DUCKING)
 		cflags |= Flags::DUCKING;
-	if (FwBridge::localPlayer && ent->teamNum() == FwBridge::localPlayer->teamNum())
-		cflags |= Flags::FRIENDLY;
+	if (FwBridge::localPlayer) {
+		if (!FwBridge::IsEnemy(ent))
+			cflags |= Flags::FRIENDLY;
+	}
 }
 
 
@@ -663,10 +690,14 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 		HitboxList& hbList = players.hitboxes[i];
 		int hb = -1;
 
-		for (int idx = 0; idx < set->numhitboxes && hb < MAX_HITBOXES; idx++) {
+		for (int idx = 0; idx < set->numhitboxes; idx++)
+			FwBridge::hitboxIDs[idx] = -1;
+
+		for (int idx = 0; idx < set->numhitboxes && hb < MAX_HITBOXES - 1; idx++) {
 			if (idx == Hitboxes::HITBOX_UPPER_CHEST ||
-				idx == Hitboxes::HITBOX_LEFT_UPPER_ARM || idx == Hitboxes::HITBOX_RIGHT_UPPER_ARM)
+				idx == Hitboxes::HITBOX_LEFT_UPPER_ARM || idx == Hitboxes::HITBOX_RIGHT_UPPER_ARM) {
 				continue;
+			}
 
 			hitboxes[++hb] = set->GetHitbox(idx);
 			FwBridge::hitboxIDs[idx] = hb;
@@ -701,9 +732,6 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 
 			damageMul[hb] = dmgMul;
 		}
-
-		for (; hb < Hitboxes::HITBOX_MAX; hb++)
-			FwBridge::hitboxIDs[hb] = -1;
 
 		for (int idx = 0; idx < MAX_HITBOXES; idx++)
 			if (hitboxes[idx])

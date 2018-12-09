@@ -4,6 +4,7 @@
 #include "visuals.h"
 #include "resolver.h"
 #include "temporary_animations.h"
+#include "lagcompensation.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/features/fakelag.h"
@@ -82,7 +83,7 @@ void Impacts::ImpactEvent(IGameEvent* data, unsigned int crc)
 	event.pos.x = data->GetFloat(ST("x"));
 	event.pos.y = data->GetFloat(ST("y"));
 	event.pos.z = data->GetFloat(ST("z"));
-	event.addTime = FwBridge::lpData.time + Engine::LerpTime();
+	event.addTime = FwBridge::lpData.time + Engine::LerpTime() + globalVars->interval_per_tick;
 	event.onGround = -1;
 	event.processed = false;
 
@@ -134,6 +135,10 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 					addVec.z = -effectOrigin.z -players.origin[pID][2] + players.hitboxes[pID].wm[hbID][2][3];
 
 				float dist = (players.origin[pID] + addVec + effectOrigin - data.pos).Length();
+
+				//This could be a nearby client impact effect (TODO: detect client-side impacts)
+				if (!hbID && fabs(players.origin[pID][2] + effectOrigin.z - players.hitboxes[pID].wm[0][2][3]) > 30.f)
+					continue;
 
 				if (dist >= closestDistance)
 					continue;
@@ -376,21 +381,22 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 		return;
 
 	INetChannelInfo* nci = engine->GetNetChannelInfo();
-	float ping = nci ? nci->GetAvgLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) + Engine::LerpTime() * globalVars->interval_per_tick: 0.f;
+	float ping = nci ? nci->GetAvgLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) + Engine::LerpTime(): 0.f;
 	int pingTicks = ping / globalVars->interval_per_tick;
 	int margin = 0.05f / globalVars->interval_per_tick + SourceFakelag::prevChokeCount;
 	AimbotTarget* aimbotTarget = nullptr;
+	unsigned int targetIntersects = 0;
 	int pb = 1024;
 	int pbi = 0;
 
 	for (int i = std::max(pingTicks - margin, 0); i < pingTicks + margin; i++) {
 		AimbotTarget& target = FwBridge::aimbotTargets.GetLastItem(i);
 
-		//TODO: handle future ticks
 		if (target.id < 0 || std::abs(i - pingTicks) > pb)
 			continue;
 
 		aimbotTarget = &target;
+		targetIntersects = FwBridge::aimbotTargetIntersects[i];
 		pb = std::abs(i - pingTicks);
 		pbi = i;
 	}
@@ -411,7 +417,9 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 		}
 	}
 
-	Players& players = FwBridge::playerTrack.GetLastItem(pbi + aimbotTarget->backTick + 1);
+	//This should never really be negative, but still handle it just in case
+	int simtick = pbi + aimbotTarget->backTick + 1;
+	Players& players = simtick >= 0 ? FwBridge::playerTrack.GetLastItem(simtick) : LagCompensation::futureTrack->GetLastItem(-simtick);
 	CapsuleColliderSOA<SIMD_COUNT>* colliders = players.colliders[aimbotTarget->id];
 
 	unsigned int flags = 0;
@@ -424,7 +432,8 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 	Color colorOK = Color(0, 255, 0, 255);
 	Color colorMiss = Color(255, 0, 0, 255);
 
-	if (hitShot && (hitbox < 0 || aimbotTarget->boneID != FwBridge::hitboxIDs[hitbox]))
+	//TODO: Fix this check, for now we only have accurate hit/miss check for the head hitbox, on other hitboxes -- simply checking if we hit the player, otherwise, we count as hit
+	if (hitShot && (hitbox < 0 || ((aimbotTarget->boneID == 0 && ~targetIntersects & (1u << FwBridge::hitboxIDs[hitbox])) && aimbotTarget->boneID != FwBridge::hitboxIDs[hitbox])))
 		hitShot = false;
 
 	Resolver::ShootPlayer(players.unsortIDs[aimbotTarget->id], players.flags[aimbotTarget->id] & Flags::ONGROUND);
@@ -435,7 +444,7 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 		if (!flags)
 			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to spread.\n"));
 		else
-			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to incorrect resolver.\n"));
+			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to incorrect animefix.\n"));
 	} else {
 
 		C_BasePlayer* instance = (C_BasePlayer*)players.instance[aimbotTarget->id];
@@ -449,7 +458,7 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 		if (!flags)
 			cvar->ConsoleColorPrintf(colorOK, ST("Hit shot due to spread!\n"));
 		else
-			cvar->ConsoleColorPrintf(colorOK, ST("Hit resolved shot!\n"));
+			cvar->ConsoleColorPrintf(colorOK, ST("Hit shot!\n"));
 
 	}
 

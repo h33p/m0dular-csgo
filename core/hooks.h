@@ -14,9 +14,7 @@
 #define GetOriginal(...) ID2(GET_MACRO2(__VA_ARGS__, GetOriginal2, GetOriginal1)(__VA_ARGS__))
 
 extern VFuncHook* hookClientMode;
-extern VFuncHook* hookCl;
 extern VFuncHook* hookPanel;
-extern VFuncHook* hookMdlCache;
 
 namespace CSGOHooks
 {

@@ -184,7 +184,8 @@ static void UpdatePart1(uint64_t copyFlags)
 			for (int o = 0; o < next.count; o++) {
 				next.time[o] = nextSimtime[unsortIDs[o]];
 				next.flags[o] |= Flags::EXISTS;
-				if (FwBridge::localPlayer->teamNum() == instances[unsortIDs[o]]->teamNum())
+				C_BasePlayer* ent = instances[unsortIDs[o]];
+				if (!FwBridge::IsEnemy(ent))
 					next.flags[o] |= Flags::FRIENDLY;
 			}
 		}

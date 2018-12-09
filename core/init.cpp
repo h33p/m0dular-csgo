@@ -17,8 +17,6 @@
 
 VFuncHook* hookClientMode = nullptr;
 VFuncHook* hookPanel = nullptr;
-VFuncHook* hookMdlCache = nullptr;
-VFuncHook* hookSpatialPartition = nullptr;
 
 CBaseClient* cl = nullptr;
 IClientMode* clientMode = nullptr;
@@ -90,7 +88,7 @@ volatile bool cont = false;
 void* __stdcall EntryPoint(void*)
 {
 #ifndef _WIN32
-	freopen("/tmp/csout.txt", "w", stdout);
+	//freopen("/tmp/csout.txt", "w", stdout);
 #endif
 	Threading::InitThreads();
 #ifndef LOADER_INITIALIZATION
@@ -100,7 +98,9 @@ void* __stdcall EntryPoint(void*)
 #ifndef LOADER_INITIALIZATION
 	InitializeHooks();
 #endif
+	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer...\n"));
 	InitializeDynamicHooks();
+	cvar->ConsoleColorPrintf(Color(1.f, 0.f, 0.f, 1.f), ST("ERROR: I'm already tracer!\n"));
 	return nullptr;
 }
 
@@ -112,6 +112,7 @@ static thread_t* tThread = nullptr;
 __attribute__((destructor))
 void DLClose()
 {
+	cvar->ConsoleDPrintf(ST("dlclose called!\n"));
 	closeSemaphore.Post();
 	usleep(100000);
 	Shutdown();
@@ -224,8 +225,6 @@ static void InitializeHooks()
 {
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
-	hookMdlCache = new VFuncHook(mdlCache, false, 34);
-	hookSpatialPartition = new VFuncHook(spatialPartition, false, 20);
 #ifdef PT_VISUALS
 	hookPanel = new VFuncHook(panel, false, 5);
 #endif
@@ -253,38 +252,39 @@ static bool firstTime = true;
 void Shutdown()
 {
 	if (firstTime) {
+
+		firstTime = false;
+
 		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
 		DispatchToAllThreads<FreeThreadID>(nullptr);
 		int ret = Threading::EndThreads();
 
 		if (ret)
 			cvar->ConsoleDPrintf(ST("Error ending threads! (%d)\n"), ret);
-	}
 
-	firstTime = false;
-
-	cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
-	for (HookDefine& i : hookIds) {
-		if (i.hook) {
-			delete i.hook;
-			i.hook = nullptr;
+		cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
+		for (HookDefine& i : hookIds) {
+			if (i.hook) {
+				delete i.hook;
+				i.hook = nullptr;
+			}
 		}
+
+		cvar->ConsoleDPrintf(ST("Removing entity hooks...\n"));
+		if (CSGOHooks::entityHooks) {
+			for (auto& i : *CSGOHooks::entityHooks)
+				delete i.second;
+			delete CSGOHooks::entityHooks;
+			CSGOHooks::entityHooks = nullptr;
+		}
+
+		cvar->ConsoleDPrintf(ST("Removing effect hooks...\n"));
+		EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
+
+		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
+		Engine::Shutdown();
+		cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
 	}
-
-	cvar->ConsoleDPrintf(ST("Removing entity hooks...\n"));
-	if (CSGOHooks::entityHooks) {
-		for (auto& i : *CSGOHooks::entityHooks)
-			delete i.second;
-		delete CSGOHooks::entityHooks;
-		CSGOHooks::entityHooks = nullptr;
-	}
-
-	cvar->ConsoleDPrintf(ST("Removing effect hooks...\n"));
-	EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
-
-	cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
-	Engine::Shutdown();
-	cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
 }
 
 void* __stdcall UnloadThread(thread_t* thisThread)
@@ -297,16 +297,14 @@ void* __stdcall UnloadThread(thread_t* thisThread)
 	dlclose(handle);
 	thread_t ctrd;
 	int count = 0;
-	while (closeSemaphore.TimedWait(50)) {
-		if (count++) {
-			void* ret;
-			pthread_join(ctrd, &ret);
-		}
-		ctrd = Threading::StartThread((threadFn)dlclose, handle);
-	}
+
+	ctrd = Threading::StartThread((threadFn)dlclose, handle);
+
+	cvar->ConsoleDPrintf(ST("Quitting thread!\n"));
 	pthread_exit(0);
 #else
 	Sleep(50);
+	cvar->ConsoleDPrintf(ST("Freeing library...\n"));
 	FreeLibraryAndExitThread((HMODULE)thisModule, 0);
 #endif
 	return nullptr;

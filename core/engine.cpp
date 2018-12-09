@@ -6,34 +6,28 @@
 #include "../sdk/source_csgo/sdk.h"
 #include <algorithm>
 
+float dtime = 0;
+
 bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 {
 	//TODO: put these to the player class
-	*(int*)((uintptr_t)ent + x64x32(0xFEC, 0xA30)) = globalVars->framecount;
+	/**(int*)((uintptr_t)ent + x64x32(0xFEC, 0xA30)) = globalVars->framecount;
 	*(int*)((uintptr_t)ent + x64x32(0xFE4, 0xA28)) = 0;
-	*(int*)((uintptr_t)ent + x64x32(0xFE0, 0xA24)) = -1;
-	ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
-	*(uintptr_t*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
+	*(int*)((uintptr_t)ent + x64x32(0xFE0, 0xA24)) = -1;*/
+	//ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
+	//*(uintptr_t*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
 
-	ent->lastBoneFrameCount() = globalVars->framecount - 2;
-	ent->prevBoneMask() = 0;
+	//ent->lastBoneFrameCount() = globalVars->framecount - 2;
+	//ent->prevBoneMask() = 0;
 
 	ent->varMapping().interpolatedEntries = 0;
-
-	CCSGOPlayerAnimState* animState = ent->animState();
-
-	float fractionBackup = 0;
-	if (animState) {
-		fractionBackup = animState->groundedFraction;
-		animState->groundedFraction = 0;
-	}
 
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
 	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
 
-	if (animState)
-		animState->groundedFraction = fractionBackup;
+	//if (animState)
+	//	animState->groundedFraction = fractionBackup;
 
 	ent->effects() = flags;
 
@@ -136,7 +130,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 			//Predict the FL_ONGROUND flag.
 			//lastOnGround deals with some artifacting (FL_ONGROUND repeating for a couple of ticks) happenning by those checks
-			if (~pFlags[i] & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
+			/*if (~pFlags[i] & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
 				if (ent->animationLayers()[5].weight > 0.f && !lastOnGround[pID])
 					ent->flags() |= FL_ONGROUND;
 				else
@@ -144,7 +138,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			} else
 				  ent->flags() |= FL_ONGROUND;
 
-			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
+				  lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;*/
 
 			if (ent->simulationTime() - prevSimulationTime[pID] > 0.f)
 				velocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
@@ -161,18 +155,20 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			int pID = players->unsortIDs[i];
 
 			globalVars->curtime = ent->simulationTime();
-			globalVars->frametime = globalVars->interval_per_tick;
-			globalVars->framecount = animState->frameCount + 1;
+			//globalVars->framecount = animState->frameCount + 1;
 			animState->updateTime = prevSimulationTime[pID]; //globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
-			ent->UpdateClientSideAnimation();
+			//for (int i = 0; i < ticksToAnimate; i++) {
+				globalVars->frametime = globalVars->interval_per_tick;
+				ent->UpdateClientSideAnimation();
+			//}
 
 			ent->angles()[1] = animState->goalFeetYaw;
 			SetAbsAngles(ent, ent->angles());
 			SetAbsOrigin(ent, ent->origin());
 			ent->clientSideAnimation() = false;
-			ent->flags() = pFlags[i];
-			prevFlags[pID] = ent->flags();
+			//ent->flags() = pFlags[i];
+			//prevFlags[pID] = ent->flags();
 			prevOrigins[pID] = players->origin[i];
 			prevSimulationTime[pID] = ent->simulationTime();
 		}

@@ -31,20 +31,10 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 	lp.angles.x = 89;
 	CalculateBases();
 
-	if (sw > 0)
-		sw = -1;
+	if (state == FakelagState::FIRST)
+		lp.angles.y = atTargetAngle + 180.f;
 	else
-		sw = 1;
-
-	if (true)
-		lp.angles.y = 90.f * sw;
-	else if (state == FakelagState::FAKE) {
-		lp.angles.y = atTargetAngle + RandomFloat(-180.f, 180.f);
-	} else if (state == FakelagState::REAL) {
-		lp.angles.y = atTargetAngle - 180 + 15 * sw;
-		LBYTimer(lp);
-		LBYBreaker(lp);
-	}
+		lp.angles.y = atTargetAngle + RandomFloat(-60.f, 60.f);
 }
 
 float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])

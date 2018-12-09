@@ -2,6 +2,9 @@
 #define S_SETTINGS_H
 
 #include "../sdk/framework/utils/settings.h"
+#include "../sdk/framework/players.h"
+#include "../sdk/framework/math/mmath.h"
+#include "../sdk/source_csgo/studio.h"
 
 struct OptionBindData
 {
@@ -61,6 +64,13 @@ class BindSettingsGroup : public SettingsGroupBase<BindAllocator>
 
 };
 
+struct AimbotHitbox
+{
+	int hitbox = -1;
+	unsigned char mask = 0;
+	float pointScale = 0.5f;
+};
+
 namespace Settings
 {
 	extern SettingsGroup globalSettings;
@@ -79,6 +89,8 @@ namespace Settings
 	extern OPTION(bool, aimbotAutoShoot, bindSettings, globalSettings);
 	extern OPTION(bool, aimbotBacktrack, bindSettings, globalSettings);
 	extern OPTION(bool, aimbotSafeBacktrack, bindSettings, globalSettings);
+	extern OPTION(bool, aimbotNospread, bindSettings, globalSettings);
+	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];
 }
 
 #endif

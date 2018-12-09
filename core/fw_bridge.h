@@ -49,7 +49,11 @@ extern IModelLoader* modelLoader;
 extern IPhysicsSurfaceProps* physProp;
 
 typedef void (*CL_RunPredictionFn)(void);
+#ifdef _WIN32
 typedef void(__thiscall* Weapon_ShootPositionFn)(void*, vec3_t&);
+#else
+typedef vec3(__thiscall* Weapon_ShootPositionFn)(void*);
+#endif
 typedef CCSWeaponInfo*(__thiscall*GetWeaponInfoFn)(void*, ItemDefinitionIndex);
 typedef void(__thiscall* SetAbsFn)(void*, const vec3& origin);
 typedef bool(__thiscall* SetupBonesFn)(C_BasePlayer*, matrix3x4_t*, int, int, float);
@@ -148,13 +152,17 @@ namespace FwBridge
 	extern float backtrackCurtime;
 	extern int hitboxIDs[];
 	extern HistoryList<AimbotTarget, BACKTRACK_TICKS> aimbotTargets;
+	extern HistoryList<unsigned int, BACKTRACK_TICKS> aimbotTargetIntersects;
 	extern int hitboxToHitbox[];
 	extern uint64_t immuneFlags;
+	extern int traceCountAvg;
+	extern int traceTimeAvg;
 
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
+	bool IsEnemy(C_BasePlayer* ent);
 }
 
 #endif

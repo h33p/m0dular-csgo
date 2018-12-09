@@ -1,6 +1,7 @@
 #include "visuals.h"
 #include "fw_bridge.h"
 #include "lagcompensation.h"
+#include "settings.h"
 
 bool Visuals::shouldDraw = false;
 
@@ -20,6 +21,21 @@ vec3_t sStart, sEnd, cStart, cEnd;
 #ifdef PT_VISUALS
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
+static void DrawText(const char* text, int x, int y);
+
+static void DrawText(const char* text, Color color, int x, int y)
+{
+	wchar_t buf[128];
+
+	size_t len = mbstowcs(buf, text, 128);
+
+	if (len > 0) {
+		surface->DrawSetTextColor(color);
+		surface->DrawSetTextPos(x, y);
+		surface->DrawPrintText(buf, len);
+	}
+
+}
 
 static bool CheckHitboxes(Players& p1, int p1ID, Players& p2, int p2ID)
 {
@@ -70,14 +86,15 @@ void Visuals::Draw()
 	screen[0] = w;
 	screen[1] = h;
 
-	RenderPlayer(FwBridge::playerTrack.GetLastItem(0), w2s, screen, Color(1.f, 0.f, 0.f, 1.f));
+	for (int i = 0; i < 1 && i < FwBridge::playerTrack.Count(); i+=1)
+		RenderPlayer(FwBridge::playerTrack.GetLastItem(i), w2s, screen, Color(1.f, 0.f, 0.f, 1.f));
 	if (LagCompensation::futureTrack) {
-	    for (int i = 0; i < 1 && i < LagCompensation::futureTrack->Count(); i+=1)
+	    for (int i = 0; i < 1 && i < 0 * LagCompensation::futureTrack->Count(); i+=1)
 			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen, Color(0.f, 0.f, 1.f, 1.f));
 	}
 
-	Draw3DLine(cStart, cEnd, Color(1.f, 0.f, 0.f, 1.f), w2s, screen);
-	Draw3DLine(sStart, sEnd, Color(0.f, 1.f, 0.f, 1.f), w2s, screen);
+	//Draw3DLine(cStart, cEnd, Color(1.f, 0.f, 0.f, 1.f), w2s, screen);
+	//Draw3DLine(sStart, sEnd, Color(0.f, 1.f, 0.f, 1.f), w2s, screen);
 
 
 	Players& curP = FwBridge::playerTrack[0];
@@ -91,7 +108,7 @@ void Visuals::Draw()
 			int pID = curP.Resort(p, o);
 			if (pID < p.count) {
 				//TODO: Compare hitboxes and draw the same ones
-				if (!rendered[o] && lastSimtimes[curP.unsortIDs[o]] < p.time[pID] && CheckHitboxes(p, pID, curP, o)) {
+				if (0 && !rendered[o] && lastSimtimes[curP.unsortIDs[o]] < p.time[pID] && CheckHitboxes(p, pID, curP, o)) {
 					lastSimtimes[curP.unsortIDs[o]] = p.time[pID];
 					RenderPlayerCapsules(p, Color(1.f, 0.f, 0.f, 1.f), pID);
 					rendered[o] = true;
@@ -100,8 +117,7 @@ void Visuals::Draw()
 		}
 	}
 
-	for (int i = 0; i < HISTORY_COUNT; i++) {
-
+	for (int i = 0; i < 0 && i < HISTORY_COUNT; i++) {
 		bool flags[16];
 		zvec3 screenStartPos = w2s.WorldToScreen(starts.GetLastItem(i), screen, flags);
 		bool flags2[16];
@@ -121,7 +137,7 @@ void Visuals::Draw()
 	}
 
 
-	{
+	if (false) {
 		bool flag1, flag2;
 
 		vec3_t startPos = w2s.WorldToScreen(start, screen, flag1);
@@ -133,6 +149,15 @@ void Visuals::Draw()
 		surface->DrawSetColor(Color(0.f, 1.f, 0.f, 1.f));
 		surface->DrawLine(startPos[0], startPos[1], endPos[0], endPos[1]);
 	}
+
+	int traceCount = FwBridge::traceCountAvg;
+	int traceTime = FwBridge::traceTimeAvg;
+
+	char buf[128];
+
+	snprintf(buf, 128, "%d traces @ %.2f milliseconds", traceCount, ((float)traceTime) / 1000);
+
+	DrawText(buf, Color(0.3f, 1.f, 0.f, 1.f), 12, 16);
 }
 
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
@@ -141,9 +166,19 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 	int count = pl.count;
 
 	for (int i = 0; i < count; i++) {
-		for (int o = 0; o < MAX_HITBOXES; o++) {
+
+		if (pl.time[i] < globalVars->curtime - 0.2f)
+			continue;
+
+		for (auto u : Settings::aimbotHitboxes) {
+
+			if (FwBridge::hitboxIDs[u.hitbox] < 0 || !u.mask)
+				continue;
+
+			int o = FwBridge::hitboxIDs[u.hitbox];
+
 			mvec3 mpVec = pl.hitboxes[i].mpOffset[o];
-			mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o];
+			mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o] * u.pointScale;
 			mpVec += ptVec;
 			mpVec = pl.hitboxes[i].wm[o].VecSoaTransform(mpVec);
 
@@ -167,7 +202,7 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 		vec3_t screenPosEnd = w2s.WorldToScreen(end, screen, flags2);
 
 		if (flags && flags2) {
-			surface->DrawSetColor((pl.flags[i] & Flags::ONGROUND) ? Color(1.f, 0.3f, 0.f, 1.f) : Color(0.f, 0.3f, 1.f));
+			surface->DrawSetColor((pl.flags[i] & Flags::ONGROUND) ? (~pl.flags[i] & Flags::FRIENDLY ? Color(1.f, 0.3f, 0.f, 1.f) : Color(0.3f, 0.6f, 0.f, 1.f)) : Color(0.f, 0.3f, 1.f));
 			surface->DrawFilledRect(screenPosEnd[0]-2, screenPosEnd[1]-2, screenPos[0]+2, screenPos[1]+2);
 		}
 	}

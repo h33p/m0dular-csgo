@@ -94,16 +94,20 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 
 	int count = players->count;
 
+	uint64_t validPlayers = 0;
+
 	for (int i = 0; i < count; i++)
-		if (players->flags[i] & Flags::HITBOXES_UPDATED && (lcBreak || fabsf(players->time[i] - FwBridge::backtrackCurtime) > 0.2f) && backtrackMask[players->unsortIDs[i]] & FIRST_TIME_DONE)
-			return false;
+		if (~players->flags[i] & Flags::HITBOXES_UPDATED || !(lcBreak || fabsf(players->time[i] - FwBridge::backtrackCurtime) > 0.2f) || ~backtrackMask[players->unsortIDs[i]] & FIRST_TIME_DONE)
+			validPlayers |= 1ull << i;
+
 
 	bool validPlayer = false;
 
 	for (int i = 0; i < count; i++) {
 		int id = players->unsortIDs[i];
 		float distDelta = (players->origin[i] - prevOrigin[id]).LengthSqr();
-		if (players->flags[i] & Flags::HITBOXES_UPDATED &&
+		if (validPlayers & (1ull << i) &&
+			players->flags[i] & Flags::HITBOXES_UPDATED &&
 			FwBridge::playersFl & (1ull << id) &&
 			~backtrackMask[id] & BTMask::NON_BACKTRACKABLE &&
 			(~backtrackMask[id] & FIRST_TIME_DONE || distDelta < 4096.f)) {
