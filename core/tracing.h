@@ -24,7 +24,8 @@ namespace Tracing2
 	float TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, trace_t* tr, int eID);
 
 	void TraceRayListBSPOnly(size_t n, const Ray_t* rays, unsigned int mask, trace_t* traces);
-	void ClipWorldTracesToWorldEntitiesTargetOptimized(size_t n, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players);
+	void TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players);
+	void ResetTraceCount();
 }
 
 #endif

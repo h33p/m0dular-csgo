@@ -7,10 +7,133 @@
 
 std::atomic_int Tracing2::traceCounter = 0;
 
+struct TraceCache
+{
+	template<typename T>
+	struct KDTree
+	{
+		static constexpr unsigned int K = 2;
+
+		struct TreeNode
+		{
+			T value;
+			idx_t left, right;
+
+			TreeNode() : value(), left(), right()
+			{
+
+			}
+		};
+
+		PackedHeap<TreeNode> alloc;
+		idx_t rootNode;
+
+		idx_t Insert(idx_t root, T entry, unsigned int depth)
+		{
+			if (!root) {
+				root = alloc.New();
+				alloc[root].value = entry;
+				return root;
+			}
+
+			unsigned int d = depth % K;
+			TreeNode& rootNode = alloc[root];
+
+			if (entry[d] < rootNode.value[d])
+				rootNode.left = Insert(rootNode.left, entry, d + 1);
+			else
+				rootNode.right = Insert(rootNode.right, entry, d + 1);
+
+			return root;
+		}
+
+		void Clear()
+		{
+			rootNode = 0;
+			//alloc.FreeAll();
+		}
+
+		const idx_t FindClosest(idx_t root, T entry, unsigned int depth)
+		{
+			if (!root)
+				return 0;
+
+			TreeNode& rootNode = alloc[root];
+
+			if (entry == rootNode.value)
+				return root;
+
+			unsigned int d = depth % K;
+
+			if (entry[d] < rootNode.value[d])
+				return FindClosest(rootNode.left, entry, d + 1);
+
+			return FindClosest(rootNode.right, entry, d + 1);
+		}
+	};
+
+	struct traceang_t
+	{
+		trace_t trace;
+		vec2 ang;
+		float eyeHeight;
+		float dist;
+
+		inline bool operator==(const traceang_t& o) const
+		{
+			if (fabsf(eyeHeight - o.eyeHeight) > 1.f)
+				return false;
+
+			if (o.dist < dist)
+				return false;
+
+			float angDiff = (ang - o.ang).Length<2>();
+			float angTan = tanf(angDiff * DEG2RAD);
+			float angLen = dist * angTan;
+
+			if (o.dist < sqrtf(angLen * angLen + dist * dist))
+				return false;
+
+			return angLen < 5.f;
+		}
+	};
+
+	int traceCount;
+	vec3_t pos;
+	KDTree<traceang_t> tree;
+
+	TraceCache() : traceCount(0), pos(0), tree()
+	{
+
+	}
+
+	void Reset(bool invalidate, TraceCache* mergeTo)
+	{
+		traceCount = 0;
+
+		if (invalidate) {
+			pos = FwBridge::lpData.origin;
+			tree.Clear();
+			return;
+		}
+
+		if (!mergeTo)
+			return;
+	}
+
+	trace_t* Find(const Ray_t& ray)
+	{
+		return nullptr;
+	}
+};
+
 static Mutex enumLock;
 static CEntityListAlongRay enumerators[NUM_THREADS + 1];
+static TraceCache cache[NUM_THREADS + 1];
 
 static IClientEntity* worldEnt = nullptr;
+
+static int traceThreadBudget = 500;
 
 //Good job, Valve, epic thread-unsafe globals you got threre
 thread_local static const matrix3x4_t* rootMoveParent = nullptr;
@@ -275,6 +398,8 @@ void Tracing2::TraceRayListBSPOnly(size_t n, const Ray_t* rays, unsigned int mas
 {
 	CTraceFilterWorldOnly worldFilter;
 
+	Tracing2::traceCounter += n;
+
 	for (size_t i = 0; i < n; i++)
 		engineTrace->TraceRay(rays[i], mask, &worldFilter, traces + i);
 }
@@ -283,15 +408,39 @@ std::vector<float> wFraction[NUM_THREADS + 1], wFractionLeftSolid[NUM_THREADS + 
 std::vector<Ray_t> entRayVec[NUM_THREADS + 1];
 std::vector<trace_t> entTraceVec[NUM_THREADS + 1];
 std::vector<CEntityListAlongRay> entEnumVec[NUM_THREADS + 1];
+std::vector<size_t> newTraces[NUM_THREADS + 1];
 
-void Tracing2::ClipWorldTracesToWorldEntitiesTargetOptimized(size_t n, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players)
+void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players)
 {
-
 	if (!n)
 		return;
 
+	CTraceFilterWorldOnly worldFilter;
+	int threadIDX = Threading::threadID + 1;
+
+	newTraces[threadIDX].clear();
+
 	for (size_t i = 0; i < n; i++) {
 		Tracing2::traceCounter++;
+
+		//Check both the local and the global trace caches for the closest ray
+		trace_t* globalEntry = cache[0].Find(rays[i]);
+		trace_t* localEntry = threadIDX ? cache[threadIDX].Find(rays[i]) : nullptr;
+
+		//We have got a cache entry, now just check if the closer one does not intersect the world
+		if (globalEntry || localEntry) {
+
+			continue;
+		}
+
+		//Only allow cached traces to be used when over budget
+		if (cache[threadIDX].traceCount > traceThreadBudget)
+			continue;
+
+		cache[threadIDX].traceCount++;
+		newTraces[threadIDX].push_back(i);
+
+		engineTrace->TraceRay(rays[i], mask, &worldFilter, traces + i);
 		if (filter->GetTraceType() == TraceType::TRACE_ENTITIES_ONLY) {
 			CM_ClearTrace(traces + i);
 			traces[i].startpos = rays[i].start + rays[i].startOffset;
@@ -300,8 +449,6 @@ void Tracing2::ClipWorldTracesToWorldEntitiesTargetOptimized(size_t n, trace_t* 
 	}
 
 	bool filterStaticProps = false;
-
-	int threadIDX = Threading::threadID + 1;
 
 	wFraction[threadIDX].resize(n);
 	wFractionLeftSolid[threadIDX].resize(n);
@@ -323,7 +470,7 @@ void Tracing2::ClipWorldTracesToWorldEntitiesTargetOptimized(size_t n, trace_t* 
 		EnumerateElements(1 << 2, entRays[i], false, &entEnums[i]);
 	}
 
-	for (size_t o = 0; o < n; o++) {
+	for (size_t o : newTraces[threadIDX]) {
 		trace_t* tr = traces + o;
 		trace_t* trace = entTraces + o;
 		Ray_t& entRay = entRays[o];
@@ -475,6 +622,19 @@ int Tracing2::TracePlayers(vec3_t eyePos, float weaponDamage, float weaponRangeM
 	trace_t tr;
 	TracePart1(eyePos, point, &tr, skient);
 	return TracePart2(eyePos, weaponDamage, weaponRangeModifier, players, &tr, eID);
+}
+
+void Tracing2::ResetTraceCount()
+{
+	traceCounter = 0;
+
+	vec3_t pos = FwBridge::lpData.origin;
+	bool invalidate = (pos - cache[0].pos).LengthSqr<3>() > 1.f;
+
+	cache[0].Reset(invalidate, nullptr);
+
+	for (int i = 1; i < NUM_THREADS + 1; i++)
+		cache[i].Reset(invalidate, cache);
 }
 
 template<size_t N>

@@ -20,8 +20,9 @@ static int lastFreeStandID = 0;
 
 float sw = 0;
 constexpr float FREESTAND_THRESHOLD = 10.f;
+float realAng = 0;
 
-void Antiaim::Run(CUserCmd* cmd, FakelagState state)
+void Antiaim::Run(CUserCmd* cmd, FakelagState_t state)
 {
 	LocalPlayer& lp = FwBridge::lpData;
 
@@ -31,10 +32,21 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState state)
 	lp.angles.x = 89;
 	CalculateBases();
 
-	if (state == FakelagState::FIRST)
-		lp.angles.y = atTargetAngle + 180.f;
+	if (lp.velocity.Length() > 1)
+		if (sw > 0)
+			sw = -1;
+		else
+			sw = 1;
+
+	if (state & FakelagState::LAST)
+		;//lp.angles.y = atTargetAngle - ((int)(globalVars->curtime / 5)) * 20;
+	else if (state & FakelagState::FIRST)
+		lp.angles.y = realAng + 180.f;
 	else
-		lp.angles.y = atTargetAngle + RandomFloat(-60.f, 60.f);
+		lp.angles.y = realAng + 90.f * sw;
+
+	if (state & FakelagState::LAST)
+		realAng = lp.angles.y;
 }
 
 float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])

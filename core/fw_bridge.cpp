@@ -43,7 +43,7 @@ struct SortData {
 static SortData players[64];
 
 
-static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state);
+static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state);
 static void ThreadedUpdate(UpdateData* data);
 static bool PlayerSort(SortData& a, SortData& b);
 static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent);
@@ -306,7 +306,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 	if (Settings::autostrafer)
 		SourceAutostrafer::Run(cmd, &lpData);
 
-	FakelagState state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::LAST;
+	FakelagState_t state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::LAST | FakelagState::FIRST;
 
 	if (Settings::aimbot)
 		ExecuteAimbot(cmd, bSendPacket, state);
@@ -343,7 +343,7 @@ int FwBridge::traceTimeAvg = 0;
 typedef std::chrono::high_resolution_clock Clock;
 //#endif
 
-static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
+static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
 {
 	//Aimbot part
 	AimbotTarget target;
@@ -358,7 +358,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 			allowShoot = false;
 		lastPrimary = activeWeapon->nextPrimaryAttack();
 		if (!allowShoot)
-			allowShoot = (state == FakelagState::LAST);
+			allowShoot = state & FakelagState::LAST;
 		if (!allowShoot)
 			lpData.keys &= ~Keys::ATTACK1;
 
@@ -380,7 +380,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState state)
 			}
 
 //#ifdef DEBUG
-			Tracing2::traceCounter = 0;
+			Tracing2::ResetTraceCount();
 
 			auto t1 = Clock::now();
 //#endif

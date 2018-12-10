@@ -38,4 +38,6 @@ namespace Settings
 	OPTIONDEF(aimbotBacktrack)(true);
 	OPTIONDEF(aimbotAutoShoot)(false);
 	OPTIONDEF(aimbotNospread)(false);
+
+	OPTIONDEF(resolver)(false);
 }

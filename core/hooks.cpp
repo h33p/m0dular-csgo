@@ -95,7 +95,7 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 		origFn(effectData);
 }
 
-void CSGOHooks::VecAnglesProxy(const CRecvProxyData* data, void* ent, void* out)
+void CSGOHooks::LBYProxy(const CRecvProxyData* data, void* ent, void* out)
 {
-	cvar->ConsoleDPrintf(ST("New ang: %f %p\n"), data->value.Float, ent);
+	Engine::HandleLBYProxy((C_BasePlayer*)ent, data->value.Float);
 }

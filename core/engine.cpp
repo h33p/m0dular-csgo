@@ -1,6 +1,7 @@
 #include "engine.h"
 #include "fw_bridge.h"
 #include "resolver.h"
+#include "settings.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/math/mmath.h"
 #include "../sdk/source_csgo/sdk.h"
@@ -10,15 +11,13 @@ float dtime = 0;
 
 bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 {
-	//TODO: put these to the player class
-	/**(int*)((uintptr_t)ent + x64x32(0xFEC, 0xA30)) = globalVars->framecount;
-	*(int*)((uintptr_t)ent + x64x32(0xFE4, 0xA28)) = 0;
-	*(int*)((uintptr_t)ent + x64x32(0xFE0, 0xA24)) = -1;*/
-	//ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
-	//*(uintptr_t*)((uintptr_t)ent + x64x32(0x2C48, 0x2680)) = 0;
-
-	//ent->lastBoneFrameCount() = globalVars->framecount - 2;
-	//ent->prevBoneMask() = 0;
+	ent->lastOcclusionCheck() = globalVars->framecount;
+	ent->occlusionFlags() = 0;
+	ent->occlusionFlags2() = -1;
+	ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
+	ent->mostRecentBoneCounter() = 0;
+	ent->lastBoneFrameCount() = globalVars->framecount - 2;
+	ent->prevBoneMask() = 0;
 
 	ent->varMapping().interpolatedEntries = 0;
 
@@ -102,6 +101,7 @@ int prevFlags[MAX_PLAYERS];
 vec3_t prevOrigins[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
+float Engine::originalLBY[MAX_PLAYERS];
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
@@ -123,7 +123,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			ent->clientSideAnimation() = true;
+			ent->clientSideAnimation() = false;
 
 			int pID = players->unsortIDs[i];
 			pFlags[i] = ent->flags();
@@ -146,8 +146,6 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 		}
 	}
 
-	//Resolver::Run(players, prevPlayers);
-
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
@@ -159,20 +157,24 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			animState->updateTime = prevSimulationTime[pID]; //globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
 			//for (int i = 0; i < ticksToAnimate; i++) {
-				globalVars->frametime = globalVars->interval_per_tick;
-				ent->UpdateClientSideAnimation();
+			globalVars->frametime = globalVars->interval_per_tick;
+			ent->UpdateClientSideAnimation();
 			//}
 
 			ent->angles()[1] = animState->goalFeetYaw;
+
 			SetAbsAngles(ent, ent->angles());
 			SetAbsOrigin(ent, ent->origin());
-			ent->clientSideAnimation() = false;
 			//ent->flags() = pFlags[i];
 			//prevFlags[pID] = ent->flags();
 			prevOrigins[pID] = players->origin[i];
 			prevSimulationTime[pID] = ent->simulationTime();
 		}
 	}
+
+	//Resolver overwrites the pose parameters, we do not want the animstate to change them back!
+	if (Settings::resolver)
+		Resolver::Run(players, prevPlayers);
 
 	globalVars->curtime = curtime;
 	globalVars->frametime = frametime;
@@ -266,6 +268,20 @@ void Engine::Shutdown()
 		ent->clientSideAnimation() = true;
 		ent->varMapping().interpolatedEntries = ent->varMapping().entries.size;
 	}
+}
+
+void Engine::HandleLBYProxy(C_BasePlayer* ent, float ang)
+{
+	if (!ent)
+		return;
+
+	int eID = ent->EntIndex();
+
+	if (eID >= MAX_PLAYERS || eID < 0)
+		return;
+
+	originalLBY[eID] = ang;
+	ent->lowerBodyYawTarget() = ang;
 }
 
 void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)

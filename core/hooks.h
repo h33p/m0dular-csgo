@@ -26,7 +26,7 @@ namespace CSGOHooks
 	void __fastcall EntityDestruct(FASTARGS);
 	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
 	void ImpactsEffect(const CEffectData& effectData);
-	void VecAnglesProxy(const CRecvProxyData* data, void* ent, void* out);
+	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);
 }
 
 #endif

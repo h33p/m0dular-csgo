@@ -38,14 +38,10 @@ void Tracing::TracePointList(LocalPlayer* localPlayer, Players* players, size_t 
 
 	CTraceFilterSkipPlayers filter;
 
-	for (size_t i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++)
 		rays[i].Init(localPlayer->eyePos, points[i]);
 
-		//Tracing2::TracePart1(localPlayer->eyePos, points[i], traces.data() + i, nullptr);
-	}
-
-	Tracing2::TraceRayListBSPOnly(n, rays.data(), MASK_SHOT, traces.data());
-	Tracing2::ClipWorldTracesToWorldEntitiesTargetOptimized(n, traces.data(), rays.data(), MASK_SHOT, &filter, eID, players);
+	Tracing2::TraceRayTargetOptimized(n, traces.data(), rays.data(), MASK_SHOT, &filter, eID, players);
 
 	for (size_t i = 0; i < n; i++)
 		out[i] = Tracing2::TracePart2(localPlayer->eyePos, localPlayer->weaponDamage, localPlayer->weaponRangeModifier, players, &traces[i], eID);

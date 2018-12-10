@@ -5,17 +5,12 @@
 
 enum ResolveBase
 {
-	BASE_LBY = 0,
-	BASE_AT_TARGET,
-	BASE_VELOCITY,
-	BASE_STATIC,
-	BASE_FAKE,
-	BASE_FREESTANDING,
-	BASE_LASTMOVINGLBY,
+	BASE_FAKE = 0,
 	BASE_MAX
 };
 
 static float resolveBases[MAX_PLAYERS][ResolveBase::BASE_MAX];
+static float resolveOffsets[ResolveBase::BASE_MAX][2] = {{-180.f, 180.f}};
 static RandomResolver groundResolver;
 static RandomResolver inAirResolver;
 
@@ -23,10 +18,12 @@ float Resolver::resolvedAngles[MAX_PLAYERS];
 
 void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 {
-	return;
 	bool isMoving[MAX_PLAYERS];
 	int count = players->count;
 	vec3_t atTarget = FwBridge::lpData.eyePos;
+
+	groundResolver.UpdateOffsets(resolveOffsets);
+	inAirResolver.UpdateOffsets(resolveOffsets);
 
 	//Check if the player is moving, do a fakewalk check
 	for (int i = 0; i < count; i++) {
@@ -43,16 +40,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			resolveBases[pID][BASE_LBY] = ent->lowerBodyYawTarget();
-			resolveBases[pID][BASE_AT_TARGET] = (atTarget - players->origin[i]).GetAngles(true)[1];
-			resolveBases[pID][BASE_VELOCITY] = Engine::velocities[pID].GetAngles(true)[1];
-			resolveBases[pID][BASE_STATIC] = 0.f;
-
-			//TODO: freestanding calculation
-			resolveBases[pID][BASE_FREESTANDING] = 0.f;
-
-			if (isMoving[pID])
-				resolveBases[pID][BASE_LASTMOVINGLBY] = ent->lowerBodyYawTarget();
+			resolveBases[pID][BASE_FAKE] = ent->eyeAngles()[1];
 		}
 	}
 
@@ -66,22 +54,25 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 
 	//Resolve the players
 	for (int i = 0; i < count; i++) {
+		int rID = players->Resort(*prevPlayers, i);
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			float targetAng = ent->eyeAngles()[1];
+			if (rID >= MAX_PLAYERS || players->time[i] - prevPlayers->time[rID] > globalVars->interval_per_tick * 2) {
+				float targetAng = ent->eyeAngles()[1];
 
-			if (ent->flags() & FL_ONGROUND) {
-				if (isMoving[pID])
-					targetAng = resolveBases[pID][BASE_LBY];
-				else
-					targetAng = groundResolver.ResolvePlayer(pID);
-			} else
-				targetAng = inAirResolver.ResolvePlayer(pID);
+				if (ent->flags() & FL_ONGROUND) {
+					if (isMoving[pID])
+						targetAng = resolveBases[pID][BASE_FAKE];
+					else
+						targetAng = groundResolver.ResolvePlayer(pID);
+				} else
+					targetAng = inAirResolver.ResolvePlayer(pID);
 
-			resolvedAngles[pID] = targetAng;
-			ent->eyeAngles()[1] = targetAng;
-			//ent->eyeAngles()[0] = 89.f;
+				resolvedAngles[pID] = targetAng;
+				(&ent->poseParameter())[11] = (180.f + (ent->eyeAngles()[1] - targetAng)) / 360.f;
+				//ent->eyeAngles()[0] = 89.f;
+			}
 		}
 	}
 }

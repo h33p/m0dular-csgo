@@ -10,6 +10,7 @@ namespace Engine
 {
 	extern int numBones[];
 	extern vec3_t velocities[];
+	extern float originalLBY[];
 	bool UpdatePlayer(C_BasePlayer* ent, matrix<3,4> out[128]);
 	float LerpTime();
 	float CalculateBacktrackTime();
@@ -17,6 +18,7 @@ namespace Engine
 	void EndLagCompensation();
 	void StartAnimationFix(Players* players, Players* prevPlayers);
 	void Shutdown();
+	void HandleLBYProxy(C_BasePlayer* ent, float ang);
 }
 
 #endif

@@ -237,6 +237,7 @@ static void InitializeDynamicHooks()
 {
 	CSGOHooks::entityHooks = new std::unordered_map<C_BasePlayer*, VFuncHook*>();
 	EffectsHook::HookAll(effectHooks, effectsCount, *effectsHead);
+	SourceNetvars::HookAll(netvarHooks, netvarCount);
 	listener.Initialize(ST("bullet_impact"));
 
 #ifdef DEBUG
@@ -280,6 +281,7 @@ void Shutdown()
 
 		cvar->ConsoleDPrintf(ST("Removing effect hooks...\n"));
 		EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
+		SourceNetvars::UnhookAll(netvarHooks, netvarCount);
 
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();
@@ -294,6 +296,8 @@ void* __stdcall UnloadThread(thread_t* thisThread)
 #if defined(__linux__) || defined(__APPLE__)
 	tThread = thisThread;
 	MHandle handle = Handles::GetPtrModuleHandle((void*)DLClose);
+
+	//TODO: force ref count to 1 so it gets unloaded with a single call
 	dlclose(handle);
 	thread_t ctrd;
 	int count = 0;

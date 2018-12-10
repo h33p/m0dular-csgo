@@ -38,7 +38,7 @@ EffectHook effectHooks[] = {
 size_t effectsCount = sizeof(effectHooks) / sizeof(EffectHook);
 
 NetvarHook netvarHooks[] = {
-	{CSGOHooks::VecAnglesProxy, CCRC32("DT_BaseEntity"), CCRC32("m_angRotation[1]"), nullptr}
+	{CSGOHooks::LBYProxy, CCRC32("DT_CSPlayer"), CCRC32("m_flLowerBodyYawTarget"), nullptr}
 };
 
 size_t netvarCount = sizeof(netvarHooks) / sizeof(NetvarHook);

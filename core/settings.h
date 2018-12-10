@@ -91,6 +91,8 @@ namespace Settings
 	extern OPTION(bool, aimbotSafeBacktrack, bindSettings, globalSettings);
 	extern OPTION(bool, aimbotNospread, bindSettings, globalSettings);
 	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];
+
+	extern OPTION(bool, resolver, bindSettings, globalSettings);
 }
 
 #endif
