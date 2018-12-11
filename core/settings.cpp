@@ -36,7 +36,7 @@ namespace Settings
 	OPTIONDEF(aimbotHitChance)(0);
 	OPTIONDEF(aimbotSafeBacktrack)(false);
 	OPTIONDEF(aimbotBacktrack)(true);
-	OPTIONDEF(aimbotAutoShoot)(false);
+	OPTIONDEF(aimbotAutoShoot)(true);
 	OPTIONDEF(aimbotNospread)(false);
 
 	OPTIONDEF(resolver)(false);

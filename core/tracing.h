@@ -1,7 +1,6 @@
 #ifndef TRACING2_H
 #define TRACING2_H
 
-#include <atomic>
 #include "../sdk/framework/math/mmath.h"
 
 class C_BasePlayer;
@@ -14,7 +13,6 @@ struct Players;
 
 namespace Tracing2
 {
-	extern std::atomic_int traceCounter;
 	int TracePlayers(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, vec3_t point, int eID, int depth, C_BasePlayer* skipEnt = nullptr);
 	template<size_t N>
 	void TracePlayersSIMD(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, vec3soa<float, N> point, int eID, int out[N], int depth, C_BasePlayer* skipEnt);
@@ -26,6 +24,7 @@ namespace Tracing2
 	void TraceRayListBSPOnly(size_t n, const Ray_t* rays, unsigned int mask, trace_t* traces);
 	void TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players);
 	void ResetTraceCount();
+	int RetreiveTraceCount();
 }
 
 #endif

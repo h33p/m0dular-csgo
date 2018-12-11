@@ -5,7 +5,7 @@ if get_option('buildtype').startswith('debug')
 endif
 
 add_project_arguments('-DPT_VISUALS', language : 'cpp')
-#add_project_arguments('-DAIMBOT_THREADING', language : 'cpp')
+add_project_arguments('-DAIMBOT_THREADING', language : 'cpp')
 
 compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '-DRESOLVEBASECOUNT=1', '-DMULTIPOINT_COUNT=8', '-DNUM_THREADS=12', '-DRESOLVE_ANGLE_STEP=60', '-DRESOLVE_BRUTEFORCE_STEP=30']
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']

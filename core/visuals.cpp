@@ -185,7 +185,7 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 			bool flags[mpVec.Yt];
 			mvec3 screenPos = w2s.WorldToScreen(mpVec, screen, flags);
 
-			for (size_t u = 0; u < MULTIPOINT_COUNT; u++) {
+			for (size_t u = 0; u < 1 + 0 *MULTIPOINT_COUNT; u++) {
 				if (!flags[u])
 					continue;
 				vec3 screen = (vec3)screenPos.acc[u];

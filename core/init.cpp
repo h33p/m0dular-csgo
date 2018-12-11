@@ -98,7 +98,7 @@ void* __stdcall EntryPoint(void*)
 #ifndef LOADER_INITIALIZATION
 	InitializeHooks();
 #endif
-	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer...\n"));
+	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer as tracer...\n"));
 	InitializeDynamicHooks();
 	cvar->ConsoleColorPrintf(Color(1.f, 0.f, 0.f, 1.f), ST("ERROR: I'm already tracer!\n"));
 	return nullptr;

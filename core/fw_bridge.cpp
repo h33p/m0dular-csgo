@@ -388,7 +388,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 //#ifdef DEBUG
 			auto t2 = Clock::now();
 
-			traceCountHistory.Push(Tracing2::traceCounter);
+			traceCountHistory.Push(Tracing2::RetreiveTraceCount());
 			traceTimeHistory.Push(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
 
 			traceTimeAvg = 0;
