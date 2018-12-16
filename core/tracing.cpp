@@ -5,11 +5,13 @@
 #include "../sdk/source_csgo/sdk.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
+#include "../sdk/framework/utils/freelistallocator.h"
+#include "../sdk/framework/utils/allocwraps.h"
 
 static constexpr float CACHED_TRACE_LEN = 8192.f;
 static constexpr float CACHE_ACCURACY = 2.f;
 
-static int traceThreadBudget = 1000;
+static int traceThreadBudget = 500;
 static int cachedTraceThreadBudget = 5000;
 
 struct TraceCache
@@ -61,7 +63,8 @@ struct TraceCache
 	int traceCountTick, cachedTraceCountTick, cachedTraceFindTick;
 	vec3_t pos;
 	float eyeHeight;
-	KDTree<traceang_t, 2> tree;
+	static constexpr uintptr_t nullBase = 0;
+	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, 200000>> tree;
 
 	TraceCache() : traceCountTick(0), cachedTraceCountTick(0), pos(0), eyeHeight(0), tree()
 	{
@@ -102,7 +105,7 @@ struct TraceCache
 
 		auto ref = tree.Find(entry);
 
-		if (ref.allocID)
+		if (ref)
 			return &ref->value.trace;
 
 		return nullptr;

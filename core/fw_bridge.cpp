@@ -372,7 +372,6 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			memset(hitboxList, 0, sizeof(hitboxList));
 
 			for (auto& i : Settings::aimbotHitboxes) {
-				printf("PHB: %d %d %d\n", i.hitbox, hitboxIDs[i.hitbox], i.mask);
 				if (i.hitbox >= 0 && hitboxIDs[i.hitbox] >= 0) {
 					hitboxList[hitboxIDs[i.hitbox]] = i.mask;
 					pointScale[hitboxIDs[i.hitbox]] = i.pointScale;

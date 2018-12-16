@@ -6,6 +6,7 @@
 #include "visuals.h"
 #include "impacts.h"
 #include "tracing.h"
+#include "settings.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
 
@@ -35,9 +36,11 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	bSendPacket = *(bool**)FRAME_POINTER() - 0x1C;
 #endif
 
+	Settings::ipcLock->rlock();
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
+	Settings::ipcLock->runlock();
 
 	if (cmd->buttons & IN_ATTACK2 && cmd->buttons & IN_JUMP && cmd->viewangles[0] > 85)
 		Unload();

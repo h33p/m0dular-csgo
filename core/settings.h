@@ -4,9 +4,12 @@
 #include "../sdk/framework/utils/settings.h"
 #include "../sdk/framework/players.h"
 #include "../sdk/framework/math/mmath.h"
+#include "../sdk/framework/utils/shared_mutex.h"
 #include "../sdk/source_csgo/studio.h"
+#include "../sdk/framework/utils/freelistallocator.h"
+#include "../sdk/framework/utils/allocwraps.h"
 
-struct OptionBindData
+/*struct OptionBindData
 {
 	short key;
 	char mode;
@@ -27,16 +30,16 @@ class BindAllocator : public PackedAllocator
 	idx_t Alloc(idx_t sz)
 	{
 		idx_t ret = PackedAllocator::Alloc(sz + sizeof(OptionBindData));
-		*(OptionBindData*)(PackedAllocator::buf + sz) = OptionBindData();
+		*(OptionBindData*)(PackedAllocator::buf + ret + sz) = OptionBindData();
 		return ret;
 	}
 
 	idx_t GetBindDataID(idx_t idx)
 	{
-		return idx + ((PackedAllocator::MetaData*)(PackedAllocator::buf + idx) - 1)->size - sizeof(OptionBindData);
+		return idx + ((PackedAllocator::MetaData*)(PackedAllocator::buf + idx) - 1)->size - (idx_t)sizeof(OptionBindData);
 	}
 
-	OptionBindData GetBindData(idx_t allocIdx)
+	OptionBindData& GetBindData(idx_t allocIdx)
 	{
 		return *(OptionBindData*)(PackedAllocator::buf + GetBindDataID(allocIdx));
 	}
@@ -62,7 +65,13 @@ class BindSettingsGroup : public SettingsGroupBase<BindAllocator>
 		return (T*)(alloc + idx);
 	}
 
-};
+	template<typename T>
+	constexpr OptionBindData& GetBindData(idx_t idx)
+	{
+		return *(OptionBindData*)(alloc + idx + (idx_t)sizeof(T));
+	}
+
+	};*/
 
 struct AimbotHitbox
 {
@@ -73,26 +82,19 @@ struct AimbotHitbox
 
 namespace Settings
 {
-	extern SettingsGroup globalSettings;
-	extern SettingsGroup bindSettings;
+	extern uintptr_t allocBase;
+	extern generic_free_list_allocator<allocBase>* settingsAlloc;
 
-	extern OPTION(bool, bunnyhopping, bindSettings, globalSettings);
-	extern OPTION(bool, autostrafer, bindSettings, globalSettings);
-	extern OPTION(bool, antiaim, bindSettings, globalSettings);
+	extern SettingsGroupBase<stateful_allocator<unsigned char, settingsAlloc>>* globalSettingsPtr;
+	extern pointer_proxy<globalSettingsPtr> globalSettings;
+	extern SettingsGroupBase<stateful_allocator<unsigned char, settingsAlloc>>* bindSettingsPtr;
+	extern pointer_proxy<globalSettingsPtr> bindSettings;
+	extern SharedMutex* ipcLock;
 
-	extern OPTION(bool, fakelag, bindSettings, globalSettings);
-
-	extern OPTION(bool, aimbot, bindSettings, globalSettings);
-	extern OPTION(bool, aimbotSetAngles, bindSettings, globalSettings);
-	extern OPTION(int, aimbotLagCompensation, bindSettings, globalSettings);
-	extern OPTION(int, aimbotHitChance, bindSettings, globalSettings);
-	extern OPTION(bool, aimbotAutoShoot, bindSettings, globalSettings);
-	extern OPTION(bool, aimbotBacktrack, bindSettings, globalSettings);
-	extern OPTION(bool, aimbotSafeBacktrack, bindSettings, globalSettings);
-	extern OPTION(bool, aimbotNospread, bindSettings, globalSettings);
 	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];
 
-	extern OPTION(bool, resolver, bindSettings, globalSettings);
+#define HANDLE_OPTION(type, defaultVal, name, ...) extern OPTION(type, name, __VA_ARGS__);
+#include "option_list.h"
 }
 
 #endif

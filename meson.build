@@ -12,7 +12,7 @@ compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '
 linker_args = compile_args
 
 if not get_option('buildtype').startswith('debug')
-	compile_args += ['-flto', '-Ofast', '-msse4.2']
+	compile_args += ['-flto', '-Ofast', '-mavx2']
   linker_args += ['-flto']
 else
   compile_args += ['-g', '-O0']
@@ -34,6 +34,7 @@ framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mut
 
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_files + interface_files + ['core/init.cpp']
+client_file_list = ['core/settings.cpp', 'client/settings.cpp'] + framework_files
 
 includes = []
 libraries = []
@@ -61,6 +62,7 @@ if meson.is_cross_build()
 			includes += join_paths(bf_dir, 'include/um')
 			includes += join_paths(bf_dir, 'include/shared')
 			includes += join_paths(bf_dir, 'include/winrt')
+			includes += join_paths(bf_dir, 'include/boost')
 			libraries += join_paths(bf_dir, 'lib/clang')
 			libraries += join_paths(bf_dir, join_paths('lib/msvc', cpu_family))
 			libraries += join_paths(bf_dir, join_paths('lib/ucrt', cpu_family))
@@ -87,7 +89,7 @@ if meson.is_cross_build()
 endif
 
 if host_machine.system() == 'linux'
-  linker_args += '-ldl'
+  linker_args += ['-ldl', '-lrt']
   linker_args += '-Wl,-Map=libm0dular.map'
 endif
 
@@ -106,4 +108,5 @@ endforeach
 
 thread_dep = dependency('threads')
 
-shared_library('m0dular', files(file_list), cpp_args : compile_args, link_args : linker_args, dependencies : thread_dep)
+lib = shared_library('m0dular', files(file_list), cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep])
+client = executable('m0dular', files(client_file_list), cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep])
