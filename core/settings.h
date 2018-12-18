@@ -9,69 +9,89 @@
 #include "../sdk/framework/utils/freelistallocator.h"
 #include "../sdk/framework/utils/allocwraps.h"
 
-/*struct OptionBindData
-{
-	short key;
-	char mode;
-	bool active;
-
-	OptionBindData()
-		: key(0), mode(0), active(false)
-	{
-
-	}
-};
+#ifdef _WIN32
+#define offset_of(x, t) offsetof(x, t)
+#else
+#define offset_of(x, t) (__builtin_constant_p(offsetof(x, t) ? offsetof(x, t) : offsetof(x, t)))
+#endif
 
 //A packed allocator that injects additional data for bind management
-class BindAllocator : public PackedAllocator
+template<typename Alloc, bool recursRebind>
+class BindAllocator : public Alloc
 {
   public:
+	using value_type = typename Alloc::value_type;
+	using pointer = typename std::allocator_traits<Alloc>::pointer;
+	using size_type = size_t;
+	using difference_type = ptrdiff_t;
+	using is_always_equal = typename std::allocator_traits<Alloc>::is_always_equal;
+	using propagate_on_container_move_assignment = typename std::allocator_traits<Alloc>::propagate_on_container_move_assignment;
 
-	idx_t Alloc(idx_t sz)
+	struct real_value_type
 	{
-		idx_t ret = PackedAllocator::Alloc(sz + sizeof(OptionBindData));
-		*(OptionBindData*)(PackedAllocator::buf + ret + sz) = OptionBindData();
-		return ret;
+		bool bindActive;
+	    value_type value;
+	};
+
+	static constexpr size_t bindOffset = offset_of(real_value_type, value);
+	using RealAlloc = typename Alloc::template rebind<real_value_type>::other;
+	using real_pointer = typename RealAlloc::pointer;
+	using ByteAlloc = typename Alloc::template rebind<unsigned char>::other;
+	using byte_pointer = typename ByteAlloc::pointer;
+
+  public:
+
+    pointer allocate(size_type sz)
+	{
+	    byte_pointer ret = ByteAlloc::allocate(sizeof(value_type) * sz + bindOffset);
+		((real_pointer)ret)->bindActive = false;
+		return (pointer)(ret + bindOffset);
 	}
 
-	idx_t GetBindDataID(idx_t idx)
+	void deallocate(pointer ptr, size_type sz)
 	{
-		return idx + ((PackedAllocator::MetaData*)(PackedAllocator::buf + idx) - 1)->size - (idx_t)sizeof(OptionBindData);
+		byte_pointer bptr = (byte_pointer)ptr;
+		bptr -= bindOffset;
+		deallocate(bptr, sizeof(value_type) * sz + bindOffset);
 	}
 
-	OptionBindData& GetBindData(idx_t allocIdx)
+	inline bool operator==(const BindAllocator& o)
 	{
-		return *(OptionBindData*)(PackedAllocator::buf + GetBindDataID(allocIdx));
+		return Alloc::operator==(o);
 	}
+
+	template<typename Other>
+	struct rebind
+	{
+		using other = typename std::conditional<recursRebind, BindAllocator<typename Alloc::template rebind<Other>::other, recursRebind>, typename Alloc::template rebind<Other>::other>::type;
+	};
 };
 
-class BindSettingsGroup : public SettingsGroupBase<BindAllocator>
+template<typename Alloc>
+class BindSettingsGroup : public SettingsGroupBase<BindAllocator<Alloc, false>>
 {
+	using base_type = SettingsGroupBase<BindAllocator<Alloc, false>>;
+	using bind_alloc = BindAllocator<Alloc, false>;
   public:
+	using pointer = typename base_type::pointer;
+	using size_type = typename base_type::size_type;
 
-	//If the bind is not active, return null pointer so SettingsChain falls to the next option. If this object is the last in the chain, the program will crash - as intended
+	static constexpr unsigned char HEADER_MAGIC = 0xae;
+	//If the bind is not active, return false so SettingsChain falls to the next option. If bind group is the last in the chain, the program will crash - as intended
 	template<typename T>
-	constexpr T* RetreivePtrFast(idx_t idx)
+	inline bool IsBlocked(T ptr)
 	{
-		if (!alloc.GetBindData(idx).active)
-			return nullptr;
-
-		return (T*)(alloc + idx);
+	    auto rptr = (typename bind_alloc::real_pointer)((uintptr_t)ptr - bind_alloc::bindOffset);
+		return !rptr->bindActive;
 	}
 
-	template<typename T>
-	constexpr T* RetreivePtrFastNoAuth(idx_t idx)
+	template<typename T, template<typename F> typename U>
+	inline void ActivateBind(U<T> ptr, bool active)
 	{
-		return (T*)(alloc + idx);
+	    auto rptr = (typename bind_alloc::real_pointer)((uintptr_t)ptr - bind_alloc::bindOffset);
+		rptr->bindActive = active;
 	}
-
-	template<typename T>
-	constexpr OptionBindData& GetBindData(idx_t idx)
-	{
-		return *(OptionBindData*)(alloc + idx + (idx_t)sizeof(T));
-	}
-
-	};*/
+};
 
 struct AimbotHitbox
 {
@@ -87,8 +107,8 @@ namespace Settings
 
 	extern SettingsGroupBase<stateful_allocator<unsigned char, settingsAlloc>>* globalSettingsPtr;
 	extern pointer_proxy<globalSettingsPtr> globalSettings;
-	extern SettingsGroupBase<stateful_allocator<unsigned char, settingsAlloc>>* bindSettingsPtr;
-	extern pointer_proxy<globalSettingsPtr> bindSettings;
+	extern BindSettingsGroup<stateful_allocator<unsigned char, settingsAlloc>>* bindSettingsPtr;
+	extern pointer_proxy<bindSettingsPtr> bindSettings;
 	extern SharedMutex* ipcLock;
 
 	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];

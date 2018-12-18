@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "../core/settings.h"
+#include "../core/binds.h"
 #include <iostream>
 #include <sstream>
 
@@ -283,8 +284,7 @@ static void HandleGet(const ConsoleSetting& set, const char** cmds, int n)
 
 static void HandleSet(const ConsoleSetting& set, const char** cmds, int n)
 {
-
-	if (n < 0) {
+	if (n <= 0) {
 		printf("Value not changed!\n");
 		return;
 	}
@@ -322,14 +322,29 @@ static void Save(const char** cmds, int n)
 	char filename[512];
 	filename[0] = '\0';
 
-	strcat(filename, cmds[0]);
+	int i = 0;
 
-	for (int i = 1; i < n; i++) {
+	if (n >= 2)
+		i++;
+	else if (n < 1)
+		return;
+
+	int starti = i;
+
+	strcat(filename, cmds[i++]);
+	for (int i = 2; i < n; i++) {
 		strcat(filename, " ");
-		strcat(filename, cmds[n]);
+		strcat(filename, cmds[i]);
 	}
 
-	auto res = Settings::globalSettings->Serialize();
+	std::vector<unsigned char> res;
+
+	if (!starti || strcmp("bindSettings", cmds[0]))
+		res = Settings::globalSettings->Serialize();
+	else {
+		printf("Serializing bind settings...\n");
+		res = Settings::bindSettings->Serialize();
+	}
 
 	printf("Writing %zu bytes to %s\n", res.size(), filename);
 
