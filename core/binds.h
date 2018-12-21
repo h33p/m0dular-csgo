@@ -7,6 +7,8 @@
 #include "settings.h"
 #include <vector>
 
+//TODO: Remove the unnecessary pointer type templating since now we use shmemptr even in the interface level
+
 enum BindMode : unsigned char
 {
     HOLD = 0,
@@ -15,27 +17,56 @@ enum BindMode : unsigned char
 
 //All these types are a bit dependant on each other, but only the behavior, not the data
 struct BindDataIFace;
+struct BindHandlerIFace;
+
+struct BindHandlerIFaceVtable
+{
+	//We can not really be non-virtual but we also can not have virtual method tables stored in shared memory. So, this is the manual vtable
+	BindDataIFace* (*AllocKeyBind)(BindHandlerIFace*) = nullptr;
+	void (*ReleaseKeyBind)(BindHandlerIFace*, BindDataIFace*) = nullptr;
+	void (*HandleEnable)(BindHandlerIFace*, BindDataIFace*) = nullptr;
+	void (*HandleDisable)(BindHandlerIFace*, BindDataIFace*) = nullptr;
+};
 
 struct BindHandlerIFace
 {
-	//There is not really a simple non-virtual way to handle different data types without holding pointers to templated functions anyways
-	virtual BindDataIFace* AllocKeyBind() = 0;
-	virtual void HandleEnable(const BindDataIFace*) = 0;
-	virtual void HandleDisable(const BindDataIFace*) = 0;
+	Settings::LocalOffPtr<BindHandlerIFaceVtable> vtbl;
+
+	BindDataIFace* AllocKeyBind()
+	{
+		return vtbl->AllocKeyBind(this);
+	}
+
+	inline void ReleaseKeyBind(BindDataIFace* data)
+	{
+		vtbl->ReleaseKeyBind(this, data);
+	}
+
+	inline void HandleEnable(BindDataIFace* data)
+	{
+		vtbl->HandleEnable(this, data);
+	}
+
+	inline void HandleDisable(BindDataIFace* data)
+	{
+		vtbl->HandleDisable(this, data);
+	}
+
 };
 
 struct BindDataIFace
 {
-	BindHandlerIFace* handler;
+	//TODO: fill this with functions
+	Settings::SHMemPtr<BindHandlerIFace> handler;
 
 	BindDataIFace(BindHandlerIFace* hptr)
 		: handler(hptr)
 	{
 	}
 
-	virtual ~BindDataIFace()
+	~BindDataIFace()
 	{
-		handler->HandleDisable(this);
+		handler->ReleaseKeyBind(this);
 	}
 
 	void HandleEnable()
@@ -64,10 +95,10 @@ struct BindHandlerBase : BindHandlerIFace
 	{
 	}
 
-	template<typename Alloc>
-	BindHandlerBase(BindSettingsGroup<Alloc>* bindAlloc, crcs_t crc)
+	template<typename Alloc, typename T>
+	BindHandlerBase(BindSettingsGroup<Alloc>* bindAlloc, crcs_t crc, const T& val)
 	{
-		pointer = (Ptr)bindAlloc->TryGetAlloc(crc);
+		pointer = (Ptr)bindAlloc->ReserveOption(crc, val);
 	}
 };
 
@@ -86,11 +117,14 @@ template<typename T, auto& SettingsGroup, typename Ptr, class Alloc = std::alloc
 struct BindHandlerImpl : BindHandlerBase<Ptr>
 {
 	using Base = BindHandlerBase<Ptr>;
+	using ThisType = BindHandlerImpl<T, SettingsGroup, Ptr, Alloc>;
 	Alloc alloc;
-	using VecAlloc = typename Alloc::template rebind<const BindDataImpl<T>*>::other;
 	using TypePointer = typename std::pointer_traits<Ptr>::template rebind<T>;
+	using TrueBindPointer = BindDataImpl<T>*;
+	using BindPointer = typename std::pointer_traits<Ptr>::template rebind<BindDataImpl<T>>;
+	using VecAlloc = typename Alloc::template rebind<BindPointer>::other;
 
-	std::vector<const BindDataImpl<T>*, VecAlloc> activeBinds;
+	std::vector<BindPointer, VecAlloc> activeBinds;
 
 	template<typename... Args>
 	BindHandlerImpl(Args... args)
@@ -98,15 +132,42 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	{
 	}
 
-	virtual BindDataIFace* AllocKeyBind() override
+	inline void InitializeVTable()
+	{
+		Base::vtbl = Settings::settingsLocalAlloc.allocate<BindHandlerIFaceVtable>(1);
+		Base::vtbl->AllocKeyBind = AllocKeyBindST;
+		Base::vtbl->ReleaseKeyBind = ReleaseKeyBindST;
+		Base::vtbl->HandleEnable = HandleEnableST;
+		Base::vtbl->HandleDisable = HandleDisableST;
+	}
+
+	BindDataIFace* AllocKeyBind()
 	{
 		auto ret = alloc.allocate(1);
+		ret = new(ret) BindDataImpl<T>(this);
 		return (BindDataIFace*)ret;
 	}
 
-	virtual void HandleEnable(const BindDataIFace* keyBindIFace) override
+	static inline BindDataIFace* AllocKeyBindST(BindHandlerIFace* iface)
 	{
-	    auto keyBind = (const BindDataImpl<T>*)keyBindIFace;
+		return ((ThisType*)iface)->AllocKeyBind();
+	}
+
+	void ReleaseKeyBind(BindDataIFace* keyBindIFace)
+	{
+		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
+		HandleDisable(keyBindIFace);
+		alloc.deallocate(keyBind, 1);
+	}
+
+	static inline void ReleaseKeyBindST(BindHandlerIFace* iface, BindDataIFace* keyBindIFace)
+	{
+	    ((ThisType*)iface)->ReleaseKeyBind(keyBindIFace);
+	}
+
+	void HandleEnable(BindDataIFace* keyBindIFace)
+	{
+		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
 
 		//Delete any previous instances just in case...
 		HandleDisable(keyBindIFace);
@@ -117,16 +178,21 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	    SettingsGroup->ActivateBind(Base::pointer, true);
 	}
 
-	virtual void HandleDisable(const BindDataIFace* keyBindIFace) override
+	static inline void HandleEnableST(BindHandlerIFace* iface, BindDataIFace* keyBindIFace)
 	{
-	    auto keyBind = (const BindDataImpl<T>*)keyBindIFace;
+	    ((ThisType*)iface)->HandleEnable(keyBindIFace);
+	}
+
+	void HandleDisable(BindDataIFace* keyBindIFace)
+	{
+		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
 
 		for (auto& i : activeBinds)
 			if (i == keyBind)
 				i = nullptr;
 
 		//Remove all null pointers from the top of the stack
-		while (activeBinds.size() && activeBinds.back())
+		while (activeBinds.size() && !activeBinds.back())
 			activeBinds.pop_back();
 
 		if (activeBinds.size()) {
@@ -135,19 +201,22 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 		} else
 			SettingsGroup->ActivateBind(Base::pointer, false);
 	}
+
+	static inline void HandleDisableST(BindHandlerIFace* iface, BindDataIFace* keyBindIFace)
+	{
+	    ((ThisType*)iface)->HandleDisable(keyBindIFace);
+	}
 };
 
 struct BindKey
 {
-	using BindDataPtr = void*;
-
 	BindMode mode;
 	char state;
 	bool down;
-	BindDataPtr pointer;
+	Settings::SHMemPtr<BindDataIFace> pointer;
 
-	BindKey()
-		: mode(BindMode::HOLD), state(0), pointer(nullptr)
+	BindKey(BindDataIFace* p = nullptr, BindMode bMode = BindMode::HOLD)
+		: mode(bMode), state(0), pointer(p)
 	{
 	}
 
@@ -169,13 +238,43 @@ struct BindKey
 
 		down = isDown;
 
+		bool enable = false;
+
 		switch(mode) {
 		  case BindMode::HOLD:
+			  enable = down;
 			  break;
 		  case BindMode::TOGGLE:
+			  if (!down) {
+				  state = (char)!state;
+				  enable = state;
+			  } else
+				  return;
 			  break;
 		}
+
+		if (enable)
+			pointer->HandleEnable();
+		else
+			pointer->HandleDisable();
 	}
+
+	template<typename T>
+	inline void BindPointer(BindHandlerIFace* handler, const T& value)
+	{
+		if (pointer)
+		    pointer->~BindDataIFace();
+		pointer = handler->AllocKeyBind();
+		((BindDataImpl<T>*)&*pointer)->value = value;
+	}
+
+	template<typename T>
+	inline void InitializePointer(const T& value)
+	{
+		if (pointer)
+			((BindDataImpl<T>*)&*pointer)->value = value;
+	}
+
 };
 
 using BindSettingsType = typename std::decay<decltype(*Settings::bindSettingsPtr)>::type;
@@ -183,10 +282,20 @@ using BindSettingsType = typename std::decay<decltype(*Settings::bindSettingsPtr
 template<typename T>
 using BindImpl = BindHandlerImpl<T, Settings::bindSettings, BindSettingsType::pointer, stateful_allocator<BindDataImpl<T>, Settings::settingsAlloc>>;
 
+struct BindManagerInstance
+{
+	using HandlerPointer = Settings::SHMemPtr<BindHandlerIFace>;
+	HandlerPointer bindList[Settings::optionCount];
+	BindKey binds[256];
+
+	BindManagerInstance();
+	~BindManagerInstance();
+	void InitializeLocalData();
+};
+
 namespace BindManager
 {
-	extern BindHandlerIFace* bindList[];
-
+	extern BindManagerInstance* sharedInstance;
 	std::vector<unsigned char> SerializeBinds();
 	void LoadBinds(const std::vector<unsigned char>& vec);
 }

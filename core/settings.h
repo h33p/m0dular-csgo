@@ -105,6 +105,15 @@ namespace Settings
 	extern uintptr_t allocBase;
 	extern generic_free_list_allocator<allocBase>* settingsAlloc;
 
+	extern uintptr_t localAllocBase;
+	extern generic_free_list_allocator<localAllocBase> settingsLocalAlloc;
+
+	template<typename T>
+	using SHMemPtr = typename std::decay<decltype(*Settings::settingsAlloc)>::type::pointer_t<T>;
+
+	template<typename T>
+	using LocalOffPtr = typename std::decay<decltype(Settings::settingsLocalAlloc)>::type::pointer_t<T>;
+
 	extern SettingsGroupBase<stateful_allocator<unsigned char, settingsAlloc>>* globalSettingsPtr;
 	extern pointer_proxy<globalSettingsPtr> globalSettings;
 	extern BindSettingsGroup<stateful_allocator<unsigned char, settingsAlloc>>* bindSettingsPtr;
@@ -112,6 +121,11 @@ namespace Settings
 	extern SharedMutex* ipcLock;
 
 	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];
+
+#define HANDLE_OPTION(...) 1 +
+	static constexpr int optionCount =
+#include "option_list.h"
+		0;
 
 #define HANDLE_OPTION(type, defaultVal, name, ...) extern OPTION(type, name, __VA_ARGS__);
 #include "option_list.h"

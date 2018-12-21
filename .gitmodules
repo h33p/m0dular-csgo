@@ -1,3 +1,6 @@
 [submodule "sdk"]
 	path = sdk
 	url = ../m0dular-source-sdk.git
+[submodule "modules/keycode"]
+	path = modules/keycode
+	url = https://github.com/depp/keycode.git

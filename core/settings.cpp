@@ -1,6 +1,7 @@
 #include "settings.h"
-#include "../sdk/framework/features/aimbot.h"
+#include "../sdk/framework/features/aimbot_types.h"
 #include "../sdk/framework/utils/stackstring.h"
+#include "binds.h"
 
 //We will use atomic flags and atomic ints to implement a interprocess rwlock
 #include <atomic>
@@ -27,6 +28,9 @@ std::atomic_int* ipcCounter = nullptr;
 
 uintptr_t Settings::allocBase = 0;
 generic_free_list_allocator<Settings::allocBase>* Settings::settingsAlloc = nullptr;
+
+uintptr_t Settings::localAllocBase = (uintptr_t)malloc(ALLOC_SIZE);
+generic_free_list_allocator<Settings::localAllocBase> Settings::settingsLocalAlloc(1 << 25, PlacementPolicy::FIND_FIRST, (void**)localAllocBase);
 
 decltype(Settings::globalSettingsPtr) Settings::globalSettingsPtr = nullptr;
 decltype(Settings::globalSettings) Settings::globalSettings;
@@ -66,8 +70,9 @@ static IPCInit initializedPointers[] = {
 	IPCInit(ipcCounter),
 	IPCInit(Settings::settingsAlloc),
 	IPCInit(Settings::globalSettingsPtr),
-    IPCInit(Settings::bindSettingsPtr),
-	IPCInit(Settings::ipcLock)
+	IPCInit(Settings::bindSettingsPtr),
+	IPCInit(BindManager::sharedInstance),
+	IPCInit(Settings::ipcLock),
 };
 
 bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
@@ -156,8 +161,11 @@ struct SettingsInstance
 			Construct(Settings::settingsAlloc, ALLOC_SIZE - (finalAddress - Settings::allocBase), PlacementPolicy::FIND_FIRST, (void*)finalAddress);
 		    Construct(Settings::globalSettingsPtr);
 		    Construct(Settings::bindSettingsPtr);
+		    Construct(BindManager::sharedInstance);
 		    Construct(Settings::ipcLock);
 		}
+
+		BindManager::sharedInstance->InitializeLocalData();
 
 		(*ipcCounter)++;
 	}
@@ -167,10 +175,11 @@ struct SettingsInstance
 		(*ipcCounter)--;
 
 		if (!ipcCounter->load()) {
-		    Destruct(ipcCounter);
+			Destruct(ipcCounter);
 			Destruct(Settings::settingsAlloc);
-		    Destruct(Settings::globalSettingsPtr);
-		    Destruct(Settings::bindSettingsPtr);
+			Destruct(Settings::globalSettingsPtr);
+			Destruct(Settings::bindSettingsPtr);
+			Destruct(BindManager::sharedInstance);
 			Destruct(Settings::ipcLock);
 		}
 
@@ -178,6 +187,7 @@ struct SettingsInstance
 	}
 };
 
+//TODO: Ensure this class gets constructed before anything else that depends on it. Currently this is done by changing file ordering, but does not work on GCC
 SettingsInstance sharedInstance;
 
 namespace Settings

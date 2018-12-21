@@ -12,11 +12,19 @@ compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '
 linker_args = compile_args
 
 if not get_option('buildtype').startswith('debug')
-	compile_args += ['-flto', '-Ofast', '-mavx2']
-  linker_args += ['-flto']
+	compile_args += ['-flto', '-Os', '-msse4.2', '-fno-stack-protector', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-fno-math-errno', '-fno-ident']
+  linker_args += ['-flto', '-fno-rtti']
+  if host_machine.system() != 'windows'
+    #linker_args += ['-Wl,--strip-all', '-Wl,--discard-all', '-Wl,--gc-sections']
+  else
+    linker_args += ['-Wl,-safeseh:no', '-Wl,-debugtype:none', '-Wl,-debug:NONE']
+  endif
 else
   compile_args += ['-g', '-O0']
   #linker_args += ['-lasan']
+  if host_machine.system() == 'windows'
+    linker_args += ['-Wl,-debugtype:all', '-Wl,-debug:full']
+  endif
 endif
 
 #compile_args += ['-fsanitize=address']
@@ -25,16 +33,18 @@ endif
 
 if build_machine.system() != 'windows'
 	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing']
-	linker_args += ['-fno-rtti']
 endif
 
 core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/tracing.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/lagcompensation.cpp', 'core/settings.cpp', 'core/binds.cpp']
 interface_files = ['interfaces/tracing.cpp']
-framework_files = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/shared_mutex.cpp', 'sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/semaphores.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp', 'sdk/framework/utils/intersect.cpp', 'sdk/framework/utils/packed_heap.cpp']
+framework_thread_utils = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/shared_mutex.cpp', 'sdk/framework/utils/semaphores.cpp']
+framework_other_utils = ['sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/utils/intersect.cpp', 'sdk/framework/utils/packed_heap.cpp']
+framework_other_files = ['sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp',  'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp']
+keycode_files = ['modules/keycode/keyid.c']
 
 #core/init.cpp has to be the last one to have proper initialization
-file_list = core_files + framework_files + interface_files + ['core/init.cpp']
-client_file_list = ['core/settings.cpp', 'client/settings.cpp'] + framework_files
+file_list = core_files + framework_other_files + interface_files + ['core/init.cpp'] + keycode_files
+client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp'] + keycode_files
 
 includes = []
 libraries = []
@@ -53,7 +63,7 @@ if meson.is_cross_build()
 		cpu_family = host_machine.cpu_family()
 		if build_machine.system() != 'windows'
 			linker_args += '-fuse-ld=lld'
-			add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas', '-Wno-deprecated-declarations', '-Wno-macro-redefined']
+			add_args = ['-target', 'i386-pc-windows-msvc19.14.26428', '-Wno-msvc-not-found', '-D_CRT_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-fms-extensions', '-fms-compatibility', '-fms-compatibility-version=19.14.26428', '-Wno-expansion-to-defined', '-Wno-nonportable-include-path', '-Wno-pragma-pack', '-Wno-ignored-attributes', '-Wno-ignored-pragma-intrinsic', '-Wno-int-to-void-pointer-cast', '-fuse-ld=lld', '-flto', '-Wno-non-virtual-dtor', '-Wno-unused-local-typedef', '-Wno-unknown-pragmas', '-Wno-deprecated-declarations', '-Wno-macro-redefined', '-Wno-comment']
 
 			bf_dir = get_option('msvc_dir')
 			includes += join_paths(bf_dir, 'include/clang')
@@ -71,8 +81,8 @@ if meson.is_cross_build()
 			libraries += join_paths(bf_dir, join_paths('lib/winrt', cpu_family))
 		else
 			add_args = []
-			linker_args += '-Wl,-debug:full'
-			linker_args += '-Wl,-v'
+			#linker_args += '-Wl,-debug:full'
+			#linker_args += '-Wl,-v'
 		endif
 		linker_args += '-Bdynamic'
 		linker_args += '-lkernel32'
@@ -108,5 +118,10 @@ endforeach
 
 thread_dep = dependency('threads')
 
-lib = shared_library('m0dular', files(file_list), cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep])
-client = executable('m0dular', files(client_file_list), cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep])
+fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep])
+lib = shared_library('m0dular', files(file_list), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : fwlib)
+client = executable('m0dular', files(client_file_list), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : fwlib)
+
+bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep])
+
+test('keybinds', bind_test)

@@ -1,14 +1,34 @@
 #include "binds.h"
 
-static constexpr int MAX_BIND_ELEMENTS = 100;
-static constexpr uintptr_t constAllocBase = 0;
-generic_free_list_allocator<constAllocBase> bindAlloc(MAX_BIND_ELEMENTS * (sizeof(*BindManager::bindList[0]) + sizeof(uint64_t) + 4), PlacementPolicy::FIND_FIRST);
+BindManagerInstance* BindManager::sharedInstance = nullptr;
 
-BindHandlerIFace* BindManager::bindList[] =
-{
-#define HANDLE_OPTION(type, defaultValue, name, ...) new (bindAlloc.allocate<BindImpl<type>>(1)) BindImpl<type>((Settings::bindSettings.operator->()), CCRC32(#name)),
+BindManagerInstance::BindManagerInstance()
+	: bindList {
+#define HANDLE_OPTION(type, defaultValue, name, ...) new (Settings::settingsAlloc->allocate<BindImpl<type>>(1)) BindImpl<type>((Settings::bindSettings.operator->()), CCRC32(#name), type()),
 #include "option_list.h"
-};
+}, binds {}
+{
+}
+
+BindManagerInstance::~BindManagerInstance()
+{
+	for (auto& i : binds)
+		if (i.pointer)
+			i.pointer->~BindDataIFace();
+
+	for (auto& i : bindList) {
+		//Technically UB, but settingsAlloc does know how to handle any type
+		if (i)
+			Settings::settingsAlloc->deallocate(i, 1);
+	}
+}
+
+void BindManagerInstance::InitializeLocalData()
+{
+	int cnt = 0;
+#define HANDLE_OPTION(type, defaultValue, name, ...) ((BindImpl<type>*)&*bindList[cnt++])->InitializeVTable();
+#include "option_list.h"
+}
 
 std::vector<unsigned char> BindManager::SerializeBinds()
 {
