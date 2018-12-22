@@ -21,18 +21,26 @@ struct BindHandlerIFace;
 
 struct BindHandlerIFaceVtable
 {
-	//We can not really be non-virtual but we also can not have virtual method tables stored in shared memory. So, this is the manual vtable
+	//We can not really be non-virtual but we can not have virtual method tables stored in shared memory either. So, this is the manual vtable
 	BindDataIFace* (*AllocKeyBind)(BindHandlerIFace*) = nullptr;
 	void (*ReleaseKeyBind)(BindHandlerIFace*, BindDataIFace*) = nullptr;
 	void (*HandleEnable)(BindHandlerIFace*, BindDataIFace*) = nullptr;
 	void (*HandleDisable)(BindHandlerIFace*, BindDataIFace*) = nullptr;
+	void (*SerializeBindData)(BindDataIFace*, std::vector<unsigned char>&) = nullptr;
+	size_t (*UnserializeBindData)(BindDataIFace*, const std::vector<unsigned char>&, size_t) = nullptr;
 };
 
 struct BindHandlerIFace
 {
 	Settings::LocalOffPtr<BindHandlerIFaceVtable> vtbl;
+	int id;
 
-	BindDataIFace* AllocKeyBind()
+	BindHandlerIFace(int nid)
+		: id(nid)
+	{
+	}
+
+	inline BindDataIFace* AllocKeyBind()
 	{
 		return vtbl->AllocKeyBind(this);
 	}
@@ -52,11 +60,19 @@ struct BindHandlerIFace
 		vtbl->HandleDisable(this, data);
 	}
 
+	inline void SerializeBindData(BindDataIFace* data, std::vector<unsigned char>& vec)
+	{
+		vtbl->SerializeBindData(data, vec);
+	}
+
+	inline size_t UnserializeBindData(BindDataIFace* keyBindIFace, const std::vector<unsigned char>& vec, size_t idx)
+	{
+		return vtbl->UnserializeBindData(keyBindIFace, vec, idx);
+	}
 };
 
 struct BindDataIFace
 {
-	//TODO: fill this with functions
 	Settings::SHMemPtr<BindHandlerIFace> handler;
 
 	BindDataIFace(BindHandlerIFace* hptr)
@@ -78,6 +94,16 @@ struct BindDataIFace
 	{
 		handler->HandleDisable(this);
 	}
+
+	void Serialize(std::vector<unsigned char>& vec)
+	{
+		handler->SerializeBindData(this, vec);
+	}
+
+	size_t Unserialize(const std::vector<unsigned char>& vec, size_t idx)
+	{
+		return handler->UnserializeBindData(this, vec, idx);
+	}
 };
 
 template<typename Ptr>
@@ -85,18 +111,19 @@ struct BindHandlerBase : BindHandlerIFace
 {
 	Ptr pointer;
 
-	BindHandlerBase()
-		: pointer(nullptr)
+	BindHandlerBase(int nid)
+		: BindHandlerIFace(nid), pointer(nullptr)
 	{
 	}
 
-	BindHandlerBase(Ptr ptr)
-		: pointer(ptr)
+	BindHandlerBase(int nid, Ptr ptr)
+		: BindHandlerIFace(nid), pointer(ptr)
 	{
 	}
 
 	template<typename Alloc, typename T>
-	BindHandlerBase(BindSettingsGroup<Alloc>* bindAlloc, crcs_t crc, const T& val)
+	BindHandlerBase(int nid, BindSettingsGroup<Alloc>* bindAlloc, crcs_t crc, const T& val)
+		: BindHandlerIFace(nid)
 	{
 		pointer = (Ptr)bindAlloc->ReserveOption(crc, val);
 	}
@@ -139,6 +166,8 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 		Base::vtbl->ReleaseKeyBind = ReleaseKeyBindST;
 		Base::vtbl->HandleEnable = HandleEnableST;
 		Base::vtbl->HandleDisable = HandleDisableST;
+		Base::vtbl->SerializeBindData = SerializeBindData;
+		Base::vtbl->UnserializeBindData = UnserializeBindData;
 	}
 
 	BindDataIFace* AllocKeyBind()
@@ -206,6 +235,25 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	{
 	    ((ThisType*)iface)->HandleDisable(keyBindIFace);
 	}
+
+	//We could have definitely provided these functions inside the bind data class, but that one does not have virtual methods needed for type spetialization and we do not want to introduce unnecessary virtual tables
+	static inline void SerializeBindData(BindDataIFace* keyBindIFace, std::vector<unsigned char>& vec)
+	{
+		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
+
+		for (int i = 0; i < sizeof(T); i++)
+			vec.push_back(((unsigned char*)&keyBind->value)[i]);
+	}
+
+	static inline size_t UnserializeBindData(BindDataIFace* keyBindIFace, const std::vector<unsigned char>& vec, size_t idx)
+	{
+		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
+
+		for (int i = 0; i < sizeof(T); i++)
+			((unsigned char*)&keyBind->value)[i] = vec[idx + i];
+
+		return idx + sizeof(T);
+	}
 };
 
 struct BindKey
@@ -220,44 +268,10 @@ struct BindKey
 	{
 	}
 
-	inline void Unserialize(std::vector<unsigned char>& vec, size_t& i)
-	{
-	    mode = (BindMode)vec[i++];
-		state = 0;
-	}
-
-	inline void Serialize(std::vector<unsigned char>& vec)
-	{
-		vec.push_back((unsigned char)mode);
-	}
-
-	inline void HandleKeyPress(bool isDown)
-	{
-		if (down == isDown)
-			return;
-
-		down = isDown;
-
-		bool enable = false;
-
-		switch(mode) {
-		  case BindMode::HOLD:
-			  enable = down;
-			  break;
-		  case BindMode::TOGGLE:
-			  if (!down) {
-				  state = (char)!state;
-				  enable = state;
-			  } else
-				  return;
-			  break;
-		}
-
-		if (enable)
-			pointer->HandleEnable();
-		else
-			pointer->HandleDisable();
-	}
+	void Serialize(std::vector<unsigned char>& vec);
+	size_t Unserialize(const std::vector<unsigned char>& vec, size_t idx);
+	void HandleKeyPress(bool isDown);
+	void Unbind();
 
 	template<typename T>
 	inline void BindPointer(BindHandlerIFace* handler, const T& value)
@@ -285,6 +299,7 @@ using BindImpl = BindHandlerImpl<T, Settings::bindSettings, BindSettingsType::po
 struct BindManagerInstance
 {
 	using HandlerPointer = Settings::SHMemPtr<BindHandlerIFace>;
+	const int cstart;
 	HandlerPointer bindList[Settings::optionCount];
 	BindKey binds[256];
 
@@ -296,8 +311,8 @@ struct BindManagerInstance
 namespace BindManager
 {
 	extern BindManagerInstance* sharedInstance;
-	std::vector<unsigned char> SerializeBinds();
-	void LoadBinds(const std::vector<unsigned char>& vec);
+	void SerializeBinds(std::vector<unsigned char>& vec);
+	size_t LoadBinds(const std::vector<unsigned char>& vec, size_t idx);
 }
 
 #endif

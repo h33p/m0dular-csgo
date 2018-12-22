@@ -357,27 +357,19 @@ static int Save(const char** cmds, int n)
 
 	int i = 0;
 
-	if (n >= 2)
-		i++;
-	else if (n < 1)
+	if (n < 1)
 		return 1;
 
-	int starti = i;
-
-	strcat(filename, cmds[i++]);
-	for (int i = 2; i < n; i++) {
+	strcat(filename, cmds[0]);
+	for (int i = 1; i < n; i++) {
 		strcat(filename, " ");
 		strcat(filename, cmds[i]);
 	}
 
 	std::vector<unsigned char> res;
 
-	if (!starti || strcmp(ST("bindSettings"), cmds[0]))
-		res = Settings::globalSettings->Serialize();
-	else {
-		STPRINT("Serializing bind settings...\n");
-		res = Settings::bindSettings->Serialize();
-	}
+	BindManager::SerializeBinds(res);
+	Settings::globalSettings->Serialize(res);
 
 	printf("Writing %zu bytes to %s\n", res.size(), filename);
 
@@ -412,7 +404,8 @@ static int Load(const char** cmds, int n)
 	std::vector<unsigned char> buf(sz);
 	fread(buf.data(), 1, sz, fp);
 
-	Settings::globalSettings->Initialize(buf);
+	size_t idx = BindManager::LoadBinds(buf, 0);
+	Settings::globalSettings->Initialize(buf, idx);
 
 	return 0;
 }
