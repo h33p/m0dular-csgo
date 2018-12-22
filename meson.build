@@ -87,6 +87,8 @@ if meson.is_cross_build()
 		linker_args += '-Bdynamic'
 		linker_args += '-lkernel32'
 		linker_args += '-lmsvcrt'
+		linker_args += '-ld3d9'
+		linker_args += '-luser32'
 		linker_args += '-Wl,-lldmap'
 	elif host_machine.system() == 'linux'
 		linker_args += '-fuse-ld=lld'

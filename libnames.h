@@ -24,5 +24,6 @@ LIBNAME(vstdLib, OPosix("lib") "vstdlib");
 LIBNAME(datacacheLib, "datacache");
 LIBNAME(physicsLib, "vphysics");
 LIBNAME(tierLib, OPosix("lib")"tier0");
+LIBNAME(shaderapiLib, "shaderapidx9");
 
 #endif

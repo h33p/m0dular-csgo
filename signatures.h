@@ -80,6 +80,7 @@ const Signature signatures[] = {
 	SIGNATURE(ClipRayToOBB, engineLib, "53 [E8 *? ? ? ?] 8A 54"),
 	SIGNATURE(ClipRayToVPhysics, engineLib, "53 [E8 *? ? ? ?] 84 C0 75 29"),
 	SIGNATURE(modelLoader, engineLib, "75 2F 50 A1 *"),
+	SIGNATURE(d3dDevice, shaderapiLib, "A1 **? ? ? ? 50 8B 08 FF 51 0C")
 #endif
 };
 

@@ -16,6 +16,17 @@
 extern VFuncHook* hookClientMode;
 extern VFuncHook* hookPanel;
 
+#ifdef __posix__
+union SDL_Event;
+extern uintptr_t origPollEvent;
+extern uintptr_t* pollEventJump;
+#else
+struct IDirect3DDevice9;
+extern HWND dxTargetWindow;
+extern LONG_PTR oldWndProc;
+extern IDirect3DDevice9* d3dDevice;
+#endif
+
 namespace CSGOHooks
 {
 #ifdef PT_VISUALS
@@ -27,6 +38,12 @@ namespace CSGOHooks
 	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
 	void ImpactsEffect(const CEffectData& effectData);
 	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);
+
+#ifdef __posix__
+	int PollEvent(SDL_Event* event);
+#else
+	LRESULT __stdcall WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 }
 
 #endif

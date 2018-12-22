@@ -15,6 +15,10 @@
 #include "../interfaces.h"
 #include "tracing.h"
 
+#ifdef _WIN32
+#include <d3d9.h>
+#endif
+
 VFuncHook* hookClientMode = nullptr;
 VFuncHook* hookPanel = nullptr;
 
@@ -151,6 +155,13 @@ static void PlatformSpecificOffsets()
 	//uintptr_t activateMouse = (*(uintptr_t**)cl)[15];
 	uintptr_t GetLocalPlayer = GetAbsoluteAddress((*(uintptr_t**)engine)[12] + 9, 1, 5);
 	clientState = ((CClientState*(*)(int))GetLocalPlayer)(-1);
+
+	MHandle handle = Handles::GetModuleHandle(ST("libSDL2-2.0"));
+
+	uintptr_t polleventFn = (uintptr_t)(dlsym(handle, ST("SDL_PollEvent"))) OMac(+ 12);
+	pollEventJump = (uintptr_t*)GetAbsoluteAddress(polleventFn, 3, 7);
+	origPollEvent = *pollEventJump;
+
 #else
 	globalVars = **(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
 #endif
@@ -231,6 +242,18 @@ static void InitializeHooks()
 
 	for (size_t i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
 		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
+
+	//Iniitalize input
+#ifdef __posix__
+	*pollEventJump = (uintptr_t)&CSGOHooks::PollEvent;
+#else
+	D3DDEVICE_CREATION_PARAMETERS params;
+
+	if (d3dDevice && d3dDevice->GetCreationParameters(&params) == D3D_OK) {
+		dxTargetWindow = params.hFocusWindow;
+		oldWndProc = SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, (LONG_PTR)CSGOHooks::WndProc);
+	}
+#endif
 }
 
 static void InitializeDynamicHooks()
@@ -270,6 +293,15 @@ void Shutdown()
 				i.hook = nullptr;
 			}
 		}
+
+#ifdef __posix__
+		if (pollEventJump)
+			*pollEventJump = origPollEvent;
+#else
+		if (oldWndProc)
+		    SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, oldWndProc);
+#endif
+
 
 		cvar->ConsoleDPrintf(ST("Removing entity hooks...\n"));
 		if (CSGOHooks::entityHooks) {

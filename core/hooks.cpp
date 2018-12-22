@@ -7,11 +7,53 @@
 #include "impacts.h"
 #include "tracing.h"
 #include "settings.h"
+#include "binds.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
+#ifdef __posix__
+#include <SDL2/SDL.h>
+#else
+#include <d3d9.h>
+#include "../modules/keycode/keytable_win.c"
+#endif
 
 void Unload();
 extern bool shuttingDown;
+
+#ifdef __posix__
+uintptr_t origPollEvent = 0;
+uintptr_t* pollEventJump = nullptr;
+
+int CSGOHooks::PollEvent(SDL_Event* event)
+{
+    auto OrigSDL_PollEvent = reinterpret_cast<decltype(CSGOHooks::PollEvent)*>(origPollEvent);
+
+	if (event->type == SDL_KEYUP)
+		BindManager::sharedInstance->binds[event->key.keysym.scancode].HandleKeyPress(false);
+	else if (event->type == SDL_KEYDOWN)
+		BindManager::sharedInstance->binds[event->key.keysym.scancode].HandleKeyPress(true);
+
+	return OrigSDL_PollEvent(event);
+}
+#else
+HWND dxTargetWindow;
+LONG_PTR oldWndProc = 0;
+IDirect3DDevice9* d3dDevice = nullptr;
+
+LRESULT __stdcall CSGOHooks::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+
+	if (wParam >= 0 && wParam < 256) {
+		if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
+			BindManager::sharedInstance->binds[WIN_NATIVE_TO_HID[wParam]].HandleKeyPress(false);
+		else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
+			BindManager::sharedInstance->binds[WIN_NATIVE_TO_HID[wParam]].HandleKeyPress(true);
+	}
+
+	return CallWindowProcW((WNDPROC)oldWndProc, hWnd, msg, wParam, lParam);
+}
+
+#endif
 
 [[gnu::flatten]]
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)

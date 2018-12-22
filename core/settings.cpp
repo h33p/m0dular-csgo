@@ -107,23 +107,21 @@ bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
 
 	if (addr == (void*)-1)
 		addr = nullptr;
-
-	if (false && !firstTime)
-		shm_unlink(name);
 #endif
 
 	return firstTime;
 }
 
-void UnmapSharedMemory(void* addr, fileHandle& fd, const char* name, size_t msz)
+void UnmapSharedMemory(void* addr, fileHandle& fd, const char* name, size_t msz, bool unlink)
 {
 #ifdef _WIN32
 	UnmapViewOfFile(addr);
 	CloseHandle(fd);
 #else
 	munmap(addr, msz);
-    close(fd);
-	shm_unlink(name);
+	close(fd);
+	if (unlink)
+		shm_unlink(name);
 #endif
 }
 
@@ -174,7 +172,10 @@ struct SettingsInstance
 	{
 		(*ipcCounter)--;
 
+		bool unlink = false;
+
 		if (!ipcCounter->load()) {
+			unlink = true;
 			Destruct(ipcCounter);
 			Destruct(Settings::settingsAlloc);
 			Destruct(Settings::globalSettingsPtr);
@@ -183,7 +184,7 @@ struct SettingsInstance
 			Destruct(Settings::ipcLock);
 		}
 
-		UnmapSharedMemory(alloc, fd, "m0d_settings", ALLOC_SIZE);
+		UnmapSharedMemory(alloc, fd, "m0d_settings", ALLOC_SIZE, unlink);
 	}
 };
 
