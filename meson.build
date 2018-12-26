@@ -5,19 +5,19 @@ if get_option('buildtype').startswith('debug')
 endif
 
 add_project_arguments('-DPT_VISUALS', language : 'cpp')
-add_project_arguments('-DAIMBOT_THREADING', language : 'cpp')
+#add_project_arguments('-DAIMBOT_THREADING', language : 'cpp')
 
 compile_args = ['-DMAX_PLAYERS=64', '-DMAX_BONES=128', '-DBACKTRACK_TICKS=64', '-DRESOLVEBASECOUNT=1', '-DMULTIPOINT_COUNT=8', '-DNUM_THREADS=12', '-DRESOLVE_ANGLE_STEP=60', '-DRESOLVE_BRUTEFORCE_STEP=30']
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
 linker_args = compile_args
 
 if not get_option('buildtype').startswith('debug')
-	compile_args += ['-flto', '-Os', '-msse4.2', '-fno-stack-protector', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-fno-math-errno', '-fno-ident']
+	compile_args += ['-flto', '-Ofast', '-msse4.2', '-fno-stack-protector', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-fno-math-errno', '-fno-ident']
   linker_args += ['-flto', '-fno-rtti']
   if host_machine.system() != 'windows'
     #linker_args += ['-Wl,--strip-all', '-Wl,--discard-all', '-Wl,--gc-sections']
   else
-    linker_args += ['-Wl,-safeseh:no', '-Wl,-debugtype:none', '-Wl,-debug:NONE']
+    #linker_args += ['-Wl,-safeseh:no', '-Wl,-debugtype:none', '-Wl,-debug:NONE']
   endif
 else
   compile_args += ['-g', '-O0']
@@ -35,7 +35,7 @@ if build_machine.system() != 'windows'
 	compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing']
 endif
 
-core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/tracing.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/lagcompensation.cpp', 'core/settings.cpp', 'core/binds.cpp']
+core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/tracing.cpp', 'core/gametrace.cpp', 'core/awall.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/lagcompensation.cpp', 'core/settings.cpp', 'core/binds.cpp']
 interface_files = ['interfaces/tracing.cpp']
 framework_thread_utils = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/shared_mutex.cpp', 'sdk/framework/utils/semaphores.cpp']
 framework_other_utils = ['sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/utils/intersect.cpp', 'sdk/framework/utils/packed_heap.cpp']

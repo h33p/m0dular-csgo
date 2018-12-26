@@ -17,7 +17,6 @@ static bool randomPopulated = false;
 
 constexpr int HITCHANCE_JOBS = 4;
 constexpr int HITCHANCE_PER_JOB = 256 / HITCHANCE_JOBS;
-constexpr int HITCHANCE_SIMD = NumOfSIMD(HITCHANCE_PER_JOB);
 
 struct HitChanceInput
 {
@@ -36,8 +35,8 @@ static vec3_t right;
 static float inaccuracyVal;
 static float spreadVal;
 static float range;
-static nvec3 startPos;
-CapsuleCollider hitbox;
+static vec3_t startPos;
+CapsuleColliderSOA<SIMD_COUNT>* hitboxes;
 
 static void PopulateRandomFloat();
 static void RunHitChance(HitChanceInput* inp);
@@ -54,16 +53,13 @@ bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int bo
 	::targetVec = targetVec;
 
 	range = FwBridge::lpData.weaponRange;
-	spreadVal = FwBridge::activeWeapon->GetSpread();
+	spreadVal = 0;//FwBridge::activeWeapon->GetSpread();
 	inaccuracyVal = FwBridge::activeWeapon->GetInaccuracy();
 	vec3_t dir = targetVec - FwBridge::lpData.eyePos;
 	startPos = FwBridge::lpData.eyePos;
 	dir.Normalize().ToAngles().GetVectors(forward, up, right);
 
-	auto& hitboxes = players->hitboxes[targetEnt];
-	hitbox.start = hitboxes.wm[boneID].Vector3Transform(hitboxes.start[boneID]);
-	hitbox.end = hitboxes.wm[boneID].Vector3Transform(hitboxes.end[boneID]);
-	hitbox.radius = hitboxes.radius[boneID];
+	hitboxes = players->colliders[targetEnt];
 
 	for (int i = 0; i < HITCHANCE_JOBS; i++) {
 		HitChanceInput args;
@@ -149,7 +145,7 @@ static void PopulateRandomFloat()
 //This code should theoretically scale up to any SIMD level automatically with near perfect scaling.
 static void RunHitChance(HitChanceInput* inp)
 {
-	nvec3 spread[HITCHANCE_SIMD];
+	vec3_t spread[HITCHANCE_PER_JOB];
 	float randInaccuracy[HITCHANCE_PER_JOB];
 	float randSpread[HITCHANCE_PER_JOB];
 
@@ -164,32 +160,23 @@ static void RunHitChance(HitChanceInput* inp)
 	for (int i = 0; i < HITCHANCE_PER_JOB; i++)
 		randSpread[i] = randomFl2[i + start] * spreadVal;
 
-	for (int i = 0; i < HITCHANCE_SIMD; i++)
-		for (int o = 0; o < SIMD_COUNT; o++)
-			spread[i][0][o] = randomFlCos1[start + i * SIMD_COUNT + o] * randInaccuracy[i * SIMD_COUNT + o] +
-				randomFlCos2[start + i * SIMD_COUNT + o] * randSpread[i * SIMD_COUNT + o];
+	for (int i = 0; i < HITCHANCE_PER_JOB; i++)
+		spread[i][0] = randomFlCos1[start + i] * randInaccuracy[i] + randomFlCos2[start + i] * randSpread[i];
 
-	for (int i = 0; i < HITCHANCE_SIMD; i++)
-		for (int o = 0; o < SIMD_COUNT; o++)
-			spread[i][1][o] = randomFlSin1[start + i * SIMD_COUNT + o] * randInaccuracy[i * SIMD_COUNT + o] +
-				randomFlSin2[start + i * SIMD_COUNT + o] * randSpread[i * SIMD_COUNT + o];
+	for (int i = 0; i < HITCHANCE_PER_JOB; i++)
+		spread[i][1] = randomFlSin1[start + i] * randInaccuracy[i] + randomFlSin2[start + i] * randSpread[i];
 
 
-	for (int i = 0; i < HITCHANCE_SIMD; i++) {
-	    nvec3 dir;
+	for (int i = 0; i < HITCHANCE_PER_JOB; i++) {
+	    vec3_t dir = forward;
 
-		for (int o = 0; o < SIMD_COUNT; o++)
-			dir.acc[o] = forward;
-
-	    nvec3 r, p;
+		vec3_t r, p;
 
 		for (int u = 0; u < 3; u++)
-			for (int o = 0; o < SIMD_COUNT; o++)
-				r[u][o] = right[u] * spread[i][0][u];
+			r[u] = right[u] * spread[i][0];
 
 		for (int u = 0; u < 3; u++)
-			for (int o = 0; o < SIMD_COUNT; o++)
-				p[u][o] = up[u] * spread[i][1][u];
+			p[u] = up[u] * spread[i][1];
 
 		dir += r;
 		dir += p;
@@ -198,12 +185,11 @@ static void RunHitChance(HitChanceInput* inp)
 		dir *= range;
 		dir += startPos;
 
-		unsigned int flags = hitbox.IntersectSOA(startPos, dir);
+		unsigned int flags = 0;
 
-#ifdef _MSC_VER
-		tempOutput[jobID] += __popcnt(flags);
-#else
-		tempOutput[jobID] += __builtin_popcount(flags);
-#endif
+		for (size_t i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
+			flags |= hitboxes[i].Intersect(startPos, dir);
+
+		tempOutput[jobID] += std::min(flags, 1u);
 	}
 }

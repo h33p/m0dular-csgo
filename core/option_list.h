@@ -2,6 +2,7 @@
 //Syntax: HANDLE_OPTION(type, defaultValue, name, settings group chain...)
 	HANDLE_OPTION(bool, true, bunnyhopping, bindSettings, globalSettings)
 	HANDLE_OPTION(bool, true, autostrafer, bindSettings, globalSettings)
+	HANDLE_OPTION(float, 1.3f, autostraferControl, bindSettings, globalSettings)
 	HANDLE_OPTION(bool, true, antiaim, bindSettings, globalSettings)
 
 	HANDLE_OPTION(bool, true, fakelag, bindSettings, globalSettings)

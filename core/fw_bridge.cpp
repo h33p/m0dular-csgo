@@ -304,7 +304,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 		SourceBhop::Run(cmd, &lpData);
 
 	if (Settings::autostrafer)
-		SourceAutostrafer::Run(cmd, &lpData);
+		SourceAutostrafer::Run(cmd, &lpData, Settings::autostraferControl);
 
 	FakelagState_t state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::LAST | FakelagState::FIRST;
 
@@ -409,11 +409,14 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			if (target.future)
 				track = LagCompensation::futureTrack;
 
+			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
+				target.id = -1;
+				lpData.keys &= ~Keys::ATTACK1;
+			}
+
 			if (target.id >= 0) {
 				btTick = target.backTick;
 				cmd->tick_count = TimeToTicks(track->GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
-				if (!Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance))
-					lpData.keys &= ~Keys::ATTACK1;
 
 #ifdef PT_VISUALS
 				if (false && btTick >= 0)

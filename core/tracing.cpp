@@ -1,395 +1,17 @@
 #include "tracing.h"
-#include "../sdk/framework/utils/kd_tree.h"
-#include "fw_bridge.h"
 #include "hooks.h"
-#include "../sdk/source_csgo/sdk.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
-#include "../sdk/framework/utils/freelistallocator.h"
-#include "../sdk/framework/utils/allocwraps.h"
+#include "gametrace.h"
 
-static constexpr float CACHED_TRACE_LEN = 8192.f;
-static constexpr float CACHE_ACCURACY = 2.f;
+static constexpr int MAX_N = 256;
 
 static int traceThreadBudget = 500;
 static int cachedTraceThreadBudget = 5000;
 
-struct TraceCache
-{
-	struct traceang_t
-	{
-		trace_t trace;
-		vec2 ang;
-		float eyeHeight;
-		float dist;
-
-		//Returns the distance between traces at the end of the current trace. Returns FLT_MAX if the right hand side trace is not suitable for comparision
-		//NOTE: make sure the cached trace goes past the target (till the weapon range) so we never have false positives and all cached traces are usable all the time
-		inline float operator-(const traceang_t& o) const
-		{
-
-			//The height check makes sure that while standing still and ducking/unducking multiple times does not require us to invalidate the trace cache
-			//dist check should never be false when testing against cache entry (only query might have smaller distance to cover)
-			if (fabsf(eyeHeight - o.eyeHeight) > 1.f || o.dist < dist)
-				return std::numeric_limits<float>::max();
-
-			//We do not need such high angular precision when dealing with traces really close to the source, however in large distances it is extremely important
-			float angDiff = (ang - o.ang).Length<2>();
-			float angTan = tanf(angDiff * DEG2RAD);
-			float angLen = dist * angTan;
-
-			if (o.dist < sqrtf(angLen * angLen + dist * dist))
-				return std::numeric_limits<float>::max();
-
-			return angLen;
-		}
-
-		inline bool operator==(const traceang_t& o) const
-		{
-			return fabsf(*this - o) < CACHE_ACCURACY;
-		}
-
-		inline bool operator!=(const traceang_t& o) const
-		{
-			return !(*this == o);
-		}
-
-		inline float operator[](int idx) const
-		{
-			return ang[idx];
-		}
-	};
-
-	int traceCountTick, cachedTraceCountTick, cachedTraceFindTick;
-	vec3_t pos;
-	float eyeHeight;
-	static constexpr uintptr_t nullBase = 0;
-	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, 200000>> tree;
-
-	TraceCache() : traceCountTick(0), cachedTraceCountTick(0), pos(0), eyeHeight(0), tree()
-	{
-
-	}
-
-	void Reset(bool invalidate, TraceCache* mergeTo)
-	{
-		traceCountTick = 0;
-		cachedTraceCountTick = 0;
-		cachedTraceFindTick = 0;
-
-		eyeHeight = FwBridge::lpData.eyePos[2] - FwBridge::lpData.origin[2];
-
-		//A temporary workaround until we find the core issue of cache size going out of hand
-		if (tree.size() > 100000)
-			invalidate = true;
-
-		if (invalidate) {
-			pos = FwBridge::lpData.origin;
-			tree.Clear();
-			return;
-		}
-
-		if (!mergeTo)
-			return;
-	}
-
-	const trace_t* Find(const Ray_t& ray)
-	{
-	    traceang_t entry;
-
-		vec3_t angles = ray.delta.GetAngles(true);
-		entry.ang[0] = angles[0];
-		entry.ang[1] = angles[1];
-		entry.dist = ray.delta.Length();
-		entry.eyeHeight = eyeHeight;
-
-		auto ref = tree.Find(entry);
-
-		if (ref)
-			return &ref->value.trace;
-
-		return nullptr;
-	}
-
-	void Push(const trace_t& trace)
-	{
-		traceang_t entry;
-
-		entry.trace = trace;
-		vec3_t angles = (trace.endpos - trace.startpos).GetAngles(true);
-		entry.ang[0] = angles[0];
-		entry.ang[1] = angles[1];
-		entry.dist = CACHED_TRACE_LEN;
-		entry.eyeHeight = eyeHeight;
-
-		tree.Insert(entry);
-	}
-};
-
 static Mutex enumLock;
 static CEntityListAlongRay enumerators[NUM_THREADS + 1];
 static TraceCache cache[NUM_THREADS + 1];
-
-static IClientEntity* worldEnt = nullptr;
-
-//Good job, Valve, epic thread-unsafe globals you got threre
-thread_local static const matrix3x4_t* rootMoveParent = nullptr;
-
-static void CM_ClearTrace(trace_t* tr)
-{
-    csurface_t emptyStruct = { (const char*)"**empty**", (int)0, (int)0 };
-
-	memset(tr, 0, sizeof(trace_t));
-	tr->fraction = 1.f;
-	tr->fractionleftsolid = 0;
-	tr->surface = emptyStruct;
-}
-
-static bool ClipTraceToTrace(const trace_t& __restrict cliptrace, trace_t* __restrict finalTrace)
-{
-	if (cliptrace.allsolid || cliptrace.startsolid || (cliptrace.fraction < finalTrace->fraction)) {
-		if (finalTrace->startsolid) {
-			float fractionLeftSolid = finalTrace->fractionleftsolid;
-			vec3_t sPos = finalTrace->startpos;
-
-			*finalTrace = cliptrace;
-			finalTrace->startsolid = true;
-
-			if (fractionLeftSolid > cliptrace.fractionleftsolid) {
-				finalTrace->fractionleftsolid = fractionLeftSolid;
-				finalTrace->startpos = sPos;
-			}
-		} else
-			*finalTrace = cliptrace;
-
-		return true;
-	}
-
-	if (cliptrace.startsolid) {
-		finalTrace->startsolid = true;
-
-		if (cliptrace.fractionleftsolid > finalTrace->fractionleftsolid) {
-			finalTrace->fractionleftsolid = cliptrace.fractionleftsolid;
-			finalTrace->startpos = cliptrace.startpos;
-		}
-	}
-
-	return false;
-}
-
-static inline bool ShouldPerformCustomRayTest(const Ray_t& ray, ICollideable* collideable)
-{
-	// No model? The entity's got its own collision detector maybe
-	// Does the entity force box or ray tests to go through its code?
-	return ((collideable->GetSolid() == SolidType_t::SOLID_CUSTOM) ||
-			(ray.isRay && (collideable->GetSolidFlags() & SolidFlags_t::FSOLID_CUSTOMRAYTEST)) ||
-			(!ray.isRay && (collideable->GetSolidFlags() & SolidFlags_t::FSOLID_CUSTOMBOXTEST)));
-}
-
-static bool ClipRayToCustom(const Ray_t& ray, unsigned int mask, ICollideable* collideable, trace_t* trace)
-{
-	if (collideable->TestCollision(ray, mask, *trace))
-		return true;
-
-	return false;
-}
-
-static bool ClipRayToBBox(const Ray_t &ray, unsigned int mask, ICollideable* entity, trace_t* trace)
-{
-	if (entity->GetSolid() != SolidType_t::SOLID_BBOX)
-		return false;
-
-	alignas(16) vec3_t vecAbsMins, vecAbsMaxs;
-	alignas(16) vec3_t vecInvDelta;
-	// NOTE: If rootMoveParent is set, then the boxes should be rotated into the root parent's space
-	if (!ray.isRay && rootMoveParent) {
-		Ray_t rayL;
-
-		rayL.extents = ray.extents;
-
-		rayL.delta = rootMoveParent->Vector3IRotate(ray.delta);
-		rayL.startOffset = vec3(0);
-		rayL.start = rootMoveParent->Vector3ITransform(ray.start);
-
-		vecInvDelta = rayL.InvDelta();
-		vec3 localEntityOrigin;
-		localEntityOrigin = rootMoveParent->Vector3ITransform(entity->GetCollisionOrigin());
-		rayL.isRay = ray.isRay;
-		rayL.isSwept = ray.isSwept;
-
-		vecAbsMins = localEntityOrigin + entity->OBBMins();
-		vecAbsMaxs = localEntityOrigin + entity->OBBMaxs();
-
-		//It is best to rebuilt this function, since it is not all that difficult, but in the meantime we will have to use this inline assembly hack
-		IntersectRayWithBox(rayL, vecInvDelta, vecAbsMins, vecAbsMaxs, trace);
-#ifdef _WIN32
-		_asm add esp, 0xC;
-#endif
-
-		if (trace->DidHit()) {
-		    trace->plane.normal = rootMoveParent->Vector3Rotate(trace->plane.normal);
-			trace->startpos = ray.start + ray.startOffset;
-
-			if (trace->fraction == 1)
-				trace->endpos = trace->startpos + ray.delta;
-			else
-				trace->endpos = trace->startpos + (vec3)(ray.delta * trace->fraction);
-			trace->plane.dist = trace->endpos.Dot(trace->plane.normal);
-			if ( trace->fractionleftsolid < 1 )
-				trace->startpos += ray.delta * trace->fractionleftsolid;
-		} else
-			trace->startpos = ray.start + ray.startOffset;
-
-		return true;
-	}
-
-	vecInvDelta = ray.InvDelta();
-	vecAbsMins = entity->GetCollisionOrigin() + entity->OBBMins();
-	vecAbsMaxs = entity->GetCollisionOrigin() + entity->OBBMaxs();
-	IntersectRayWithBox(ray, vecInvDelta, vecAbsMins, vecAbsMaxs, trace);
-#ifdef _WIN32
-	_asm add esp, 0xC;
-#endif
-	return true;
-}
-
-static void SetTraceEntity(ICollideable* collideable, trace_t* trace, IHandleEntity* ent, bool staticProp)
-{
-	if (!staticProp) {
-		trace->ent = (IClientEntity*)ent;
-	} else {
-		trace->ent = worldEnt;
-		trace->hitbox = 0; //TODO: GetStaticPropIndex
-	}
-}
-
-#ifdef __APPLE__
-static bool ClipRayToBSP(IEngineTrace* tracer, const Ray_t& ray, unsigned int mask, ICollideable* entity, trace_t* trace)
-{
-	int modelIndex = entity->GetCollisionModelIndex();
-	cmodel_t* model = CM_InlineModelNumber(modelIndex - 1);
-
-	TransformedBoxTrace(ray, model->headnode, mask, entity->GetCollisionOrigin(), entity->GetCollisionAngles(), trace);
-	return true;
-}
-
-static bool ClipRayToOBB(IEngineTrace* tracer, const Ray_t& ray, unsigned int mask, ICollideable* entity, trace_t* trace)
-{
-	if (entity->GetSolid() != SolidType_t::SOLID_OBB)
-		return false;
-
-	IntersectRayWithOBB(ray, entity->GetCollisionOrigin(), entity->GetCollisionAngles(), entity->OBBMins(), entity->OBBMaxs(), trace, 0.03125); //DIST_EPSILON
-	return true;
-}
-#endif
-
-static void ClipRayToCollideable(const Ray_t& ray, unsigned int mask, ICollideable* entity, trace_t* trace, IHandleEntity* ent, bool staticProp)
-{
-	CM_ClearTrace(trace);
-
-	trace->startpos = ray.start + ray.startOffset;
-	trace->endpos = trace->startpos + ray.delta;
-
-	const model_t* model = entity->GetCollisionModel();
-	bool isStudioModel = false;
-	studiohdr_t* studioHdr = NULL;
-
-	if (model && model->type == 3) { //mod_studio = 3
-		isStudioModel = true;
-		studioHdr = (studiohdr_t*)modelLoader->GetExtraData((model_t*)model);
-		// Cull if the collision mask isn't set + we're not testing hitboxes.
-		if (((mask & CONTENTS_HITBOX) == 0))
-			if ((mask & studioHdr->contents) == 0)
-				return;
-	}
-
-	if (entity->GetSolidFlags() & SolidFlags_t::FSOLID_ROOT_PARENT_ALIGNED)
-		rootMoveParent = entity->GetRootParentToWorldTransform();
-
-	bool traced = false;
-	bool customPerformed = false;
-
-	if (ShouldPerformCustomRayTest(ray, entity)) {
-		ClipRayToCustom(ray, mask, entity, trace);
-		traced = true;
-		customPerformed = true;
-	} else //TODO: Possibly rebuild this and cache data
-		traced = ClipRayToVPhysics(engineTrace, ray, mask, entity, studioHdr, trace);
-
-	// FIXME: Why aren't we using solid type to check what kind of collisions to test against?!?!
-	if (!traced && model && model->type == 1) //mod_brush = 1
-		traced = ClipRayToBSP(engineTrace, ray, mask, entity, trace);
-
-	if (!traced)
-		traced = ClipRayToOBB(engineTrace, ray, mask, entity, trace);
-
-	// Hitboxes..
-	bool tracedHitboxes = false;
-	if (isStudioModel && (mask & CONTENTS_HITBOX)) {
-		// Until hitboxes are no longer implemented as custom raytests,
-		// don't bother to do the work twice
-		if (!customPerformed) {
-			//We do not even want to test hitboxes as we use custom hitbox tester
-			//traced = ClipRayToHitboxes( ray, mask, entity, trace );
-			if (traced) {
-				// Hitboxes will set the surface properties
-				tracedHitboxes = true;
-			}
-		}
-	}
-
-	if (!traced)
-		ClipRayToBBox( ray, mask, entity, trace );
-
-	if (isStudioModel && !tracedHitboxes && trace->DidHit() && (!customPerformed || trace->surface.surfaceProps == 0)) {
-		trace->contents = studioHdr->contents;
-		// use the default surface properties
-		trace->surface.name = "**studio**";
-		trace->surface.flags = 0;
-		trace->surface.surfaceProps = studioHdr->surfaceProp;
-	}
-
-	if (!trace->ent && trace->DidHit())
-		SetTraceEntity(entity, trace, ent, staticProp);
-}
-
-
-static ICollideable* GetCollideable(IHandleEntity* handle, bool staticProp)
-{
-	if (staticProp)
-		return (ICollideable*)staticPropMgrClient->GetStaticProp(handle);
-
-	return ((C_BaseEntity*)handle)->GetCollideable();
-}
-
-static Ray_t ClipRayToWorldTrace(const Ray_t& ray, trace_t* tr, float* worldFraction, float* worldFractionLeftSolid)
-{
-	Ray_t ret = ray;
-
-	*worldFraction = tr->fraction;
-	*worldFractionLeftSolid = *worldFraction;
-
-	if (tr->fraction == 0) {
-		ret.delta = vec3_t(0);
-		*worldFractionLeftSolid = tr->fractionleftsolid;
-		tr->fractionleftsolid = 1.f;
-		tr->fraction = 1.f;
-	} else {
-		vec3_t end = ret.start + ret.delta * tr->fraction;
-		ret.delta = end - ret.start;
-		tr->fractionleftsolid /= tr->fraction;
-		tr->fraction = 1.f;
-	}
-
-	return ret;
-}
-
-static void EnumerateElements(unsigned int mask, const Ray_t& entRay, bool coarseTest, IEntityEnumerator* entEnum)
-{
-	//enumLock.lock();
-	spatialPartition->EnumerateElementsAlongRay(mask, entRay, coarseTest, entEnum);
-	//enumLock.unlock();
-}
 
 void Tracing2::TraceRayListBSPOnly(size_t n, const Ray_t* rays, unsigned int mask, trace_t* traces)
 {
@@ -401,12 +23,13 @@ void Tracing2::TraceRayListBSPOnly(size_t n, const Ray_t* rays, unsigned int mas
 		engineTrace->TraceRay(rays[i], mask, &worldFilter, traces + i);
 }
 
-std::vector<float> wFraction[NUM_THREADS + 1], wFractionLeftSolid[NUM_THREADS + 1];
-std::vector<Ray_t> entRayVec[NUM_THREADS + 1];
-std::vector<trace_t> entTraceVec[NUM_THREADS + 1];
-std::vector<CEntityListAlongRay> entEnumVec[NUM_THREADS + 1];
-std::vector<size_t> newTraces[NUM_THREADS + 1];
-std::vector<float> minFractions[NUM_THREADS + 1];
+float wFraction[NUM_THREADS + 1][MAX_N];
+float wFractionLeftSolid[NUM_THREADS + 1][MAX_N];
+Ray_t entRayVec[NUM_THREADS + 1][MAX_N];
+trace_t entTraceVec[NUM_THREADS + 1][MAX_N];
+CEntityListAlongRay entEnumVec[NUM_THREADS + 1][MAX_N];
+size_t newTraces[NUM_THREADS + 1][MAX_N];
+float minFractions[NUM_THREADS + 1][MAX_N];
 
 void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players)
 {
@@ -416,11 +39,9 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 	CTraceFilterWorldOnly worldFilter;
 	int threadIDX = Threading::threadID + 1;
 
-	newTraces[threadIDX].clear();
-	minFractions[threadIDX].resize(n);
+	size_t tc = 0;
 
 	for (size_t i = 0; i < n; i++) {
-
 		float minFraction = rays[i].delta.Length() / CACHED_TRACE_LEN;
 
 		if (cache[threadIDX].cachedTraceFindTick <= cachedTraceThreadBudget) {
@@ -431,15 +52,20 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 
 			//We have got a cache entry, now just check if the closer one does not intersect the world
 			if (globalEntry || localEntry) {
+				//TODO: Distance check end point for the closer trace of the two
 				if (!localEntry || (globalEntry && globalEntry->fraction > localEntry->fraction))
 					traces[i] = *globalEntry;
 				else
 					traces[i] = *localEntry;
 
+				//TODO: Perform autowall
+
 				if (traces[i].fraction >= minFraction)
-					CM_ClearTrace(traces + i);
+					GameTrace::CM_ClearTrace(traces + i);
 				else
 					traces[i].fraction /= minFraction;
+
+				traces[i].endpos = rays[i].start + rays[i].delta * traces[i].fraction;
 
 				cache[threadIDX].cachedTraceCountTick++;
 				continue;
@@ -451,42 +77,46 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 			continue;
 
 		cache[threadIDX].traceCountTick++;
-		newTraces[threadIDX].push_back(i);
+		newTraces[threadIDX][tc++] = i;
 		minFractions[threadIDX][i] = minFraction;
 
 		rays[i].delta *= (1.f / minFraction);
 
 		engineTrace->TraceRay(rays[i], mask, &worldFilter, traces + i);
 		if (filter->GetTraceType() == TraceType::TRACE_ENTITIES_ONLY) {
-			CM_ClearTrace(traces + i);
+			GameTrace::CM_ClearTrace(traces + i);
 			traces[i].startpos = rays[i].start + rays[i].startOffset;
 		    traces[i].endpos = (vec3_t)traces[i].startpos + rays[i].delta;
 		}
 	}
 
+#ifdef DEBUG
+	if (tc > 256)
+		throw;
+#endif
+
 	bool filterStaticProps = false;
 
-	wFraction[threadIDX].resize(n);
-	wFractionLeftSolid[threadIDX].resize(n);
-	entRayVec[threadIDX].resize(n);
-	entTraceVec[threadIDX].resize(n);
-	entEnumVec[threadIDX].resize(n);
+	trace_t* entTraces = entTraceVec[threadIDX];
+	Ray_t* entRays = entRayVec[threadIDX];
+	CEntityListAlongRay* entEnums = entEnumVec[threadIDX];
+	float* worldFraction = wFraction[threadIDX], *worldFractionLeftSolid = wFractionLeftSolid[threadIDX];
 
-	trace_t* entTraces = entTraceVec[threadIDX].data();
-	Ray_t* entRays = entRayVec[threadIDX].data();
-	CEntityListAlongRay* entEnums = entEnumVec[threadIDX].data();
-	float* worldFraction = wFraction[threadIDX].data(), *worldFractionLeftSolid = wFractionLeftSolid[threadIDX].data();
-
-	for (size_t i : newTraces[threadIDX])
-	    entRays[i] = ClipRayToWorldTrace(rays[i], traces + i, worldFraction + i, worldFractionLeftSolid + i);
-
-	for (size_t i : newTraces[threadIDX]) {
-		entEnums[i].count = 0;
-		memset(entEnums[i].entityHandles, 0, sizeof(entEnums[i].entityHandles));
-		EnumerateElements(1 << 2, entRays[i], false, &entEnums[i]);
+	//TODO: Make rw buffer accesses linear sequential
+	for (size_t o = 0; o < tc; o++) {
+		size_t i = newTraces[threadIDX][o];
+		entRays[i] = GameTrace::ClipRayToWorldTrace(rays[i], traces + i, worldFraction + i, worldFractionLeftSolid + i);
 	}
 
-	for (size_t o : newTraces[threadIDX]) {
+	for (size_t o = 0; o < tc; o++) {
+		size_t i = newTraces[threadIDX][o];
+		entEnums[i].count = 0;
+		memset(entEnums[i].entityHandles, 0, sizeof(entEnums[i].entityHandles));
+		spatialPartition->EnumerateElementsAlongRay(1 << 2, entRays[i], false, &entEnums[i]);
+	}
+
+	for (size_t u = 0; u < tc; u++) {
+		size_t o = newTraces[threadIDX][u];
 		trace_t* tr = traces + o;
 		trace_t* trace = entTraces + o;
 		Ray_t& entRay = entRays[o];
@@ -506,7 +136,7 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 
 			bool staticProp = staticPropMgr->IsStaticProp(handle);
 
-			col = GetCollideable(handle, staticProp);
+			col = GameTrace::GetCollideable(handle, staticProp);
 
 			if (!col)
 				col = ((C_BasePlayer*)handle)->GetCollideable();
@@ -514,22 +144,160 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 			if ((!staticProp || filterStaticProps) && !filter->ShouldHitEntity(handle, mask))
 				continue;
 
-			ClipRayToCollideable(entRay, mask, col, trace, handle, staticProp);
-			ClipTraceToTrace(*trace, tr);
+			GameTrace::ClipRayToCollideable(entRay, mask, col, trace, handle, staticProp);
+			GameTrace::ClipTraceToTrace(*trace, tr);
 
 			if (tr->allsolid)
 				break;
 		}
 	}
 
-	for (size_t i : newTraces[threadIDX]) {
+	for (size_t o = 0; o < tc; o++) {
+		size_t i = newTraces[threadIDX][o];
 	    traces[i].fraction *= worldFraction[i];
 		traces[i].fractionleftsolid *= worldFractionLeftSolid[i];
 
 		cache[threadIDX].Push(traces[i]);
 
 		if (traces[i].fraction >= minFractions[threadIDX][i]) {
-			CM_ClearTrace(traces + i);
+			GameTrace::CM_ClearTrace(traces + i);
+			traces[i].startpos = rays[i].start + rays[i].startOffset;
+		    traces[i].endpos = (vec3_t)traces[i].startpos + rays[i].delta * minFractions[threadIDX][i];
+		}
+	}
+}
+
+trace_t awallTraceVec[NUM_THREADS + 1][MAX_N][AutoWall::MAX_INTERSECTS * 4];
+
+void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOutput, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players)
+{
+	if (!n)
+		return;
+
+	CTraceFilterWorldOnly worldFilter;
+	int threadIDX = Threading::threadID + 1;
+
+	size_t tc = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		float minFraction = rays[i].delta.Length() / CACHED_TRACE_LEN;
+
+		if (cache[threadIDX].cachedTraceFindTick <= cachedTraceThreadBudget) {
+			//Check both the local and the global trace caches for the closest ray
+			const trace_t* globalEntry = cache[0].Find(rays[i]);
+			const trace_t* localEntry = threadIDX ? cache[threadIDX].Find(rays[i]) : nullptr;
+			cache[threadIDX].cachedTraceFindTick++;
+
+			//We have got a cache entry, now just check if the closer one does not intersect the world
+			if (globalEntry || localEntry) {
+				//TODO: Distance check end point for the closer trace of the two
+				if (!localEntry || (globalEntry && globalEntry->fraction > localEntry->fraction))
+					traces[i] = *globalEntry;
+				else
+					traces[i] = *localEntry;
+
+				//TODO: Perform autowall
+
+				if (traces[i].fraction >= minFraction)
+					GameTrace::CM_ClearTrace(traces + i);
+				else
+					traces[i].fraction /= minFraction;
+
+				traces[i].endpos = rays[i].start + rays[i].delta * traces[i].fraction;
+
+				cache[threadIDX].cachedTraceCountTick++;
+				continue;
+			}
+		}
+
+		//Only allow cached traces to be used when over budget
+		if (cache[threadIDX].traceCountTick > traceThreadBudget)
+			continue;
+
+		cache[threadIDX].traceCountTick++;
+		newTraces[threadIDX][tc++] = i;
+		minFractions[threadIDX][i] = minFraction;
+
+		rays[i].delta *= (1.f / minFraction);
+
+		engineTrace->TraceRay(rays[i], mask, &worldFilter, traces + i);
+		if (filter->GetTraceType() == TraceType::TRACE_ENTITIES_ONLY) {
+			GameTrace::CM_ClearTrace(traces + i);
+			traces[i].startpos = rays[i].start + rays[i].startOffset;
+		    traces[i].endpos = (vec3_t)traces[i].startpos + rays[i].delta;
+		}
+	}
+
+#ifdef DEBUG
+	if (tc > 256)
+		throw;
+#endif
+
+	bool filterStaticProps = false;
+
+	trace_t* entTraces = entTraceVec[threadIDX];
+	Ray_t* entRays = entRayVec[threadIDX];
+	CEntityListAlongRay* entEnums = entEnumVec[threadIDX];
+	float* worldFraction = wFraction[threadIDX], *worldFractionLeftSolid = wFractionLeftSolid[threadIDX];
+
+	for (size_t o = 0; o < tc; o++) {
+		size_t i = newTraces[threadIDX][o];
+		entRays[i] = GameTrace::ClipRayToWorldTrace(rays[i], traces + i, worldFraction + i, worldFractionLeftSolid + i);
+	}
+
+	for (size_t o = 0; o < tc; o++) {
+		size_t i = newTraces[threadIDX][o];
+		entEnums[i].count = 0;
+		memset(entEnums[i].entityHandles, 0, sizeof(entEnums[i].entityHandles));
+		spatialPartition->EnumerateElementsAlongRay(1 << 2, entRays[i], false, &entEnums[i]);
+	}
+
+	for (size_t u = 0; u < tc; u++) {
+		size_t o = newTraces[threadIDX][u];
+		trace_t* tr = traces + o;
+		trace_t* trace = entTraces + o;
+		Ray_t& entRay = entRays[o];
+		CEntityListAlongRay& entEnum = entEnums[o];
+
+		for (int i = 0; i < entEnum.count; i++) {
+
+			//Early quit since we know that the only thing we care about here is direct LOS to the player
+			if (tr->fraction * worldFraction[o] < 0.9f * minFractions[threadIDX][o])
+				continue;
+
+			IHandleEntity* handle = entEnum.entityHandles[i];
+			ICollideable* col = nullptr;
+
+			if (!handle)
+				continue;
+
+			bool staticProp = staticPropMgr->IsStaticProp(handle);
+
+			col = GameTrace::GetCollideable(handle, staticProp);
+
+			if (!col)
+				col = ((C_BasePlayer*)handle)->GetCollideable();
+
+			if ((!staticProp || filterStaticProps) && !filter->ShouldHitEntity(handle, mask))
+				continue;
+
+			GameTrace::ClipRayToCollideable(entRay, mask, col, trace, handle, staticProp);
+			GameTrace::ClipTraceToTrace(*trace, tr);
+
+			if (tr->allsolid)
+				break;
+		}
+	}
+
+	for (size_t o = 0; o < tc; o++) {
+		size_t i = newTraces[threadIDX][o];
+	    traces[i].fraction *= worldFraction[i];
+		traces[i].fractionleftsolid *= worldFractionLeftSolid[i];
+
+		cache[threadIDX].Push(traces[i]);
+
+		if (traces[i].fraction >= minFractions[threadIDX][i]) {
+			GameTrace::CM_ClearTrace(traces + i);
 			traces[i].startpos = rays[i].start + rays[i].startOffset;
 		    traces[i].endpos = (vec3_t)traces[i].startpos + rays[i].delta * minFractions[threadIDX][i];
 		}
@@ -539,61 +307,7 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 void Tracing2::GameTraceRay(const Ray_t& ray, unsigned int mask, ITraceFilter* filter, trace_t* tr)
 {
     cache[Threading::threadID + 1].traceCountTick++;
-
-	if (Threading::threadID == -1) {
-		engineTrace->TraceRay(ray, mask, filter, tr);
-		return;
-	}
-
-	CM_ClearTrace(tr);
-
-	if (filter->GetTraceType() != TraceType::TRACE_ENTITIES_ONLY) {
-		CTraceFilterWorldOnly worldFilter;
-		engineTrace->TraceRay(ray, mask, &worldFilter, tr);
-	} else {
-		tr->startpos = ray.start + ray.startOffset;
-		tr->endpos = tr->startpos + ray.delta;
-	}
-
-	CEntityListAlongRay entEnum;
-
-	trace_t trace;
-	bool filterStaticProps = false;
-
-	float worldFraction, worldFractionLeftSolid;
-
-	Ray_t entRay = ClipRayToWorldTrace(ray, tr, &worldFraction, &worldFractionLeftSolid);
-
-	memset(entEnum.entityHandles, 0, sizeof(entEnum.entityHandles));
-
-	EnumerateElements(1 << 2, entRay, false, &entEnum);
-
-	for (int i = 0; i < entEnum.count; i++) {
-		IHandleEntity* handle = entEnum.entityHandles[i];
-		ICollideable* col = nullptr;
-
-		if (!handle)
-			continue;
-
-		bool staticProp = staticPropMgr->IsStaticProp(handle);
-
-	    col = GetCollideable(handle, staticProp);
-
-		if (!col)
-			col = ((C_BasePlayer*)handle)->GetCollideable();
-
-		if ((!staticProp || filterStaticProps) && !filter->ShouldHitEntity(handle, MASK_SHOT))
-			continue;
-
-		ClipRayToCollideable(entRay, mask, col, &trace, handle, staticProp);
-		ClipTraceToTrace(trace, tr);
-
-		if (tr->allsolid)
-			break;
-	}
-
-	tr->fraction *= worldFraction;
-	tr->fractionleftsolid *= worldFractionLeftSolid;
+	GameTrace::TraceRay(ray, mask, filter, tr, Threading::threadID);
 }
 
 void Tracing2::TracePart1(vec3_t eyePos, vec3_t point, trace_t* tr, C_BasePlayer* skient)
@@ -619,6 +333,7 @@ float Tracing2::TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeM
 
 	if (eID >= 0) {
 		unsigned int flag = 0;
+
 		for (size_t i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
 			flag |= players->colliders[eID][i].Intersect(eyePos, tr->endpos);
 
@@ -651,6 +366,7 @@ int Tracing2::TracePlayers(vec3_t eyePos, float weaponDamage, float weaponRangeM
 void Tracing2::ResetTraceCount()
 {
 	vec3_t pos = FwBridge::lpData.origin;
+	//TODO: Add active weapon check to see if autowall cache invalidation is needed
 	bool invalidate = (pos - cache[0].pos).LengthSqr<3>() > 1.f;
 
 	cache[0].Reset(invalidate, nullptr);
