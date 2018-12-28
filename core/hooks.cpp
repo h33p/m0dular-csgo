@@ -79,6 +79,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 #endif
 
 	Settings::ipcLock->rlock();
+	Tracing2::ResetTraceCount();
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);

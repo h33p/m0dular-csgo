@@ -36,12 +36,31 @@ void Tracing::TracePointList(LocalPlayer* localPlayer, Players* players, size_t 
 	traces.resize(n);
 	rays.resize(n);
 
-	CTraceFilterSkipPlayers filter;
-
 	for (size_t i = 0; i < n; i++)
 		rays[i].Init(localPlayer->eyePos, points[i]);
 
+	//Perform autowall
+	if (depth == 1) {
+
+		for (size_t i = 0; i < n && !Tracing2::TraceBudgetEmpty(); i++) {
+			int cacheSize = 0;
+			bool permaCache[AutoWall::MAX_INTERSECTS * 2 + 2];
+			trace_t outTraces[AutoWall::MAX_INTERSECTS * 2 + 2];
+			float outDamages[AutoWall::MAX_INTERSECTS * 2 + 2];
+		    AutoWall::FireBulletWorld(localPlayer->eyePos, rays[i].delta.Normalized(), localPlayer->weaponRange, localPlayer->weaponRangeModifier, localPlayer->weaponDamage, localPlayer->weaponPenetration, &cacheSize, permaCache, outTraces, outDamages);
+		    *out = AutoWall::FireBulletPlayers(localPlayer->eyePos, rays[i].delta.Normalized(), localPlayer->weaponRange, localPlayer->weaponRangeModifier, localPlayer->weaponDamage, localPlayer->weaponPenetration, localPlayer->weaponArmorPenetration, &cacheSize, permaCache, outTraces, outDamages, players);
+		}
+
+		return;
+	}
+
+	CTraceFilterSkipPlayers filter;
+
 	Tracing2::TraceRayTargetOptimized(n, traces.data(), rays.data(), MASK_SHOT, &filter, eID, players);
+
+
+	for (size_t i = 0; i < n; i++)
+		Tracing2::ClipTraceToPlayers(&traces[i], players, 0);
 
 	for (size_t i = 0; i < n; i++)
 		out[i] = Tracing2::TracePart2(localPlayer->eyePos, localPlayer->weaponDamage, localPlayer->weaponRangeModifier, players, &traces[i], eID);
@@ -92,9 +111,10 @@ bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char back
 
 	uint64_t validPlayers = 0;
 
-	for (int i = 0; i < count; i++)
+	for (int i = 0; i < count; i++) {
 		if (~players->flags[i] & Flags::HITBOXES_UPDATED || !(lcBreak || fabsf(players->time[i] - FwBridge::backtrackCurtime) > 0.2f) || ~backtrackMask[players->unsortIDs[i]] & FIRST_TIME_DONE)
 			validPlayers |= 1ull << i;
+	}
 
 
 	bool validPlayer = false;

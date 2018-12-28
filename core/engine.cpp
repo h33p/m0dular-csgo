@@ -103,6 +103,8 @@ bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
 float Engine::originalLBY[MAX_PLAYERS];
 
+int health[MAX_PLAYERS];
+
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
 	size_t count = players->count;
@@ -151,6 +153,11 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
 			CCSGOPlayerAnimState* animState = ent->animState();
 			int pID = players->unsortIDs[i];
+
+			if (health[pID] != ent->health()) {
+				cvar->ConsoleDPrintf("HP %d (-%d)\n", ent->health(), health[pID] - ent->health());
+				health[pID] = ent->health();
+			}
 
 			globalVars->curtime = ent->simulationTime();
 			//globalVars->framecount = animState->frameCount + 1;

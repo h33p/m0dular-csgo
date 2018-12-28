@@ -2,6 +2,7 @@
 #include "hooks.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
+#include "../sdk/framework/utils/intersect_box_impl.h"
 #include "gametrace.h"
 
 static constexpr int MAX_N = 256;
@@ -27,7 +28,8 @@ float wFraction[NUM_THREADS + 1][MAX_N];
 float wFractionLeftSolid[NUM_THREADS + 1][MAX_N];
 Ray_t entRayVec[NUM_THREADS + 1][MAX_N];
 trace_t entTraceVec[NUM_THREADS + 1][MAX_N];
-CEntityListAlongRay entEnumVec[NUM_THREADS + 1][MAX_N];
+//Too huge to be allocated in bss memory
+std::vector<CEntityListAlongRay> entEnumVec[NUM_THREADS + 1];
 size_t newTraces[NUM_THREADS + 1][MAX_N];
 float minFractions[NUM_THREADS + 1][MAX_N];
 
@@ -99,7 +101,8 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 
 	trace_t* entTraces = entTraceVec[threadIDX];
 	Ray_t* entRays = entRayVec[threadIDX];
-	CEntityListAlongRay* entEnums = entEnumVec[threadIDX];
+	entEnumVec[threadIDX].resize(tc);
+	CEntityListAlongRay* entEnums = entEnumVec[threadIDX].data();
 	float* worldFraction = wFraction[threadIDX], *worldFractionLeftSolid = wFractionLeftSolid[threadIDX];
 
 	//TODO: Make rw buffer accesses linear sequential
@@ -237,7 +240,8 @@ void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOut
 
 	trace_t* entTraces = entTraceVec[threadIDX];
 	Ray_t* entRays = entRayVec[threadIDX];
-	CEntityListAlongRay* entEnums = entEnumVec[threadIDX];
+	entEnumVec[threadIDX].resize(tc);
+	CEntityListAlongRay* entEnums = entEnumVec[threadIDX].data();
 	float* worldFraction = wFraction[threadIDX], *worldFractionLeftSolid = wFractionLeftSolid[threadIDX];
 
 	for (size_t o = 0; o < tc; o++) {
@@ -331,7 +335,7 @@ float Tracing2::TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeM
 	if (eID >= 0 && tr->ent && (void*)tr->ent != players->instance[eID])
 		return -1.f;
 
-	if (eID >= 0) {
+	if (false && eID >= 0) {
 		unsigned int flag = 0;
 
 		for (size_t i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
@@ -340,7 +344,6 @@ float Tracing2::TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeM
 		if (!flag)
 			return -1.f;
 	}
-
 
 	int hbID = FwBridge::hitboxIDs[tr->hitbox];
 
@@ -389,6 +392,146 @@ int Tracing2::RetreiveTraceCount()
     //cvar->ConsoleDPrintf(ST("CACHE SIZE: %u\n"), sz);
 
 	return tc;
+}
+
+bool Tracing2::TraceBudgetEmpty()
+{
+	return cache[Threading::threadID + 1].traceCountTick >= traceThreadBudget;
+}
+
+float Tracing2::ScaleDamage(Players* players, int id, float in, float armorPenetration, int hitbox, HitGroups hitgroup)
+{
+	float armorSupport = false;
+
+	C_BasePlayer* ent = (C_BasePlayer*)players->instance[id];
+
+	float out = in;
+
+	switch (hitgroup) {
+	  case HitGroups::HITGROUP_HEAD:
+		  armorSupport = ent->hasHelmet();
+		  break;
+	  case HitGroups::HITGROUP_GENERIC:
+	  case HitGroups::HITGROUP_CHEST:
+	  case HitGroups::HITGROUP_STOMACH:
+	  case HitGroups::HITGROUP_LEFTARM:
+	  case HitGroups::HITGROUP_RIGHTARM:
+		  armorSupport = true;
+		  break;
+	  default:
+		  break;
+	}
+
+	armorSupport = armorSupport && players->armor[id] > 0;
+
+	out *= players->hitboxes[id].damageMul[hitbox];
+
+	if (armorSupport) {
+		float bonusValue = 1.f;
+		float armorBonusRatio = 0.5f;
+		float armorRatio = armorPenetration * 0.5f;
+
+		if (ent->hasHeavyArmor()) {
+			bonusValue = armorBonusRatio = 1.f / 3.f;
+			armorRatio *= 0.5f;
+		}
+
+		if ((out - out * armorRatio) * (bonusValue * armorBonusRatio) > players->armor[id])
+			out -= players->armor[id] / armorBonusRatio;
+		else {
+		    out *= armorRatio;
+
+			if (ent->hasHeavyArmor())
+			    out *= 0.85f;
+		}
+	}
+
+	//cvar->ConsoleDPrintf("%f -> %f\n", in, out);
+
+	return out;
+}
+
+int Tracing2::ClipTraceToPlayers(trace_t* tr, Players* players, uint64_t ignoreFlags)
+{
+	vec3_t start = tr->startpos;
+	vec3_t end = tr->endpos;
+	vec3_t dir = (end - start).Normalized();
+
+	float len = (end - start).Length();
+	float origLen = len;
+
+	Players& curPlayers = FwBridge::playerTrack[0];
+
+	int retPlayer = -1;
+
+	//Test AABB colliders of all the players
+	for (size_t i = 0; i < players->count; i++) {
+		int pID = players->Resort(curPlayers, i);
+
+		if (pID >= MAX_PLAYERS || ~curPlayers.flags[pID] & Flags::UPDATED || ignoreFlags & (1ull << pID))
+			continue;
+
+		AABBCollider aabb(players->origin[i] + players->boundsStart[i], players->origin[i] + players->boundsEnd[i]);
+
+		bool ret = aabb.Intersect(start, end);
+
+		if (ret) {
+
+			studiohdr_t* hdr = FwBridge::cachedHDRs[players->unsortIDs[i]];
+			mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
+
+			if (!set)
+				continue;
+
+			nvec3 iOut[NumOfSIMD(MAX_HITBOXES)];
+
+			uint64_t flags = 0;
+
+			for (size_t o = 0; o < NumOfSIMD(MAX_HITBOXES); o++)
+				flags |= players->colliders[i][o].Intersect(start, end, iOut + o) << (SIMD_COUNT * o);
+
+			float curBestDMGMul = 0;
+
+			for (size_t o = 0; o < MAX_HITBOXES; o++)
+				if (flags & (1ull << o)) {
+					vec3_t iEnd = (vec3_t)iOut[o / MAX_HITBOXES].acc[o % SIMD_COUNT];
+					float iLen = (iEnd - start).Length();
+
+					float dmgMul = players->hitboxes[i].damageMul[o];
+
+					//Arms and legs are able to pass through to head, other hitboxes are able to pass through to pelvis
+					bool passingThrough = curBestDMGMul && ((curBestDMGMul < 1 && dmgMul >= 2.f) || (curBestDMGMul <= 1.f && dmgMul > curBestDMGMul && dmgMul < 2.f));
+					bool passedThrough = curBestDMGMul && ((dmgMul < 1 && curBestDMGMul >= 2.f) || (dmgMul <= 1.f && curBestDMGMul > dmgMul && curBestDMGMul < 2.f));
+					if (iLen < origLen && ((iLen < len && !passedThrough) || passingThrough)) {
+						len = iLen;
+						end = start + dir * len;
+
+						mstudiobbox_t* box = set->GetHitbox(FwBridge::reHitboxIDs[o]);
+					    mstudiobone_t* bone = hdr->GetBone(box->bone);
+
+						tr->hitgroup = (HitGroups)box->group;
+						tr->hitbox = FwBridge::reHitboxIDs[o];
+						tr->contents = bone->contents | CONTENTS_HITBOX;
+						tr->physicsbone = bone->physicsbone;
+						tr->surface.name = "**studio**";
+						tr->surface.flags = SURF_HITBOX;
+						tr->surface.surfaceProps = bone->surfacepropidx;
+						tr->ent = (IClientEntity*)players->instance[i];
+
+						curBestDMGMul = fmaxf(curBestDMGMul, dmgMul);
+
+						retPlayer = players->unsortIDs[i];
+					}
+				}
+		}
+	}
+
+	float fracMul = len / origLen;
+
+	tr->endpos = end;
+	tr->fraction *= fracMul;
+
+	return retPlayer;
 }
 
 template<size_t N>

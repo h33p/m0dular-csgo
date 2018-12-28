@@ -25,6 +25,8 @@ uint64_t FwBridge::playersFl = 0;
 C_BaseCombatWeapon* FwBridge::activeWeapon = nullptr;
 float FwBridge::backtrackCurtime = 0;
 int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
+int FwBridge::reHitboxIDs[MAX_HITBOXES];
+studiohdr_t* FwBridge::cachedHDRs[MAX_PLAYERS];
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
 LocalPlayer FwBridge::lpData;
 HistoryList<AimbotTarget, BACKTRACK_TICKS> FwBridge::aimbotTargets;
@@ -215,6 +217,8 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	std::sort(players, players + count, PlayerSort);
 
+	data.players.Allocate(count);
+
 	for (int i = 0; i < count; i++) {
 
 		C_BasePlayer* ent = players[i].player;
@@ -243,7 +247,6 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		data.players.flags[i] = cflags;
 	}
-	data.players.count = count;
 
 	Engine::StartLagCompensation();
 
@@ -343,6 +346,8 @@ int FwBridge::traceTimeAvg = 0;
 typedef std::chrono::high_resolution_clock Clock;
 //#endif
 
+#include "awall.h"
+
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
 {
 	//Aimbot part
@@ -352,7 +357,20 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 	auto& targetIntersects = aimbotTargetIntersects.Push();
 	targetIntersects = 0;
 
-	if (activeWeapon) {
+	if (lpData.keys & Keys::ATTACK2){
+		vec3_t dir(0), r, u;
+		lpData.angles.GetVectors(dir, r, u, true);
+		int cacheSize = 0;
+		bool permaCache[AutoWall::MAX_INTERSECTS * 2 + 2];
+		trace_t outTraces[AutoWall::MAX_INTERSECTS * 2 + 2];
+		float outDamages[AutoWall::MAX_INTERSECTS * 2 + 2];
+		AutoWall::FireBulletWorld(lpData.eyePos, dir, lpData.weaponRange, lpData.weaponRangeModifier, lpData.weaponDamage, lpData.weaponPenetration, &cacheSize, permaCache, outTraces, outDamages);
+		float fdmg = AutoWall::FireBulletPlayers(lpData.eyePos, dir, lpData.weaponRange, lpData.weaponRangeModifier, lpData.weaponDamage, lpData.weaponPenetration, lpData.weaponArmorPenetration, &cacheSize, permaCache, outTraces, outDamages, &playerTrack[0]);
+
+		cvar->ConsoleDPrintf("FDMG: %f\n", fdmg);
+	}
+
+	if (false && activeWeapon) {
 		//We can only shoot once until we take a shot
 		if (lastPrimary != activeWeapon->nextPrimaryAttack())
 			allowShoot = false;
@@ -379,7 +397,6 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			}
 
 //#ifdef DEBUG
-			Tracing2::ResetTraceCount();
 
 			auto t1 = Clock::now();
 //#endif
@@ -408,6 +425,8 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 			if (target.future)
 				track = LagCompensation::futureTrack;
+
+			cvar->ConsoleDPrintf("T: %d (%d)\n", target.id, target.dmg);
 
 			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
 				target.id = -1;
@@ -669,6 +688,9 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
+
+		FwBridge::cachedHDRs[players.unsortIDs[i]] = hdr;
+
 		if (!hdr)
 			continue;
 
@@ -683,6 +705,7 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 	}
 
 	for (int i : *updatedHitboxPlayers) {
+
 		boneMatrix = players.bones[i];
 
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
@@ -695,6 +718,9 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 		for (int idx = 0; idx < set->numhitboxes; idx++)
 			FwBridge::hitboxIDs[idx] = -1;
 
+		for (int idx = 0; idx < MAX_HITBOXES; idx++)
+			FwBridge::reHitboxIDs[idx] = -1;
+
 		for (int idx = 0; idx < set->numhitboxes && hb < MAX_HITBOXES - 1; idx++) {
 			if (idx == Hitboxes::HITBOX_UPPER_CHEST ||
 				idx == Hitboxes::HITBOX_LEFT_UPPER_ARM || idx == Hitboxes::HITBOX_RIGHT_UPPER_ARM) {
@@ -703,6 +729,7 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 
 			hitboxes[++hb] = set->GetHitbox(idx);
 			FwBridge::hitboxIDs[idx] = hb;
+			FwBridge::reHitboxIDs[hb] = idx;
 
 			if (!hitboxes[hb])
 				continue;
@@ -726,6 +753,8 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 				  break;
 			  case HitGroups::HITGROUP_LEFTLEG:
 			  case HitGroups::HITGROUP_RIGHTLEG:
+			  case HitGroups::HITGROUP_LEFTARM:
+			  case HitGroups::HITGROUP_RIGHTARM:
 				  dmgMul *= 0.75f;
 				  break;
 			  default:

@@ -38,7 +38,7 @@ endif
 core_files = ['core/hooks.cpp', 'core/fw_bridge.cpp', 'core/tracing.cpp', 'core/gametrace.cpp', 'core/awall.cpp', 'core/engine.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/lagcompensation.cpp', 'core/settings.cpp', 'core/binds.cpp']
 interface_files = ['interfaces/tracing.cpp']
 framework_thread_utils = ['sdk/framework/utils/threading.cpp', 'sdk/framework/utils/mutex.cpp', 'sdk/framework/utils/shared_mutex.cpp', 'sdk/framework/utils/semaphores.cpp']
-framework_other_utils = ['sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/utils/intersect.cpp', 'sdk/framework/utils/packed_heap.cpp']
+framework_other_utils = ['sdk/framework/utils/pattern_scan.cpp', 'sdk/framework/utils/handles.cpp', 'sdk/framework/utils/vfhook.cpp', 'sdk/framework/utils/crc32.cpp', 'sdk/framework/utils/md5.cpp', 'sdk/framework/utils/intersect.cpp', 'sdk/framework/utils/intersect_box.cpp', 'sdk/framework/utils/packed_heap.cpp']
 framework_other_files = ['sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp',  'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp']
 keycode_files = ['modules/keycode/keyid.c']
 

@@ -151,6 +151,8 @@ namespace FwBridge
 	extern C_BaseCombatWeapon* activeWeapon;
 	extern float backtrackCurtime;
 	extern int hitboxIDs[];
+	extern int reHitboxIDs[];
+	extern studiohdr_t* cachedHDRs[];
 	extern HistoryList<AimbotTarget, BACKTRACK_TICKS> aimbotTargets;
 	extern HistoryList<unsigned int, BACKTRACK_TICKS> aimbotTargetIntersects;
 	extern int hitboxToHitbox[];

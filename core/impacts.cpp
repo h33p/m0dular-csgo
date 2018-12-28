@@ -21,7 +21,8 @@
 struct PlayerBackup
 {
 	vec3_t origin[MAX_PLAYERS];
-	AnimationLayer layers[MAX_PLAYERS][13];
+	//This is useless for now
+	//AnimationLayer layers[MAX_PLAYERS][13];
 };
 
 static HistoryList<BulletData, 20> eventsQueue;
@@ -57,7 +58,7 @@ void Impacts::Tick()
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 		if (!ent)
 			continue;
-		memcpy(backup.layers[id], ent->animationLayers(), sizeof(backup.layers[id]));
+		//memcpy(backup.layers[id], ent->animationLayers(), sizeof(backup.layers[id]));
 		backup.origin[id] = (vec3)ent->GetClientRenderable()->GetRenderOrigin();
 	}
 	historyStates.Push(backup);

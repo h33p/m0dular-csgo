@@ -176,11 +176,11 @@ static void UpdatePart1(uint64_t copyFlags)
 
 		if (pc > 0) {
 			Players& next = track.Push();
-			next.count = pc;
+			next.Allocate(pc);
 			next.globalTime = globalVars->curtime + interval * (i + 1);
 			memcpy(next.sortIDs, sortIDs, sizeof(next.sortIDs));
 			memcpy(next.unsortIDs, unsortIDs, sizeof(next.sortIDs));
-			memset(next.flags, 0, sizeof(next.flags));
+			memset(next.flags, 0, sizeof(next.flags[0]) * next.count);
 			for (int o = 0; o < next.count; o++) {
 				next.time[o] = nextSimtime[unsortIDs[o]];
 				next.flags[o] |= Flags::EXISTS;

@@ -151,6 +151,11 @@ namespace Tracing2
 	void PenetrateRayTargetOptimized(size_t n, float* __restrict damageOutput, trace_t* __restrict traces, Ray_t* __restrict rays, unsigned int mask, ITraceFilter* filter, int eID, Players* players);
 	void ResetTraceCount();
 	int RetreiveTraceCount();
+	bool TraceBudgetEmpty();
+
+	float ScaleDamage(Players* players, int id, float in, float armorPenetration, int hitbox, HitGroups hitgroup);
+
+	int ClipTraceToPlayers(trace_t* tr, Players* players, uint64_t ignoreFlags);
 }
 
 #endif
