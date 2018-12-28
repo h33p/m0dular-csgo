@@ -113,7 +113,7 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 		float closestDistance = 20.f;
 		int backTick = 0;
 
-		for (int i = 0; i < eventsQueue.Count(); i++) {
+		for (size_t i = 0; i < eventsQueue.Count(); i++) {
 			BulletData& data = eventsQueue.GetLastItem(i);
 
 			if (data.addTime < FwBridge::lpData.time)
@@ -122,7 +122,7 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 			if (data.cleared)
 				continue;
 
-			for (int o = 0; o < FwBridge::playerTrack.Count() && o < 32; o++) {
+			for (size_t o = 0; o < FwBridge::playerTrack.Count() && o < 32; o++) {
 				Players& players = FwBridge::playerTrack.GetLastItem(o);
 
 				int pID = players.sortIDs[entID];
@@ -187,7 +187,7 @@ static void ProcessBulletQueue()
 	//Is there any events queued up in the future for the effects to process?
 	bool shouldClear = true;
 
-	for (int i = 0; i < eventsQueue.Count(); i++) {
+	for (size_t i = 0; i < eventsQueue.Count(); i++) {
 		BulletData& data = eventsQueue.GetLastItem(i);
 
 		if (data.processed)
@@ -409,7 +409,7 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 	vec3_t startPoint = prevShootOrigins.GetLastItem(pbi);
 	vec3_t endPoint;
 
-	for (int i = 0; i < localImpacts.Count(); i++) {
+	for (size_t i = 0; i < localImpacts.Count(); i++) {
 		BulletData& data = localImpacts.GetLastItem(i);
 		float len = (data.pos - startPoint).LengthSqr();
 		if (len > longestDist) {

@@ -370,7 +370,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 		cvar->ConsoleDPrintf("FDMG: %f\n", fdmg);
 	}
 
-	if (false && activeWeapon) {
+	if (activeWeapon) {
 		//We can only shoot once until we take a shot
 		if (lastPrimary != activeWeapon->nextPrimaryAttack())
 			allowShoot = false;
@@ -410,7 +410,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			traceTimeAvg = 0;
 			traceCountAvg = 0;
 
-			int u = 0;
+		    size_t u = 0;
 
 			for (; u < traceCountHistory.Count(); u++) {
 				traceCountAvg += traceCountHistory[u];

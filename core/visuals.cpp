@@ -21,7 +21,6 @@ vec3_t sStart, sEnd, cStart, cEnd;
 #ifdef PT_VISUALS
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
-static void DrawText(const char* text, int x, int y);
 
 static void DrawText(const char* text, Color color, int x, int y)
 {
@@ -52,7 +51,7 @@ static bool CheckHitboxes(Players& p1, int p1ID, Players& p2, int p2ID)
 	return maxDist < 50;
 }
 
-static void Draw3DLine(vec3_t start, vec3_t end, Color col, const matrix4x4& w2s, vec2 screen)
+[[maybe_unused]] static void Draw3DLine(vec3_t start, vec3_t end, Color col, const matrix4x4& w2s, vec2 screen)
 {
 	bool flag1, flag2;
 
@@ -86,10 +85,10 @@ void Visuals::Draw()
 	screen[0] = w;
 	screen[1] = h;
 
-	for (int i = 0; i < 1 && i < FwBridge::playerTrack.Count(); i+=1)
+	for (size_t i = 0; i < 1 && i < FwBridge::playerTrack.Count(); i+=1)
 		RenderPlayer(FwBridge::playerTrack.GetLastItem(i), w2s, screen, Color(1.f, 0.f, 0.f, 1.f));
 	if (LagCompensation::futureTrack) {
-	    for (int i = 0; i < 1 && i < 0 * LagCompensation::futureTrack->Count(); i+=1)
+	    for (size_t i = 0; i < 1 && i < 0 * LagCompensation::futureTrack->Count(); i+=1)
 			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen, Color(0.f, 0.f, 1.f, 1.f));
 	}
 
@@ -102,7 +101,7 @@ void Visuals::Draw()
 	bool rendered[MAX_PLAYERS];
 	memset(rendered, 0, MAX_PLAYERS);
 
-	for (int i = 1; i < FwBridge::playerTrack.Count(); i++) {
+	for (size_t i = 1; i < FwBridge::playerTrack.Count(); i++) {
 		Players& p = FwBridge::playerTrack[i];
 		for (int o = 0; o < curP.count; o++) {
 			int pID = curP.Resort(p, o);
@@ -128,7 +127,7 @@ void Visuals::Draw()
 				continue;
 			vec3 screenStart = (vec3)screenStartPos.acc[u];
 			vec3 screenEnd = (vec3)screenEndPos.acc[u];
-			if (best == u && besti == i)
+			if (best == (int)u && besti == i)
 				surface->DrawSetColor(Color(1.f, 0.f, 1.f, 1.f));
 			else
 				surface->DrawSetColor(Color(0.f, 0.f, 1.f, 1.f));

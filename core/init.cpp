@@ -221,10 +221,10 @@ static void DispatchToAllThreads(void* data)
 {
 	smtx.wlock();
 
-	for (int i = 0; i < Threading::numThreads; i++)
+	for (size_t i = 0; i < Threading::numThreads; i++)
 		Threading::QueueJobRef(AllThreadsStub<Fn>, data);
 
-	for (int i = 0; i < Threading::numThreads; i++)
+	for (size_t i = 0; i < Threading::numThreads; i++)
 	    dispatchSem.Wait();
 
 	smtx.wunlock();
@@ -331,8 +331,8 @@ void* __stdcall UnloadThread(thread_t* thisThread)
 
 	//TODO: force ref count to 1 so it gets unloaded with a single call
 	dlclose(handle);
-	thread_t ctrd;
-	int count = 0;
+	[[maybe_unused]] thread_t ctrd;
+	//int count = 0;
 
 	ctrd = Threading::StartThread((threadFn)dlclose, handle);
 

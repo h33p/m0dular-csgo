@@ -37,11 +37,11 @@ void BindKey::Serialize(std::vector<unsigned char>& vec)
 	vec.push_back((unsigned char)mode);
 
 	if (pointer) {
-		for (int i = 0; i < sizeof(int); i++)
+		for (size_t i = 0; i < sizeof(int); i++)
 			vec.push_back(((unsigned char*)&pointer->handler->id)[i]);
 		pointer->Serialize(vec);
 	} else
-		for (int i = 0; i < sizeof(int); i++)
+		for (size_t i = 0; i < sizeof(int); i++)
 			vec.push_back((unsigned char)~0u);
 }
 
@@ -56,7 +56,7 @@ size_t BindKey::Unserialize(const std::vector<unsigned char>& vec, size_t idx)
 
 	int id = -1;
 
-	for (int i = 0; i < sizeof(int); i++)
+	for (size_t i = 0; i < sizeof(int); i++)
 		((unsigned char*)&id)[i] = vec[idx++];
 
 	if (id >= 0) {

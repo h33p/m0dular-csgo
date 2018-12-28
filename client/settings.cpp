@@ -355,8 +355,6 @@ static int Save(const char** cmds, int n)
 	char filename[512];
 	filename[0] = '\0';
 
-	int i = 0;
-
 	if (n < 1)
 		return 1;
 
@@ -444,7 +442,7 @@ static int Binds(const char** cmds, int n)
 	STPRINT("\nActive keybinds:\n");
 
 	//This is hella inefficient but okay
-	for (int i = 0; i < sizeof(BindManager::sharedInstance->binds) / sizeof(BindKey); i++) {
+	for (size_t i = 0; i < sizeof(BindManager::sharedInstance->binds) / sizeof(BindKey); i++) {
 
 		const BindKey& bind = BindManager::sharedInstance->binds[i];
 

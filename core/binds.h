@@ -5,6 +5,7 @@
 #include "../sdk/framework/utils/freelistallocator.h"
 #include "../sdk/framework/utils/allocwraps.h"
 #include "settings.h"
+#include <boost/interprocess/containers/vector.hpp>
 #include <vector>
 
 //TODO: Remove the unnecessary pointer type templating since now we use shmemptr even in the interface level
@@ -151,11 +152,11 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	using BindPointer = typename std::pointer_traits<Ptr>::template rebind<BindDataImpl<T>>;
 	using VecAlloc = typename Alloc::template rebind<BindPointer>::other;
 
-	std::vector<BindPointer, VecAlloc> activeBinds;
+	boost::interprocess::vector<BindPointer, VecAlloc> activeBinds;
 
 	template<typename... Args>
 	BindHandlerImpl(Args... args)
-		: BindHandlerBase<Ptr>(args...)
+		: BindHandlerBase<Ptr>(args...), activeBinds()
 	{
 	}
 
@@ -241,7 +242,7 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	{
 		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
 
-		for (int i = 0; i < sizeof(T); i++)
+		for (size_t i = 0; i < sizeof(T); i++)
 			vec.push_back(((unsigned char*)&keyBind->value)[i]);
 	}
 
@@ -249,7 +250,7 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	{
 		auto keyBind = (BindPointer)(TrueBindPointer)keyBindIFace;
 
-		for (int i = 0; i < sizeof(T); i++)
+		for (size_t i = 0; i < sizeof(T); i++)
 			((unsigned char*)&keyBind->value)[i] = vec[idx + i];
 
 		return idx + sizeof(T);

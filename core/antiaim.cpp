@@ -32,11 +32,12 @@ void Antiaim::Run(CUserCmd* cmd, FakelagState_t state)
 	lp.angles.x = 89;
 	CalculateBases();
 
-	if (lp.velocity.Length() > 1)
+	if (lp.velocity.Length() > 1) {
 		if (sw > 0)
 			sw = -1;
 		else
 			sw = 1;
+	}
 
 	if (state & FakelagState::LAST)
 		;//lp.angles.y = atTargetAngle - ((int)(globalVars->curtime / 5)) * 20;
@@ -234,6 +235,7 @@ static void CalculateBases()
 	lastFreeStandID = (int)(freeStandAngle / ANGLE_STEP + 0.5f);
 }
 
+[[maybe_unused]]
 static float MinBreakerDelta(int chokeTicks)
 {
 	return 100.f;
@@ -247,6 +249,8 @@ static bool shouldBreak = false;
 static bool isMoving = false;
 static bool onGround = false;
 
+//Do not remove just yet, maybe some used can be found
+[[maybe_unused]]
 static void LBYTimer(LocalPlayer& lp)
 {
 	vec3_t velocity = (lp.origin - prevOrigin) * (1.f / (lp.time - prevCurtime));
@@ -275,10 +279,9 @@ static void LBYTimer(LocalPlayer& lp)
 	}
 }
 
+[[maybe_unused]]
 static void LBYBreaker(LocalPlayer& lp)
 {
-	C_BasePlayer* ent = FwBridge::localPlayer;
-
 	if (shouldBreak)
 		lp.angles.y = targetLBY;
 	else if (!isMoving)

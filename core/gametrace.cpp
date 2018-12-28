@@ -7,7 +7,7 @@ void GameTrace::CM_ClearTrace(trace_t* tr)
 {
 	csurface_t emptyStruct = { (const char*)"**empty**", (int)0, (int)0 };
 
-	memset(tr, 0, sizeof(trace_t));
+	memset((void*)tr, 0, sizeof(trace_t));
 	tr->fraction = 1.f;
 	tr->fractionleftsolid = 0;
 	tr->surface = emptyStruct;

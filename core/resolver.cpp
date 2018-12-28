@@ -20,7 +20,6 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 {
 	bool isMoving[MAX_PLAYERS];
 	int count = players->count;
-	vec3_t atTarget = FwBridge::lpData.eyePos;
 
 	groundResolver.UpdateOffsets(resolveOffsets);
 	inAirResolver.UpdateOffsets(resolveOffsets);

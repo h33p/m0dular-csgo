@@ -465,7 +465,7 @@ int Tracing2::ClipTraceToPlayers(trace_t* tr, Players* players, uint64_t ignoreF
 	int retPlayer = -1;
 
 	//Test AABB colliders of all the players
-	for (size_t i = 0; i < players->count; i++) {
+	for (int i = 0; i < players->count; i++) {
 		int pID = players->Resort(curPlayers, i);
 
 		if (pID >= MAX_PLAYERS || ~curPlayers.flags[pID] & Flags::UPDATED || ignoreFlags & (1ull << pID))

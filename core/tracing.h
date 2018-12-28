@@ -72,7 +72,7 @@ struct TraceCache
 	vec3_t pos;
 	float eyeHeight;
 	static constexpr uintptr_t nullBase = 0;
-	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, 200000>> tree;
+	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, 40000>> tree;
 
 	TraceCache() : traceCountTick(0), cachedTraceCountTick(0), pos(0), eyeHeight(0), tree()
 	{
@@ -88,7 +88,7 @@ struct TraceCache
 		eyeHeight = FwBridge::lpData.eyePos[2] - FwBridge::lpData.origin[2];
 
 		//A temporary workaround until we find the core issue of cache size going out of hand
-		if (tree.size() > 100000)
+		if (tree.size() > 20000)
 			invalidate = true;
 
 		if (invalidate) {
