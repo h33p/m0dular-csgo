@@ -8,7 +8,8 @@
 	HANDLE_OPTION(bool, true, fakelag, bindSettings, globalSettings)
 
 	HANDLE_OPTION(bool, true, aimbot, bindSettings, globalSettings)
-	HANDLE_OPTION(bool, true,aimbotSetAngles, bindSettings, globalSettings)
+	HANDLE_OPTION(bool, true, aimbotSetAngles, bindSettings, globalSettings)
+	HANDLE_OPTION(int, 10, aimbotMinDamage, bindSettings, globalSettings)
 	HANDLE_OPTION(int, 1, aimbotLagCompensation, bindSettings, globalSettings)
 	HANDLE_OPTION(int, 0, aimbotHitChance, bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, aimbotAutoShoot, bindSettings, globalSettings)

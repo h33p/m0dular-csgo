@@ -22,18 +22,16 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 	vec3_t start = startPos;
 	vec3_t end = start;
 	Ray_t lineRay;
-	//TODO: change this to skip players once players pass is done
 	CTraceFilterSkipPlayers filter;
 
 	*inBreakable = IsBreakableEntity((C_BaseEntity*)inTrace.ent);
 
 	//TODO: Add hitbox handling pass
-	//int firstContents = engineTrace->GetPointContents(start + dirAdd, MASK_SHOT_HULL, nullptr);
 
 	for (float curDist = 0.f; curDist < maxDist; curDist += rayExtens) {
 		start += dirAdd;
 
-		int pointContents = engineTrace->GetPointContents(start, MASK_SHOT_HULL, nullptr);
+		int pointContents = Tracing2::GetPointContents(start, MASK_SHOT_HULL, nullptr);
 
 		if (~pointContents & MASK_SHOT_HULL) {
 			end = start - dirAdd;
@@ -44,18 +42,15 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 			//This is a friendly reminder that our TODO list includes hitbox handling to be put right below here
 
 
-			if (outTrace->fraction < 0.99f && !outTrace->startsolid) {
+			if (outTrace->DidHit() && !outTrace->startsolid) {
 				//NOTE: IsBreakableEntity check has to be done in a thread-safe way
 				*outBreakable = IsBreakableEntity((C_BaseEntity*)outTrace->ent);
 
-				if ((inBreakable && outBreakable) || inTrace.surface.flags & SURF_NODRAW || outTrace->plane.normal.Dot(dir) <= 1.f) {
-					//cvar->ConsoleDPrintf("TTE %f\n", curDist);
+				if ((*inBreakable && *outBreakable) || inTrace.surface.flags & SURF_NODRAW || (~outTrace->surface.flags & SURF_NODRAW && outTrace->plane.normal.Dot(dir) <= 1.f))
 					return true;
-				}
-			} else if (false && inTrace.ent != GameTrace::worldEnt && inBreakable) { //TODO: look into this
+			} else if (false && inTrace.ent != GameTrace::worldEnt && *inBreakable) { //TODO: look into this
 			    *outTrace = inTrace;
 				outTrace->endpos = start + dir;
-				//cvar->ConsoleDPrintf("TTE %f\n", curDist);
 				return true;
 			}
 		}
@@ -67,7 +62,7 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 bool AutoWall::HandleBulletPenetrationWorld(const trace_t& inTrace, vec3_t dir, bool lastHit, float penetrationPower, bool sv_penetration_type, float ff_damage_reduction_bullets, float ff_damage_bullet_penetration, bool* inBreakable, bool* outBreakable, float* curDamage, trace_t* outTrace)
 {
 	//TODO: add handling of spetial Cache surface materials
-	if (penetrationPower <= 0.f || (!TraceToExitWorld(inTrace, outTrace, (const vec3_t)inTrace.endpos, dir, inBreakable, outBreakable) && ~engineTrace->GetPointContents(inTrace.endpos, MASK_SHOT_HULL, nullptr) & MASK_SHOT_HULL)) {
+	if (penetrationPower <= 0.f  || (!TraceToExitWorld(inTrace, outTrace, (const vec3_t)inTrace.endpos, dir, inBreakable, outBreakable) && ~Tracing2::GetPointContents(inTrace.endpos, MASK_SHOT_HULL, nullptr) & MASK_SHOT_HULL)) {
 		*curDamage = 0;
 		return false;
 	}
@@ -78,11 +73,17 @@ bool AutoWall::HandleBulletPenetrationWorld(const trace_t& inTrace, vec3_t dir, 
 	bool isNodraw = inTrace.surface.flags & SURF_NODRAW;
 
 	surfacedata_t* inSurfData = physProp->GetSurfaceData(inTrace.surface.surfaceProps);
+	/*const char* inName = physProp->GetPropName(inTrace.surface.surfaceProps);
+	if (!inName)
+	inName = "empty";*/
 	int inMat = inSurfData->game.material;
 	float inPenMod = inSurfData->game.flPenetrationModifier;
 	//float inDmgMod = inSurfData->game.flDamageModifier;
 
 	surfacedata_t* outSurfData = physProp->GetSurfaceData(outTrace->surface.surfaceProps);
+	/*const char* outName = physProp->GetPropName(outTrace->surface.surfaceProps);
+	if (!outName)
+	outName = "empty";*/
 	int outMat = outSurfData->game.material;
 	float outPenMod = outSurfData->game.flPenetrationModifier;
 	//float outDmgMod = outSurfData->game.flDamageModifier;
@@ -116,7 +117,7 @@ bool AutoWall::HandleBulletPenetrationWorld(const trace_t& inTrace, vec3_t dir, 
 
 	float lostDmg = fmaxf((invPenMod * thickness * (1.f / 24.f)) + ((*curDamage * finalDmgMod) + fmaxf(3.75f / penetrationPower, 0.f) * 3.f * invPenMod), 0.f);
 
-	//cvar->ConsoleDPrintf("LDMG %f (%f) | %d %d %f %f %f %f\n", lostDmg, thickness, inMat, outMat, inPenMod, outPenMod, finalDmgMod, combinedPenMod);
+	//cvar->ConsoleDPrintf("LDMG %f (%f) | %d %s %d %s %f %f %f %f\n", lostDmg, thickness, inMat, inName, outMat, outName, inPenMod, outPenMod, finalDmgMod, combinedPenMod);
 
 	*curDamage -= lostDmg;
 
@@ -169,7 +170,7 @@ void AutoWall::FireBulletWorld(vec3_t start, vec3_t dir, float weaponRange, floa
 		outTraces[*curOutID] = inTrace;
 		permaCache[(*curOutID)++] = true;
 
-		//cvar->ConsoleDPrintf("FB %f: %f (%f)\n", curDistance, curDamage, outDamages[*curOutID - 1]);
+		////cvar->ConsoleDPrintf("FB %f: %f (%f)\n", curDistance, curDamage, outDamages[*curOutID - 1]);
 		//cvar->ConsoleDPrintf("FB %f (%f %f %f): %f (%f)\n", curDistance, outTrace.endpos[0], outTrace.endpos[1], outTrace.endpos[2], curDamage, outDamages[*curOutID - 1]);
 
 		if (inTrace.fraction == 1.f || inPenMod < 0.1f || (curDistance > penDist && weaponPenetration > 0.f))
@@ -189,7 +190,7 @@ void AutoWall::FireBulletWorld(vec3_t start, vec3_t dir, float weaponRange, floa
 		outTraces[*curOutID] = outTrace;
 		permaCache[(*curOutID)++] = !outBreakable;
 
-		//cvar->ConsoleDPrintf("FB %f: %f (%f)\n", curDistance, curDamage, outDamages[*curOutID - 1]);
+		////cvar->ConsoleDPrintf("FB %f: %f (%f)\n", curDistance, curDamage, outDamages[*curOutID - 1]);
 		//cvar->ConsoleDPrintf("FB %f (%f %f %f): %f (%f)\n", curDistance, outTrace.endpos[0], outTrace.endpos[1], outTrace.endpos[2], curDamage, outDamages[*curOutID - 1]);
 
 		curStart = outTrace.endpos;
@@ -236,7 +237,7 @@ static bool PerformPlayerClipping(Players* players, const trace_t& inTrace, floa
 			return true;
 		}
 
-		if (*hitsRemaining) {
+		if (*hitsRemaining > 0) {
 			trace_t newTrace = inTrace;
 			newTrace.startpos = tempTrace.endpos;
 			return PerformPlayerClipping(players, newTrace, curDistance, curDamage, hitsRemaining, ignoreFlags, weaponRangeModifier, weaponArmorPenetration, damageDelta, distanceDelta);
@@ -271,12 +272,12 @@ float AutoWall::FireBulletPlayers(vec3_t start, vec3_t dir, float weaponRange, f
 
 	//cvar->ConsoleDPrintf("Cache size: %d\n", *cacheSize);
 
-	while (hitsRemaining && curID < *cacheSize) {
+	while (hitsRemaining > 0 && curID < *cacheSize) {
 		trace_t inTrace = inTraces[curID];
 
 		//cvar->ConsoleDPrintf("(%d) ", curID);
 		if (PerformPlayerClipping(players, inTrace, &curDistance, &curDamage, &hitsRemaining, &ignoreFlags, weaponRangeModifier, weaponArmorPenetration, inDamages[curID], inTraces[curID].startpos.DistTo(inTraces[curID].endpos))) {
-			break;
+			return curDamage;
 		}
 
 		curID++;
@@ -292,5 +293,5 @@ float AutoWall::FireBulletPlayers(vec3_t start, vec3_t dir, float weaponRange, f
 
 	//cvar->ConsoleDPrintf("RET %f\n", curDamage);
 
-	return curDamage;
+	return 0.f;
 }

@@ -183,21 +183,6 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		playerCount = i;
 
-#ifdef _WIN32
-		C_BasePlayer* hookEnt = ent+1;
-#else
-		C_BasePlayer* hookEnt = ent;
-#endif
-
-		if (false && CSGOHooks::entityHooks->find(hookEnt) == CSGOHooks::entityHooks->end()) {
-			VFuncHook* hook = new VFuncHook((void*)hookEnt);
-#ifndef _WIN32
-			hook->Hook(1, CSGOHooks::EntityDestruct);
-#endif
-			hook->Hook(PosixWin(104, 52), CSGOHooks::SetupBones);
-			CSGOHooks::entityHooks->insert({hookEnt, hook});
-		}
-
 		if (ent == localPlayer) {
 			lpData.ID = i;
 			continue;
@@ -348,6 +333,8 @@ typedef std::chrono::high_resolution_clock Clock;
 //#endif
 
 #include "awall.h"
+extern void RenderAwallBoxes();
+bool prevPressed = true;
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
 {
@@ -369,6 +356,19 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 		float fdmg = AutoWall::FireBulletPlayers(lpData.eyePos, dir, lpData.weaponRange, lpData.weaponRangeModifier, lpData.weaponDamage, lpData.weaponPenetration, lpData.weaponArmorPenetration, &cacheSize, permaCache, outTraces, outDamages, &playerTrack[0]);
 
 		cvar->ConsoleDPrintf("FDMG: %f\n", fdmg);
+		vec3_t posOut[AutoWall::MAX_INTERSECTS * 4 + 4];
+
+		for (int i = 0; i < cacheSize; i++) {
+			posOut[i * 2] = outTraces[i].startpos;
+			posOut[i * 2 + 1] = outTraces[i].endpos;
+		}
+
+		Visuals::SetAwallBoxes(posOut, cacheSize);
+		prevPressed = true;
+	} else {
+		if (prevPressed)
+			RenderAwallBoxes();
+		prevPressed = false;
 	}
 
 	if (activeWeapon) {
@@ -401,7 +401,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 			auto t1 = Clock::now();
 //#endif
-			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags, pointScale);
+			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags, pointScale, Settings::aimbotMinDamage);
 //#ifdef DEBUG
 			auto t2 = Clock::now();
 

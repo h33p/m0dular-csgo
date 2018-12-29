@@ -18,6 +18,21 @@ float lastSimtimes[MAX_PLAYERS];
 
 vec3_t sStart, sEnd, cStart, cEnd;
 
+vec3 traceBoxes[20];
+int traceCount = 0;
+
+void RenderAwallBoxes()
+{
+	for (int i = 0; i < traceCount; i++) {
+		vec3 mins(-0.5f);
+		vec3 maxs(0.5f);
+		vec3 ang(0);
+		Color faceCol(0.f, 1.f, 0.f, 0.1f);
+		Color col(0.f, 1.f, 0.f, 1.f);
+		debugOverlay->AddBoxOverlay2(traceBoxes[i], mins, maxs, ang, faceCol, col, 10.f);
+	}
+}
+
 #ifdef PT_VISUALS
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
 void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
@@ -260,4 +275,12 @@ void Visuals::SetShotVectors(vec3_t serverStart, vec3_t serverEnd, vec3_t idealS
 	sEnd = serverEnd;
 	cStart = idealStart;
 	cEnd = idealEnd;
+}
+
+void Visuals::SetAwallBoxes(vec3_t* boxes, int count)
+{
+	for (int i = 0; i < count; i++)
+		traceBoxes[i] = boxes[i];
+
+	traceCount = count;
 }

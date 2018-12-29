@@ -28,6 +28,7 @@ void Tracing::TracePlayerSIMD(LocalPlayer* localPlayer, Players* players, vec3so
 
 thread_local std::vector<trace_t> traces;
 thread_local std::vector<Ray_t> rays;
+thread_local std::vector<float> dmgOut;
 
 void Tracing::TracePointList(LocalPlayer* localPlayer, Players* players, size_t n, const vec3_t* points, int eID, int* __restrict out, int depth, bool skipLocal)
 {
@@ -42,29 +43,26 @@ void Tracing::TracePointList(LocalPlayer* localPlayer, Players* players, size_t 
 
 	//Perform autowall
 	if (depth == 1) {
+		dmgOut.resize(n);
 
-		for (size_t i = 0; i < n && !Tracing2::TraceBudgetEmpty(); i++) {
-			int cacheSize = 0;
-			bool permaCache[AutoWall::MAX_INTERSECTS * 2 + 2];
-			trace_t outTraces[AutoWall::MAX_INTERSECTS * 2 + 2];
-			float outDamages[AutoWall::MAX_INTERSECTS * 2 + 2];
-		    AutoWall::FireBulletWorld(localPlayer->eyePos, rays[i].delta.Normalized(), localPlayer->weaponRange, localPlayer->weaponRangeModifier, localPlayer->weaponDamage, localPlayer->weaponPenetration, &cacheSize, permaCache, outTraces, outDamages);
-		    *out = AutoWall::FireBulletPlayers(localPlayer->eyePos, rays[i].delta.Normalized(), localPlayer->weaponRange, localPlayer->weaponRangeModifier, localPlayer->weaponDamage, localPlayer->weaponPenetration, localPlayer->weaponArmorPenetration, &cacheSize, permaCache, outTraces, outDamages, players);
-		}
+		for (size_t i = 0; i < n; i++)
+			dmgOut[i] = 0.f;
 
-		return;
+		Tracing2::PenetrateRayTargetOptimized(n, dmgOut.data(), rays.data(), eID, players, localPlayer);
+		for (size_t i = 0; i < n; i++)
+			out[i] = (int)dmgOut[i];
+	} else {
+		CTraceFilterSkipPlayers filter;
+
+		Tracing2::TraceRayTargetOptimized(n, traces.data(), rays.data(), MASK_SHOT, &filter, eID, players);
+
+
+		for (size_t i = 0; i < n; i++)
+			Tracing2::ClipTraceToPlayers(&traces[i], players, 0);
+
+		for (size_t i = 0; i < n; i++)
+			out[i] = Tracing2::TracePart2(localPlayer->eyePos, localPlayer->weaponDamage, localPlayer->weaponRangeModifier, players, &traces[i], eID);
 	}
-
-	CTraceFilterSkipPlayers filter;
-
-	Tracing2::TraceRayTargetOptimized(n, traces.data(), rays.data(), MASK_SHOT, &filter, eID, players);
-
-
-	for (size_t i = 0; i < n; i++)
-		Tracing2::ClipTraceToPlayers(&traces[i], players, 0);
-
-	for (size_t i = 0; i < n; i++)
-		out[i] = Tracing2::TracePart2(localPlayer->eyePos, localPlayer->weaponDamage, localPlayer->weaponRangeModifier, players, &traces[i], eID);
 }
 
 thread_local std::vector<vec3_t> pointsV3;

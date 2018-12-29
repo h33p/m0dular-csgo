@@ -172,7 +172,7 @@ void GameTrace::ClipRayToCollideable(const Ray_t& ray, unsigned int mask, IColli
 				return;
 	}
 
-	const matrix3x4_t* rootMoveParent;
+	const matrix3x4_t* rootMoveParent = nullptr;
 
 	if (entity->GetSolidFlags() & SolidFlags_t::FSOLID_ROOT_PARENT_ALIGNED)
 		rootMoveParent = entity->GetRootParentToWorldTransform();
