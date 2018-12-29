@@ -6,6 +6,7 @@
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../core/hooks.h"
+#include "../core/awall.h"
 
 int Tracing::TracePlayer(LocalPlayer* localPlayer, Players* players, vec3_t point, int eID, int depth, bool skipLocal)
 {

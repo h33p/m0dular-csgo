@@ -1,9 +1,11 @@
 #include "tracing.h"
 #include "hooks.h"
+#include "gametrace.h"
+#include "tracecache.h"
+#include "awall.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/framework/utils/intersect_box_impl.h"
-#include "gametrace.h"
 
 static constexpr int MAX_N = 256;
 
@@ -13,6 +15,7 @@ static int cachedTraceThreadBudget = 5000;
 static Mutex enumLock;
 static CEntityListAlongRay enumerators[NUM_THREADS + 1];
 static TraceCache cache[NUM_THREADS + 1];
+
 
 void Tracing2::TraceRayListBSPOnly(size_t n, const Ray_t* rays, unsigned int mask, trace_t* traces)
 {

@@ -5,12 +5,12 @@
  * to bridge the game with the framework
 */
 
+struct AimbotTarget;
+
 #include "../sdk/framework/math/mmath.h"
 #include "../sdk/framework/players.h"
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
-#include "../sdk/framework/features/aimbot.h"
-#include "../sdk/framework/utils/settings.h"
 #include "macros.h"
 
 #if defined(__linux__)

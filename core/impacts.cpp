@@ -8,6 +8,7 @@
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/features/fakelag.h"
+#include "../sdk/framework/features/aimbot.h"
 
 /*
   Shot data is contained in both game events and effects.

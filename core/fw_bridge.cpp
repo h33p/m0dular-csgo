@@ -5,6 +5,7 @@
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/features/features.h"
 #include "../sdk/framework/utils/intersect_impl.h"
+#include "../sdk/framework/features/aimbot.h"
 
 #include "spread.h"
 #include "engine.h"
