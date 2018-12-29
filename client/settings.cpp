@@ -41,7 +41,7 @@
 static uintptr_t clAllocBase = 0;
 generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
 
-static void DrawSplash();
+static inline void DrawSplash();
 
 static void Handle(const char* command, const char* name, const char** cmds, int n);
 
@@ -469,7 +469,7 @@ static int Binds(const char** cmds, int n)
 	return 0;
 }
 
-static void DrawSplash()
+static inline void DrawSplash()
 {
 	int columns = 0;
 #ifdef __linux__

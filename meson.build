@@ -5,9 +5,9 @@ if get_option('buildtype').startswith('debug')
 endif
 
 add_project_arguments('-DPT_VISUALS', language : 'cpp')
-add_project_arguments('-DAIMBOT_THREADING', language : 'cpp')
+#add_project_arguments('-DAIMBOT_THREADING', language : 'cpp')
 
-compile_args = ['-include', 'global_defines.h']
+compile_args = []
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
 linker_args = compile_args
 
@@ -51,6 +51,12 @@ libraries = []
 deps = []
 
 cc = meson.get_compiler('cpp')
+
+if cc.get_id() == 'msvc'
+	compile_args += ['-FIglobal_defines.h', '-std:c++17']
+else
+	compile_args += ['-include', 'global_defines.h']
+endif
 
 if host_machine.system() != 'windows'
 	compile_args += '-fvisibility=hidden'

@@ -84,7 +84,7 @@ static void InitializeDynamicHooks();
 void Shutdown();
 void Unload();
 
-template<auto& Fn>
+template<typename T, T& Fn>
 static void DispatchToAllThreads(void*);
 
 volatile bool cont = false;
@@ -98,7 +98,7 @@ void* __stdcall EntryPoint(void*)
 #ifndef LOADER_INITIALIZATION
 	InitializeOffsets();
 #endif
-    DispatchToAllThreads<AllocateThreadID>(nullptr);
+    DispatchToAllThreads<ThreadIDFn, AllocateThreadID>(nullptr);
 #ifndef LOADER_INITIALIZATION
 	InitializeHooks();
 #endif
@@ -206,7 +206,7 @@ static Semaphore dispatchSem;
 static Semaphore waitSem;
 static SharedMutex smtx;
 
-template<auto& Fn>
+template<typename T, T& Fn>
 static void AllThreadsStub(void*)
 {
 	dispatchSem.Post();
@@ -216,13 +216,13 @@ static void AllThreadsStub(void*)
 }
 
 //TODO: Build this into the threading library
-template<auto& Fn>
+template<typename T, T& Fn>
 static void DispatchToAllThreads(void* data)
 {
 	smtx.wlock();
 
 	for (size_t i = 0; i < Threading::numThreads; i++)
-		Threading::QueueJobRef(AllThreadsStub<Fn>, data);
+		Threading::QueueJobRef(AllThreadsStub<T, Fn>, data);
 
 	for (size_t i = 0; i < Threading::numThreads; i++)
 	    dispatchSem.Wait();
@@ -280,7 +280,7 @@ void Shutdown()
 		firstTime = false;
 
 		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
-		DispatchToAllThreads<FreeThreadID>(nullptr);
+		DispatchToAllThreads<ThreadIDFn, FreeThreadID>(nullptr);
 		int ret = Threading::EndThreads();
 
 		if (ret)
