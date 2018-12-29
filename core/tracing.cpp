@@ -13,7 +13,6 @@ static int traceThreadBudget = 500;
 static int cachedTraceThreadBudget = 5000;
 
 static Mutex enumLock;
-static CEntityListAlongRay enumerators[NUM_THREADS + 1];
 static TraceCache cache[NUM_THREADS + 1];
 
 

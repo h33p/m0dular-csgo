@@ -355,7 +355,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 		AutoWall::FireBulletWorld(lpData.eyePos, dir, lpData.weaponRange, lpData.weaponRangeModifier, lpData.weaponDamage, lpData.weaponPenetration, &cacheSize, permaCache, outTraces, outDamages);
 		float fdmg = AutoWall::FireBulletPlayers(lpData.eyePos, dir, lpData.weaponRange, lpData.weaponRangeModifier, lpData.weaponDamage, lpData.weaponPenetration, lpData.weaponArmorPenetration, &cacheSize, permaCache, outTraces, outDamages, &playerTrack[0]);
 
-		cvar->ConsoleDPrintf("FDMG: %f\n", fdmg);
+		//cvar->ConsoleDPrintf("FDMG: %f\n", fdmg);
 		vec3_t posOut[AutoWall::MAX_INTERSECTS * 4 + 4];
 
 		for (int i = 0; i < cacheSize; i++) {

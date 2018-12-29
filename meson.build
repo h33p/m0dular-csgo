@@ -55,6 +55,8 @@ cc = meson.get_compiler('cpp')
 if host_machine.system() != 'windows'
 	compile_args += '-fvisibility=hidden'
 	linker_args += '-fvisibility=hidden'
+else
+  linker_args += '-Wl,-largeaddressaware'
 endif
 
 if meson.is_cross_build()

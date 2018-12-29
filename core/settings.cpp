@@ -22,7 +22,7 @@ using fileHandle = int;
 static_assert(std::atomic<int>::is_always_lock_free);
 static_assert(std::atomic<bool>::is_always_lock_free);
 
-constexpr unsigned int ALLOC_SIZE = 1 << 25;
+constexpr unsigned int ALLOC_SIZE = 1 << 24;
 
 std::atomic_int* ipcCounter = nullptr;
 
