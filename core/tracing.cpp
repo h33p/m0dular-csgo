@@ -9,9 +9,6 @@
 
 static constexpr int MAX_N = 64;
 
-static int traceThreadBudget = 500;
-static int cachedTraceThreadBudget = 5000;
-
 static Mutex enumLock;
 static TraceCache cache[NUM_THREADS + 1];
 
@@ -45,7 +42,7 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 		for (size_t i = 0; i < n - off; i++) {
 			float minFraction = rays[off + i].delta.Length() / CACHED_TRACE_LEN;
 
-			if (cache[threadIDX].cachedTraceFindTick <= cachedTraceThreadBudget) {
+			if (cache[threadIDX].CanTraceCached()) {
 				//Check both the local and the global trace caches for the closest ray
 				const traceang_t* globalEntry = cache[0].Find(rays[off + i]);
 				const traceang_t* localEntry = threadIDX ? cache[threadIDX].Find(rays[off + i]) : nullptr;
@@ -65,14 +62,13 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 						traces[off + i].fraction /= minFraction;
 
 					traces[off + i].endpos = rays[off + i].start + rays[off + i].delta * traces[off + i].fraction;
-
-					cache[threadIDX].cachedTraceCountTick++;
+					cache[threadIDX].traceCountTick++;
 					continue;
 				}
 			}
 
 			//Only allow cached traces to be used when over budget
-			if (cache[threadIDX].traceCountTick > traceThreadBudget)
+			if (!cache[threadIDX].CanTrace())
 				continue;
 
 			cache[threadIDX].traceCountTick++;
@@ -177,9 +173,7 @@ void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOut
 
 		damageOutput[i] = 0.f;
 
-		bool cacheDone = false;
-
-		if (cache[threadIDX].cachedTraceFindTick <= cachedTraceThreadBudget) {
+		if (cache[threadIDX].CanTraceCached()) {
 			//Check both the local and the global trace caches for the closest ray
 			traceang_t* globalEntry = cache[0].Find(rays[i]);
 			traceang_t* localEntry = threadIDX ? cache[threadIDX].Find(rays[i]) : nullptr;
@@ -187,25 +181,22 @@ void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOut
 
 			//We have got a cache entry, now just check if the closer one does not intersect the world
 			if (globalEntry || localEntry) {
-
-				cacheDone = true;
-
-				if (localEntry && localEntry->awalled)
+				if (localEntry && localEntry->awalled) {
 					damageOutput[i] = AutoWall::FireBulletPlayers(localPlayer->eyePos, rays[i].delta.Normalized(), localPlayer->weaponRange, localPlayer->weaponRangeModifier, localPlayer->weaponDamage, localPlayer->weaponPenetration, localPlayer->weaponArmorPenetration, &localEntry->traceCount, localEntry->permaCache, localEntry->traces, localEntry->damages, players);
-				else if (globalEntry && globalEntry->awalled)
+					cache[threadIDX].cachedTraceFindTick += localEntry->traceCount;
+					cache[threadIDX].traceCountTick++;
+					continue;
+				} else if (globalEntry && globalEntry->awalled) {
 					damageOutput[i] = AutoWall::FireBulletPlayers(localPlayer->eyePos, rays[i].delta.Normalized(), localPlayer->weaponRange, localPlayer->weaponRangeModifier, localPlayer->weaponDamage, localPlayer->weaponPenetration, localPlayer->weaponArmorPenetration, &globalEntry->traceCount, globalEntry->permaCache, globalEntry->traces, globalEntry->damages, players);
-				else
-					cacheDone = false;
+					cache[threadIDX].cachedTraceFindTick += globalEntry->traceCount;
+					cache[threadIDX].traceCountTick++;
+					continue;
+				}
 			}
 		}
 
-		if (cacheDone) {
-			cache[threadIDX].cachedTraceCountTick++;
-			continue;
-		}
-
 		//Only allow cached traces to be used when over budget
-		if (cache[threadIDX].traceCountTick > traceThreadBudget)
+		if (!cache[threadIDX].CanTrace())
 			continue;
 
 		int cacheSize = 0;
@@ -317,7 +308,7 @@ int Tracing2::RetreiveTraceCount()
 
 bool Tracing2::TraceBudgetEmpty()
 {
-	return cache[Threading::threadID + 1].traceCountTick >= traceThreadBudget;
+	return cache[Threading::threadID + 1].traceCountTick >= Settings::traceBudget;
 }
 
 float Tracing2::ScaleDamage(Players* players, int id, float in, float armorPenetration, int hitbox, HitGroups hitgroup)

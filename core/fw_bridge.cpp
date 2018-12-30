@@ -16,9 +16,12 @@
 #include "lagcompensation.h"
 #include "tracing.h"
 #include "settings.h"
+#include "awall.h"
 
 #include <algorithm>
+#include <chrono>
 
+typedef std::chrono::high_resolution_clock Clock;
 
 C_BasePlayer* FwBridge::localPlayer = nullptr;
 int FwBridge::playerCount = 0;
@@ -321,17 +324,11 @@ float lastPrimary = 0.f;
 
 extern int btTick;
 
-//#ifdef DEBUG
 static HistoryList<int, 64> traceCountHistory;
 static HistoryList<unsigned long, 64> traceTimeHistory;
 int FwBridge::traceCountAvg = 0;
 int FwBridge::traceTimeAvg = 0;
 
-#include <chrono>
-typedef std::chrono::high_resolution_clock Clock;
-//#endif
-
-#include "awall.h"
 bool prevPressed = true;
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
@@ -361,7 +358,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			posOut[i * 2 + 1] = outTraces[i].endpos;
 		}
 
-		Visuals::SetAwallBoxes(posOut, cacheSize);
+		Visuals::SetAwallBoxes(posOut, outDamages, cacheSize, fdmg, lpData.weaponDamage);
 		prevPressed = true;
 	} else {
 		if (prevPressed)
@@ -425,7 +422,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			if (target.future)
 				track = LagCompensation::futureTrack;
 
-			cvar->ConsoleDPrintf(ST("T: %d (%d)\n"), target.id, target.dmg);
+			//cvar->ConsoleDPrintf(ST("T: %d (%d)\n"), target.id, target.dmg);
 
 			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
 				target.id = -1;

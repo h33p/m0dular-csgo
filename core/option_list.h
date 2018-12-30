@@ -16,6 +16,7 @@
 	HANDLE_OPTION(bool, true, aimbotBacktrack, bindSettings, globalSettings)
 	HANDLE_OPTION(bool, true, aimbotSafeBacktrack, bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, aimbotNospread, bindSettings, globalSettings)
+	HANDLE_OPTION(int, 500, traceBudget, bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, resolver, bindSettings, globalSettings)
 #undef HANDLE_OPTION
 #else

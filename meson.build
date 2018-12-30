@@ -90,7 +90,7 @@ if not get_option('buildtype').startswith('debug')
     compile_args += ['-flto=thin', '-Ofast', '-msse4.2', '-fno-stack-protector', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-fno-math-errno', '-fno-ident']
     if cc.get_id() != 'gcc'
       compile_args += ['-mllvm', '-inline-threshold=500', '-fvisibility=hidden']
-      linker_args += '-fuse-ld=lld'
+      linker_args += ['-fuse-ld=lld', '-flto=thin']
     endif
     linker_args += ['-fno-rtti']
   else
@@ -130,7 +130,7 @@ thread_dep = dependency('threads')
 
 fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir)
 lib = shared_library('m0dular', files(file_list), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir)
-client = executable('m0dular', files(client_file_list), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir)
+client = executable('clm0dular', files(client_file_list), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir)
 
 bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir)
 

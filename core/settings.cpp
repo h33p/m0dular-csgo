@@ -144,13 +144,16 @@ struct SettingsInstance
 
 	SettingsInstance()
 	{
-	    bool firstTime = MapSharedMemory(fd, alloc, ALLOC_SIZE, "m0d_settings");
+	    bool firstTime = MapSharedMemory(fd, alloc, ALLOC_SIZE, ST("m0d_settings"));
 
 		Settings::allocBase = (uintptr_t)alloc;
 
 		uintptr_t finalAddress = Settings::allocBase;
 		for (IPCInit& i : initializedPointers) {
 			*i.target = finalAddress;
+#ifdef DEBUG
+		    printf("%lx\n", finalAddress - (uintptr_t)alloc);
+#endif
 			finalAddress += i.size;
 		}
 

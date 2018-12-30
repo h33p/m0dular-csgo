@@ -2,12 +2,14 @@
 #define TRACECACHE_H
 
 #include "awall.h"
+#include "settings.h"
 #include "../sdk/framework/utils/kd_tree.h"
 #include "../sdk/framework/utils/freelistallocator.h"
 #include "../sdk/framework/utils/allocwraps.h"
 
 //Windows CSGO struggles already with memory
 static constexpr size_t TRACE_CACHE_SIZE = x64x32(100000, 30000);
+static constexpr size_t CAN_TRACE_PASS_SCALE = 10;
 
 struct traceang_t
 {
@@ -61,11 +63,11 @@ struct traceang_t
 struct TraceCache
 {
 
-	int traceCountTick, cachedTraceCountTick, cachedTraceFindTick;
+	int traceCountTick, cachedTraceCountTick, cachedTraceFindTick, traceCallCount;
 	vec3_t pos;
 	float eyeHeight;
 	static constexpr uintptr_t nullBase = 0;
-	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, 50000>> tree;
+	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, TRACE_CACHE_SIZE>> tree;
 	bool printed = false;
 
 	TraceCache() : traceCountTick(0), cachedTraceCountTick(0), pos(0), eyeHeight(0), tree()
@@ -73,16 +75,41 @@ struct TraceCache
 
 	}
 
+	bool CanTraceImpl(int count, int mul)
+	{
+		traceCallCount++;
+		int curMul = mul;
+		size_t passScale = 1;
+		for (size_t i = 0; i < 4; i++) {
+			if (count < Settings::traceBudget * curMul && !(traceCallCount % passScale))
+				return true;
+			curMul += mul;
+			passScale *= CAN_TRACE_PASS_SCALE;
+		}
+		return false;
+	}
+
+	bool CanTraceCached()
+	{
+		return CanTraceImpl(cachedTraceCountTick, 10);
+	}
+
+	bool CanTrace()
+	{
+		return CanTraceImpl(traceCountTick, 1);
+	}
+
 	void Reset(bool invalidate, TraceCache* mergeTo)
 	{
 		traceCountTick = 0;
 		cachedTraceCountTick = 0;
 		cachedTraceFindTick = 0;
+		traceCallCount = 0;
 
 		eyeHeight = FwBridge::lpData.eyePos[2] - FwBridge::lpData.origin[2];
 
 		//A temporary workaround until we find the core issue of cache size going out of hand
-		if (tree.size() > TRACE_CACHE_SIZE - 1000)
+		if (tree.size() > TRACE_CACHE_SIZE - 6000)
 			invalidate = true;
 
 		if (invalidate) {

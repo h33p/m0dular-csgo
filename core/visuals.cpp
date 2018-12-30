@@ -19,11 +19,16 @@ float lastSimtimes[MAX_PLAYERS];
 vec3_t sStart, sEnd, cStart, cEnd;
 
 vec3 traceBoxes[20];
+float traceDamages[20];
 int traceCount = 0;
+int awallTraceCount = 0;
+float awallDamage = 0;
+float awallStartDamage = 0;
 
 void Visuals::RenderAwallBoxes()
 {
-	for (int i = 0; i < traceCount; i++) {
+#ifdef PT_VISUALS
+	for (int i = 0; i < awallTraceCount * 2; i++) {
 		vec3 mins(-0.5f);
 		vec3 maxs(0.5f);
 		vec3 ang(0);
@@ -31,6 +36,7 @@ void Visuals::RenderAwallBoxes()
 		Color col(0.f, 1.f, 0.f, 1.f);
 		debugOverlay->AddBoxOverlay2(traceBoxes[i], mins, maxs, ang, faceCol, col, 10.f);
 	}
+#endif
 }
 
 #ifdef PT_VISUALS
@@ -169,8 +175,19 @@ void Visuals::Draw()
 	char buf[128];
 
 	snprintf(buf, 128, "%d traces @ %.2f milliseconds", traceCount, ((float)traceTime) / 1000);
-
 	DrawText(buf, Color(0.3f, 1.f, 0.f, 1.f), 12, 16);
+
+	snprintf(buf, 128, "Autowall dmg: %f\n", awallDamage);
+	DrawText(buf, Color(0.3f, 1.f, 0.f, 1.f), 12, 16 + 17);
+
+	float cdmg = awallStartDamage;
+
+	for (int i = 0; i < awallTraceCount; i++) {
+		cdmg -= traceDamages[i];
+		snprintf(buf, 128, "-%f -> %f(%.1f %.1f %.1f)", traceDamages[i], cdmg, traceBoxes[i * 2 + 1][0], traceBoxes[i * 2 + 1][1], traceBoxes[i * 2 + 1][2]);
+		DrawText(buf, Color(0.3f, 1.f, 0.f, 1.f), 12, 16 + 17 * (i + 2));
+
+	}
 }
 
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
@@ -276,10 +293,20 @@ void Visuals::SetShotVectors(vec3_t serverStart, vec3_t serverEnd, vec3_t idealS
 	cEnd = idealEnd;
 }
 
-void Visuals::SetAwallBoxes(vec3_t* boxes, int count)
+void Visuals::SetAwallBoxes(vec3_t* boxes, float* damages, int count, float outDamage, float startDamage)
 {
-	for (int i = 0; i < count; i++)
+#ifdef DEBUG
+	for (int i = 0; i < count * 2; i++)
 		traceBoxes[i] = boxes[i];
 
-	traceCount = count;
+	for (int i = 0; i < count; i++)
+			traceDamages[i] = damages[i];
+
+	awallStartDamage = startDamage;
+
+	awallTraceCount = count;
+#else
+	awallTraceCount = 0;
+#endif
+	awallDamage = outDamage;
 }
