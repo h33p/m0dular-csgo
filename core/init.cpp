@@ -262,6 +262,8 @@ static void InitializeDynamicHooks()
 	EffectsHook::HookAll(effectHooks, effectsCount, *effectsHead);
 	SourceNetvars::HookAll(netvarHooks, netvarCount);
 	listener.Initialize(ST("bullet_impact"));
+	//Prevent the listener from accessing gameEvents on game shutdown
+	listener.initialized = false;
 
 #ifdef DEBUG
 	cvar->ConsoleDPrintf(ST("Effect list:\n"));
@@ -351,6 +353,8 @@ void Unload()
 	if (shuttingDown)
 		return;
 	shuttingDown = true;
+	//We are manually unloading, make sure we do destroy the event listener
+	listener.initialized = true;
 	thread_t t;
 	Threading::StartThread((threadFn)UnloadThread, (void*)&t, true, &t);
 }
