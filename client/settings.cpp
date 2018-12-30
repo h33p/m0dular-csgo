@@ -4,73 +4,28 @@
 #include "../core/settings.h"
 #include "../core/binds.h"
 #include "../modules/keycode/keyid.h"
-#include "../sdk/framework/utils/stackstring.h"
-
-#ifdef __linux__
-#define ANSI_COLOR_RED "\x1b[31m"
-#define ANSI_COLOR_GREEN "\x1b[32m"
-#define ANSI_COLOR_YELLOW "\x1b[33m"
-#define ANSI_COLOR_BLUE "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN "\x1b[36m"
-#define ANSI_COLOR_RESET "\x1b[0m"
-#else
-#define ANSI_COLOR_RED 4
-#define ANSI_COLOR_GREEN 2
-#define ANSI_COLOR_YELLOW 6
-#define ANSI_COLOR_BLUE 1
-#define ANSI_COLOR_MAGENTA 5
-#define ANSI_COLOR_CYAN 3
-#define ANSI_COLOR_RESET 7
-#endif
-
-#ifdef __linux__
-#include <termios.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#else
-#include <windows.h>
-#include <winternl.h>
-#include <io.h>
-#endif
+#include "main.h"
 
 static uintptr_t clAllocBase = 0;
 generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
 
-static inline void DrawSplash();
 
 static void Handle(const char* command, const char* name, const char** cmds, int n);
 
-#ifdef __linux__
-#define SetColor(col) printf(col)
-#else
-void SetColor(int col)
-{
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetConsoleTextAttribute(hConsole, col);
-}
-#endif
-
 static void HandleCommand(const char** cmds, int n)
 {
-	Handle(cmds[0], cmds[1], cmds + 2, n - 2);
+	Handle(cmds[0], n >= 2 ? cmds[1] : nullptr, cmds + 2, n - 2);
 }
 
-int main()
+void SettingsConsole()
 {
-	DrawSplash();
 	SetColor(ANSI_COLOR_RESET);
-	printf("\nSettings Console:\n");
+	STPRINT("\nSettings Console:\n");
 
 	char buf[512];
 	char* cmds[32];
 
 	while (true) {
-		printf("> ");
 		char* ret = fgets(buf, 512, stdin);
 
 		for (char* s = buf; *s != '\0'; s++) {
@@ -87,11 +42,17 @@ int main()
 		for (char* s = strtok(buf, " "); s && i < 32; s = strtok(nullptr, " "))
 			cmds[i++] = s;
 
-	    HandleCommand((const char**)cmds, i);
+		//Hardcoded exit
+		if (i > 0 && !strcmp(cmds[0], ST("exit")))
+			break;
+
+		if (i > 0)
+			HandleCommand((const char**)cmds, i);
+
+		printf("> ");
 	}
 
-	getchar();
-	return 0;
+	STPRINT("quit\n");
 }
 
 typedef void(*PrintFn)(void*);
@@ -169,7 +130,6 @@ static int Load(const char** cmds, int n);
 
 static int slid = 0;
 
-#define STPRINT(text) printf("%s", (const char*)ST(text))
 #define STTYPE(name) decltype(StackString(name))
 #define STALLOC(name) *(new (clAlloc.allocate<STTYPE(name)>(1)) StackString(name))
 
@@ -222,11 +182,13 @@ static void Handle(const char* command, const char* name, const char** cmds, int
 
 	CommandFn cmd = nullptr;
 
-	for (auto& i : commandList) {
-		if (commandCrc == i.crc) {
-			cmd = i.handler;
-			usage = i.usage;
-			break;
+	if (name) {
+		for (auto& i : commandList) {
+			if (commandCrc == i.crc) {
+				cmd = i.handler;
+				usage = i.usage;
+				break;
+			}
 		}
 	}
 
@@ -469,63 +431,3 @@ static int Binds(const char** cmds, int n)
 	return 0;
 }
 
-static inline void DrawSplash()
-{
-	int columns = 0;
-#ifdef __linux__
-	struct winsize size;
-	ioctl(STDOUT_FILENO,TIOCGWINSZ,&size);
-	columns = size.ws_col;
-#else
-	CONSOLE_SCREEN_BUFFER_INFO csbi;
-
-	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-	columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#endif
-
-	//TODO: consider not stack stringing the logos due to binary size
-	SetColor(ANSI_COLOR_GREEN);
-	if (columns < 81) {
-	    STPRINT("        _                          \n");
-	    STPRINT(" ._ _  / \\  _|     |  _. ._   _  _ \n");
-	    STPRINT(" | | | \\_/ (_| |_| | (_| | o (_ (_ \n");
-	    STPRINT("                                   \n\n");
-	} else {
-#ifdef _WIN32
-		if (columns > 150)
-		    STPRINT("_________________________/\\\\\\\\\\\\\\____________/\\\\\\_________________/\\\\\\\\\\\\___________________________________________________________________        \n"
-				" _______________________/\\\\\\/////\\\\\\_________\\/\\\\\\________________\\////\\\\\\___________________________________________________________________       \n"
-				"  ______________________/\\\\\\____\\//\\\\\\________\\/\\\\\\___________________\\/\\\\\\___________________________________________________________________      \n"
-				"   ____/\\\\\\\\\\__/\\\\\\\\\\___\\/\\\\\\_____\\/\\\\\\________\\/\\\\\\___/\\\\\\____/\\\\\\____\\/\\\\\\_____/\\\\\\\\\\\\\\\\\\_____/\\\\/\\\\\\\\\\\\\\____________/\\\\\\\\\\\\\\\\_____/\\\\\\\\\\\\\\\\_     \n"
-				"    __/\\\\\\///\\\\\\\\\\///\\\\\\_\\/\\\\\\_____\\/\\\\\\___/\\\\\\\\\\\\\\\\\\__\\/\\\\\\___\\/\\\\\\____\\/\\\\\\____\\////////\\\\\\___\\/\\\\\\/////\\\\\\_________/\\\\\\//////____/\\\\\\//////__    \n"
-				"     _\\/\\\\\\_\\//\\\\\\__\\/\\\\\\_\\/\\\\\\_____\\/\\\\\\__/\\\\\\////\\\\\\__\\/\\\\\\___\\/\\\\\\____\\/\\\\\\______/\\\\\\\\\\\\\\\\\\\\__\\/\\\\\\___\\///_________/\\\\\\__________/\\\\\\_________   \n"
-				"      _\\/\\\\\\__\\/\\\\\\__\\/\\\\\\_\\//\\\\\\____/\\\\\\__\\/\\\\\\__\\/\\\\\\__\\/\\\\\\___\\/\\\\\\____\\/\\\\\\_____/\\\\\\/////\\\\\\__\\/\\\\\\_______________\\//\\\\\\________\\//\\\\\\________  \n"
-				"       _\\/\\\\\\__\\/\\\\\\__\\/\\\\\\__\\///\\\\\\\\\\\\\\/___\\//\\\\\\\\\\\\\\/\\\\_\\//\\\\\\\\\\\\\\\\\\___/\\\\\\\\\\\\\\\\\\_\\//\\\\\\\\\\\\\\\\/\\\\_\\/\\\\\\__________/\\\\\\__\\///\\\\\\\\\\\\\\\\__\\///\\\\\\\\\\\\\\\\_ \n"
-				"        _\\///___\\///___\\///_____\\///////______\\///////\\//___\\/////////___\\/////////___\\////////\\//__\\///__________\\///_____\\////////_____\\////////__\n\n");
-		else
-			STPRINT("\n"
-				"               $$$$$$\\        $$\\           $$\\                                         \n"
-				"              $$$ __$$\\       $$ |          $$ |                                        \n"
-				"$$$$$$\\$$$$\\  $$$$\\ $$ | $$$$$$$ |$$\\   $$\\ $$ | $$$$$$\\   $$$$$$\\   $$$$$$$\\  $$$$$$$\\ \n"
-				"$$  _$$  _$$\\ $$\\$$\\$$ |$$  __$$ |$$ |  $$ |$$ | \\____$$\\ $$  __$$\\ $$  _____|$$  _____|\n"
-				"$$ / $$ / $$ |$$ \\$$$$ |$$ /  $$ |$$ |  $$ |$$ | $$$$$$$ |$$ |  \\__|$$ /      $$ /      \n"
-				"$$ | $$ | $$ |$$ |\\$$$ |$$ |  $$ |$$ |  $$ |$$ |$$  __$$ |$$ |      $$ |      $$ |      \n"
-				"$$ | $$ | $$ |\\$$$$$$  /\\$$$$$$$ |\\$$$$$$  |$$ |\\$$$$$$$ |$$ |$$\\   \\$$$$$$$\\ \\$$$$$$$\\ \n"
-				"\\__| \\__| \\__| \\______/  \\_______| \\______/ \\__| \\_______|\\__|\\__|   \\_______| \\_______|\n"
-				"                                                                                        \n"
-				"                                                                                        \n"
-				"                                                                                        \n"
-				"");
-#else
-		STPRINT("\n"
-			   "███╗   ███╗ ██████╗ ██████╗ ██╗   ██╗██╗      █████╗ ██████╗     ██████╗ ██████╗\n"
-			   "████╗ ████║██╔═████╗██╔══██╗██║   ██║██║     ██╔══██╗██╔══██╗   ██╔════╝██╔════╝\n"
-			   "██╔████╔██║██║██╔██║██║  ██║██║   ██║██║     ███████║██████╔╝   ██║     ██║     \n"
-			   "██║╚██╔╝██║████╔╝██║██║  ██║██║   ██║██║     ██╔══██║██╔══██╗   ██║     ██║     \n"
-			   "██║ ╚═╝ ██║╚██████╔╝██████╔╝╚██████╔╝███████╗██║  ██║██║  ██║██╗╚██████╗╚██████╗\n"
-			   "╚═╝     ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═════╝\n"
-			   "                                                                                \n"
-			   "");
-#endif
-	}
-}
