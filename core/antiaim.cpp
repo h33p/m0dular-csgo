@@ -247,7 +247,7 @@ static float nextCurtime = 0.f;
 static float targetLBY = 0.f;
 static bool shouldBreak = false;
 static bool isMoving = false;
-static bool onGround = false;
+static bool lpOnGround = false;
 
 //Do not remove just yet, maybe some used can be found
 [[maybe_unused]]
@@ -259,14 +259,14 @@ static void LBYTimer(LocalPlayer& lp)
 	AnimationLayer* layers = ent->animationLayers();
 
 	isMoving = (layers[4].weight != 0.0 || layers[6].cycle != 0.0 || layers[5].weight != 0.0) && velocity.LengthSqr<2>() > 0.01f;
-	onGround = SourceEnginePred::prevFlags & FL_ONGROUND;
+	lpOnGround = SourceEnginePred::prevFlags & FL_ONGROUND;
 
 	prevCurtime = lp.time;
 	prevOrigin = lp.origin;
 
 	shouldBreak = false;
 
-	if (onGround) {
+	if (lpOnGround) {
 		if (isMoving) {
 			nextCurtime = lp.time + 0.22f;
 			targetLBY = lp.angles.y;

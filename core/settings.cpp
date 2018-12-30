@@ -126,13 +126,13 @@ void UnmapSharedMemory(void* addr, fileHandle& fd, const char* name, size_t msz,
 }
 
 template<typename T>
-static void Destruct(T*& target)
+static void DestructClass(T*& target)
 {
 	target->~T();
 }
 
 template<typename T, typename... Args>
-static void Construct(T*& target, Args... args)
+static void ConstructClass(T*& target, Args... args)
 {
 	target = new(target) T(args...);
 }
@@ -155,12 +155,12 @@ struct SettingsInstance
 		}
 
 		if (firstTime) {
-			Construct(ipcCounter);
-			Construct(Settings::settingsAlloc, ALLOC_SIZE - (finalAddress - Settings::allocBase), PlacementPolicy::FIND_FIRST, (void*)finalAddress);
-		    Construct(Settings::globalSettingsPtr);
-		    Construct(Settings::bindSettingsPtr);
-		    Construct(BindManager::sharedInstance);
-		    Construct(Settings::ipcLock);
+			ConstructClass(ipcCounter);
+			ConstructClass(Settings::settingsAlloc, ALLOC_SIZE - (finalAddress - Settings::allocBase), PlacementPolicy::FIND_FIRST, (void*)finalAddress);
+			ConstructClass(Settings::globalSettingsPtr);
+			ConstructClass(Settings::bindSettingsPtr);
+			ConstructClass(BindManager::sharedInstance);
+			ConstructClass(Settings::ipcLock);
 		}
 
 		BindManager::sharedInstance->InitializeLocalData();
@@ -176,12 +176,12 @@ struct SettingsInstance
 
 		if (!ipcCounter->load()) {
 			unlink = true;
-			Destruct(ipcCounter);
-			Destruct(Settings::settingsAlloc);
-			Destruct(Settings::globalSettingsPtr);
-			Destruct(Settings::bindSettingsPtr);
-			Destruct(BindManager::sharedInstance);
-			Destruct(Settings::ipcLock);
+			DestructClass(ipcCounter);
+			DestructClass(Settings::settingsAlloc);
+			DestructClass(Settings::globalSettingsPtr);
+			DestructClass(Settings::bindSettingsPtr);
+			DestructClass(BindManager::sharedInstance);
+			DestructClass(Settings::ipcLock);
 		}
 
 		UnmapSharedMemory(alloc, fd, "m0d_settings", ALLOC_SIZE, unlink);

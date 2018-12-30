@@ -96,8 +96,11 @@ enum BTMask
 	BREAKING_LC = (1 << 2)
 };
 
-static vec3_t prevOrigin[MAX_PLAYERS];
-static ConVar* cl_lagcompensation = nullptr;
+namespace Tracing
+{
+	static vec3_t prevOrigin[MAX_PLAYERS];
+	static ConVar* cl_lagcompensation = nullptr;
+}
 
 bool Tracing::BacktrackPlayers(Players* players, Players* prevPlayers, char backtrackMask[MAX_PLAYERS])
 {

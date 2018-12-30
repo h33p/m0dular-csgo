@@ -26,7 +26,7 @@ struct HitChanceInput
 
 static int tempOutput[HITCHANCE_JOBS];
 
-static Players* players;
+static Players* hcPlayers;
 static int targetEnt;
 static vec3_t targetVec;
 static vec3_t forward;
@@ -36,7 +36,7 @@ static float inaccuracyVal;
 static float spreadVal;
 static float range;
 static vec3_t startPos;
-CapsuleColliderSOA<SIMD_COUNT>* hitboxes;
+CapsuleColliderSOA<SIMD_COUNT>* hcHitboxes;
 
 static void PopulateRandomFloat();
 static void RunHitChance(HitChanceInput* inp);
@@ -48,7 +48,7 @@ bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int bo
 
 	FwBridge::activeWeapon->UpdateAccuracyPenalty();
 
-	::players = players;
+	hcPlayers = players;
 	::targetEnt = targetEnt;
 	::targetVec = targetVec;
 
@@ -59,7 +59,7 @@ bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int bo
 	startPos = FwBridge::lpData.eyePos;
 	dir.Normalize().ToAngles().GetVectors(forward, up, right);
 
-	hitboxes = players->colliders[targetEnt];
+	hcHitboxes = players->colliders[targetEnt];
 
 	for (int i = 0; i < HITCHANCE_JOBS; i++) {
 		HitChanceInput args;
@@ -188,7 +188,7 @@ static void RunHitChance(HitChanceInput* inp)
 		unsigned int flags = 0;
 
 		for (size_t i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
-			flags |= hitboxes[i].Intersect(startPos, dir);
+			flags |= hcHitboxes[i].Intersect(startPos, dir);
 
 		tempOutput[jobID] += std::min(flags, 1u);
 	}

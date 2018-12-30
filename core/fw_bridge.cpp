@@ -319,7 +319,6 @@ using namespace FwBridge;
 static bool allowShoot = false;
 float lastPrimary = 0.f;
 
-void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 extern int btTick;
 
 //#ifdef DEBUG
@@ -333,7 +332,6 @@ typedef std::chrono::high_resolution_clock Clock;
 //#endif
 
 #include "awall.h"
-extern void RenderAwallBoxes();
 bool prevPressed = true;
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
@@ -367,7 +365,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 		prevPressed = true;
 	} else {
 		if (prevPressed)
-			RenderAwallBoxes();
+			Visuals::RenderAwallBoxes();
 		prevPressed = false;
 	}
 
@@ -427,7 +425,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			if (target.future)
 				track = LagCompensation::futureTrack;
 
-			cvar->ConsoleDPrintf("T: %d (%d)\n", target.id, target.dmg);
+			cvar->ConsoleDPrintf(ST("T: %d (%d)\n"), target.id, target.dmg);
 
 			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
 				target.id = -1;
@@ -440,7 +438,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 #ifdef PT_VISUALS
 				if (false && btTick >= 0)
-					RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
+					Visuals::RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
 #endif
 			} else
 				lpData.angles -= lpData.aimOffset;

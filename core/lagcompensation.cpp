@@ -17,7 +17,7 @@ static HistoryList<Players, BACKTRACK_TICKS> fTrack[2];
 static int prevTrack = 0;
 static float chokeAverage[MAX_PLAYERS][2];
 vec3_t acceleration[MAX_PLAYERS];
-static HistoryList<vec3_t, 3> origins[MAX_PLAYERS];
+static HistoryList<vec3_t, 3> originsLC[MAX_PLAYERS];
 static HistoryList<vec3_t, 3> velocities[MAX_PLAYERS];
 static HistoryList<float, 3> simtimes[MAX_PLAYERS];
 static C_BasePlayer* instances[MAX_PLAYERS];
@@ -54,7 +54,7 @@ static void CheckDynamic()
 	short counts[MAX_PLAYERS];
 	memset(counts, 0, sizeof(counts));
 
-	vec3_t origins[MAX_PLAYERS][BACKTRACK_TICKS];
+	vec3_t originsLC[MAX_PLAYERS][BACKTRACK_TICKS];
 	float times[MAX_PLAYERS][BACKTRACK_TICKS];
 	int tCount = FwBridge::playerTrack.Count();
 	for (int i = 0; i < tCount; i++) {
@@ -64,7 +64,7 @@ static void CheckDynamic()
 			short& cnt = counts[pID];
 			if (cnt > 0 && times[pID][cnt-1] == p.time[o])
 				continue;
-			origins[pID][cnt] = p.origin[o];
+			originsLC[pID][cnt] = p.origin[o];
 			times[pID][cnt] = p.time[o];
 			cnt++;
 		}
@@ -81,7 +81,7 @@ static void CheckDynamic()
 		vec3_t diffs[BACKTRACK_TICKS];
 		float timeChoked[BACKTRACK_TICKS];
 		for (int o = 1; o < counts[i]; o++) {
-			diffs[o-1] = origins[i][o-1] - origins[i][o];
+			diffs[o-1] = originsLC[i][o-1] - originsLC[i][o];
 			timeChoked[o-1] = times[i][o-1] - times[i][o];
 		}
 		for (int o = 0; o < counts[i]-1; o++) {
@@ -129,7 +129,7 @@ static void UpdatePart1(uint64_t copyFlags)
 		//TODO: handle this (should be handled by copy flags really)
 		if (simtimes[pID][0] != p.time[i]) {
 			simtimes[pID].Push(p.time[i]);
-			origins[pID].Push(p.origin[i]);
+			originsLC[pID].Push(p.origin[i]);
 		}
 		if (instances[pID] != p.instance[i])
 			ignoreFlags |= (1ull << pID);
@@ -255,8 +255,8 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	instances[pID]->flags() = fl;
 }
 
-static std::vector<int> updatedPlayers;
-static std::vector<int> nonUpdatedPlayers;
+static std::vector<int> updatedPlayersLC;
+static std::vector<int> nonUpdatedPlayersLC;
 
 static void UpdatePart2()
 {
@@ -269,17 +269,17 @@ static void UpdatePart2()
 	int tcSim[MAX_PLAYERS];
 	float tmSim[MAX_PLAYERS];
 
-	vec3 originalOrigins[MAX_PLAYERS];
+	vec3 originalOriginsLC[MAX_PLAYERS];
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & (1ull << i)) {
 			if (!instances[i])
 				continue;
-			originalOrigins[i] = instances[i]->GetClientRenderable()->GetRenderOrigin();
+			originalOriginsLC[i] = instances[i]->GetClientRenderable()->GetRenderOrigin();
 			csimtimes[i] = simtimes[i][0];
 			anims[i].Init(instances[i]);
-			circles[i] = Circle(origins[i][0], origins[i][1], origins[i][2]);
-			origin[i] = origins[i][0];
+			circles[i] = Circle(originsLC[i][0], originsLC[i][1], originsLC[i][2]);
+			origin[i] = originsLC[i][0];
 			velocity[i] = instances[i]->velocity();
 			instances[i]->velocity() = Engine::velocities[i];
 			tcSim[i] = 0;
@@ -291,16 +291,16 @@ static void UpdatePart2()
 
 	for (int i = track.Count() - 1; i >= 0; i--) {
 		Players& p = track[i];
-		UpdateData data(p, *prevTrack, &updatedPlayers, &nonUpdatedPlayers, true);
+		UpdateData data(p, *prevTrack, &updatedPlayers, &nonUpdatedPlayersLC, true);
 
 		updatedPlayers.clear();
-		nonUpdatedPlayers.clear();
+		nonUpdatedPlayersLC.clear();
 
 		for (int o = 0; o < p.count; o++) {
 			int pID = p.unsortIDs[o];
 			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY) {
 				if (p.Resort(*prevTrack, o) < prevTrack->count)
-					nonUpdatedPlayers.push_back(i);
+					nonUpdatedPlayersLC.push_back(i);
 				continue;
 			}
 
@@ -324,7 +324,7 @@ static void UpdatePart2()
 			instances[i]->origin() = origin[i];
 			instances[i]->velocity() = velocity[i];
 
-			SetAbsOrigin(instances[i], originalOrigins[i]);
+			SetAbsOrigin(instances[i], originalOriginsLC[i]);
 			Engine::UpdatePlayer(instances[i], nullptr);
 		}
 	}

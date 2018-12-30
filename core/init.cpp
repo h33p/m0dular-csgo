@@ -267,7 +267,7 @@ static void InitializeDynamicHooks()
 	cvar->ConsoleDPrintf(ST("Effect list:\n"));
 	Color col = Color(0, 255, 0, 255);
     for (auto head = *effectsHead; head; head = head->next)
-		cvar->ConsoleColorPrintf(col, "%s\n", head->effectName);
+		cvar->ConsoleColorPrintf(col, ST("%s\n"), head->effectName);
 #endif
 }
 

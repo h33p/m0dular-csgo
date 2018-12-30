@@ -21,7 +21,7 @@ vec3_t sStart, sEnd, cStart, cEnd;
 vec3 traceBoxes[20];
 int traceCount = 0;
 
-void RenderAwallBoxes()
+void Visuals::RenderAwallBoxes()
 {
 	for (int i = 0; i < traceCount; i++) {
 		vec3 mins(-0.5f);
@@ -35,7 +35,6 @@ void RenderAwallBoxes()
 
 #ifdef PT_VISUALS
 static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col);
-void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
 
 static void DrawText(const char* text, Color color, int x, int y)
 {
@@ -223,7 +222,7 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 
 }
 
-void RenderPlayerCapsules(Players& pl, Color col, int id)
+void Visuals::RenderPlayerCapsules(Players& pl, Color col, int id)
 {
 	int count = pl.count;
 

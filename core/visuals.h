@@ -2,6 +2,8 @@
 #define VISUALS_H
 
 #include "../sdk/framework/math/mmath.h"
+#include "../sdk/framework/players.h"
+#include "../sdk/source_shared/color.h"
 
 namespace Visuals
 {
@@ -14,6 +16,8 @@ namespace Visuals
 	void PassBest(int o, int i);
 	void SetShotVectors(vec3_t serverStart, vec3_t serverEnd, vec3_t idealStart, vec3_t idealEnd);
 	void SetAwallBoxes(vec3_t* boxes, int count);
+	void RenderPlayerCapsules(Players& pl, Color col, int id = -1);
+	void RenderAwallBoxes();
 }
 
 #endif

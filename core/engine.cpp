@@ -155,7 +155,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			int pID = players->unsortIDs[i];
 
 			if (health[pID] != ent->health()) {
-				cvar->ConsoleDPrintf("HP %d (-%d)\n", ent->health(), health[pID] - ent->health());
+				cvar->ConsoleDPrintf(ST("HP %d (-%d)\n"), ent->health(), health[pID] - ent->health());
 				health[pID] = ent->health();
 			}
 

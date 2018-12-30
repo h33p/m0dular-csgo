@@ -3,14 +3,8 @@
 #include "fw_bridge.h"
 #include "engine.h"
 
-enum ResolveBase
-{
-	BASE_FAKE = 0,
-	BASE_MAX
-};
-
-static float resolveBases[MAX_PLAYERS][ResolveBase::BASE_MAX];
-static float resolveOffsets[ResolveBase::BASE_MAX][2] = {{-180.f, 180.f}};
+static float resolveBases[MAX_PLAYERS][1];
+static float resolveOffsets[1][2] = {{-180.f, 180.f}};
 static RandomResolver groundResolver;
 static RandomResolver inAirResolver;
 
@@ -39,7 +33,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
 			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
-			resolveBases[pID][BASE_FAKE] = ent->eyeAngles()[1];
+			resolveBases[pID][0] = ent->eyeAngles()[1];
 		}
 	}
 
@@ -62,7 +56,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 
 				if (ent->flags() & FL_ONGROUND) {
 					if (isMoving[pID])
-						targetAng = resolveBases[pID][BASE_FAKE];
+						targetAng = resolveBases[pID][0];
 					else
 						targetAng = groundResolver.ResolvePlayer(pID);
 				} else
