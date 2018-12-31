@@ -4,21 +4,23 @@
 #include <time.h>
 #include "loader.h"
 #include "main.h"
-#include "pmparser.h"
 
 int PerformLoad(const char* buf, size_t size);
 
 void Load()
 {
 	srand(time(nullptr));
-	FILE* fp = fopen("./build/libm0dular.so", "r");
+#ifdef _WIN32
+	FILE* fp = fopen("libm0dular.dll", "rb");
+#else
+	FILE* fp = fopen("./build/libm0dular.so", "rb");
+#endif
 	fseek(fp, 0L, SEEK_END);
 	size_t size = ftell(fp);
 	fseek(fp, 0L, SEEK_SET);
 	char* buf = (char*)malloc(size);
 
-	int fd = fileno(fp);
-	read(fd, buf, size);
+	fread(buf, size, 1, fp);
 
 	int ret = PerformLoad(buf, size);
 	free(buf);
@@ -34,6 +36,7 @@ void Load()
 
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include "pmparser.h"
 
 [[nodiscard]] char* exec(const char* cmd) {
 	char* outBuf = (char*)malloc(128);
@@ -193,8 +196,28 @@ int PerformLoad(const char* buf, size_t size)
 
 }
 #else
+
+#include "windows_loader.h"
+
 int PerformLoad(const char* buf, size_t size)
 {
+	//Server side
+	WinModule loader(buf, size);
+	PackedWinModule packedLoader(loader);
 
+	//Client side
+    char* mbuf = (char*)VirtualAlloc(nullptr, packedLoader.allocSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+	if (!mbuf)
+	    return 1;
+
+	//Server side
+	packedLoader.PerformRelocations((nptr_t)mbuf);
+
+	//Client side
+	WinLoadData lData = {&packedLoader, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA};
+	LoadModule((void*)&lData);
+
+	return 0;
 }
 #endif

@@ -14,7 +14,7 @@ keycode_files = ['modules/keycode/keyid.c']
 
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_other_files + keycode_files + ['core/init.cpp']
-client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp'] + keycode_files
+client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp'] + keycode_files
 
 if get_option('buildtype').startswith('debug')
   global_defines += 'DEBUG'
