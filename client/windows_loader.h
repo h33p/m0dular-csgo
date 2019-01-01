@@ -4,6 +4,14 @@
 #include <vector>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
+//TODO: Don't rely on LTO removing all WinLoader code not meant to be accessible to the clients
 
 //Windows CSGO is 32 bit and we are currently targetting 32 bit systems
 using nptr_t = uint32_t;
@@ -68,6 +76,21 @@ struct PackedWinModule
 
 	PackedWinModule(const WinModule& mod);
 
+	PackedWinModule(const PackedWinModule& o)
+	{
+		memcpy(this, &o, sizeof(*this));
+		moduleBuffer = nullptr;
+		buffer = nullptr;
+	}
+
+	PackedWinModule& operator=(const PackedWinModule& o)
+	{
+		memcpy(this, &o, sizeof(*this));
+		moduleBuffer = nullptr;
+		buffer = nullptr;
+		return *this;
+	}
+
 	~PackedWinModule()
 	{
 		if (buffer)
@@ -77,6 +100,11 @@ struct PackedWinModule
 	}
 
 	void PerformRelocations(nptr_t base);
+
+	//This is only meant to be available to the client side
+#ifdef _WIN32
+	void SetupInPlace(HANDLE processHandle, char* targetModuleAddress, char* targetDataAddress);
+#endif
 };
 
 struct WinModule
@@ -120,6 +148,8 @@ struct WinLoadData
 	LoadLibraryAFn pLoadLibraryA;
 };
 
-void LoadModule(void* loadData);
+#ifdef _WIN32
+unsigned long __stdcall LoadPackedModule(void* loadData);
+#endif
 
 #endif

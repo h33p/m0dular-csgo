@@ -1,7 +1,13 @@
 #include "windows_loader.h"
-#include "windows_headers.h"
 #include <string.h>
 #include <stdio.h>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include "windows_headers.h"
+#endif
 
 using DllEntryPointFn = int(__stdcall*)(void*, unsigned int, void*);
 
@@ -230,11 +236,46 @@ void PackedWinModule::PerformRelocations(nptr_t base)
 	relocationOffset = 0;
 }
 
-#define INLINE_MEMCPY(DEST, SOURCE, SIZE)		\
-	for (uint32_t I_COUNTER = 0; I_COUNTER < SIZE; I_COUNTER++)	\
-		((char*)(DEST))[I_COUNTER] = ((char*)(SOURCE))[I_COUNTER];
+#ifdef _WIN32
+void PackedWinModule::SetupInPlace(HANDLE processHandle, char* targetModuleAddress, char* targetDataAddress)
+{
+	PackedWinModule wModule = *this;
+    wModule.buffer = targetDataAddress + sizeof(PackedWinModule);
+	wModule.moduleBuffer = nullptr;
+	WriteProcessMemory(processHandle, targetDataAddress, &wModule, sizeof(PackedWinModule), nullptr);
+	WriteProcessMemory(processHandle, wModule.buffer, buffer, bufSize, nullptr);
+	wModule.buffer = nullptr;
 
-void LoadModule(void* loadData)
+	//Copy sections
+	uint32_t* sectionCount = (uint32_t*)(buffer + sectionOffset);
+	WinSection* sections = (WinSection*)(sectionCount + 1);
+
+	for (uint32_t i = 0; i < *sectionCount; i++)
+	    WriteProcessMemory(processHandle, targetModuleAddress + sections[i].virtOffset, moduleBuffer + sections[i].bufOffset, sections[i].bufSize, nullptr);
+}
+
+
+#if defined(_MSC_VER)
+#pragma comment(linker, "/merge:_text_code=_text")
+#pragma comment(linker, "/merge:_text_end=_text")
+
+__declspec(allocate("_text_end")) void* _text_end;
+
+void** loaderStart = (void**)&LoadPackedModule;
+void** loaderEnd = &_text_end;
+#else
+extern void* __start__text;
+extern void* __stop__text;
+void** loaderStart = &__start__text;
+void** loaderEnd = &__stop__text;
+#endif
+
+#if defined(_MSC_VER)
+__declspec(code_seg("_text_code"))
+#else
+[[gnu::section("_text")]]
+#endif
+unsigned long __stdcall LoadPackedModule(void* loadData)
 {
 	WinLoadData* wLoadData = (WinLoadData*)loadData;
 
@@ -244,13 +285,6 @@ void LoadModule(void* loadData)
 	LoadLibraryAFn pLoadLibraryA = wLoadData->pLoadLibraryA;
 
 	char* buffer = packedModule->buffer;
-
-	//Copy sections
-	uint32_t* sectionCount = (uint32_t*)(buffer + packedModule->sectionOffset);
-	WinSection* sections = (WinSection*)(sectionCount + 1);
-
-	for (uint32_t i = 0; i < *sectionCount; i++)
-	    INLINE_MEMCPY(outBuf + sections[i].virtOffset, packedModule->moduleBuffer + sections[i].bufOffset, sections[i].bufSize);
 
 	char* names = buffer + packedModule->nameOffset;
 
@@ -286,7 +320,6 @@ void LoadModule(void* loadData)
 	//TODO: Call LdrpHandleTlsData
 
 	//DLL_PROCESS_ATTACH = 1
-	((DllEntryPointFn)(outBuf + packedModule->entryPointOffset))(outBuf, 1, nullptr);
-
-	return;
+	return ((DllEntryPointFn)(outBuf + packedModule->entryPointOffset))(outBuf, 1, nullptr);
 }
+#endif

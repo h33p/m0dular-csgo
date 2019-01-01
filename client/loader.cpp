@@ -198,15 +198,67 @@ int PerformLoad(const char* buf, size_t size)
 #else
 
 #include "windows_loader.h"
+#include <tlhelp32.h>
+#include <string.h>
+
+extern void** loaderStart;
+extern void** loaderEnd;
+
+static uint32_t ProcFind(const char* name)
+{
+	HANDLE processList = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	if (processList == INVALID_HANDLE_VALUE)
+		return 0;
+
+	if (WaitForSingleObject(processList, 0) == WAIT_TIMEOUT)
+		return 0;
+
+	PROCESSENTRY32 proc;
+	proc.dwSize = sizeof(PROCESSENTRY32);
+
+	while (Process32Next(processList, &proc)) {
+		if (!strcmp(proc.szExeFile, name)) {
+			CloseHandle(processList);
+			return proc.th32ProcessID;
+		}
+	}
+
+	return 0;
+}
+
+static bool EnableDebugPrivilege(HANDLE process)
+{
+	LUID luid;
+	HANDLE token;
+	TOKEN_PRIVILEGES newPrivileges;
+
+	if (!OpenProcessToken(process, TOKEN_ADJUST_PRIVILEGES, &token))
+		return false;
+
+	if (!LookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &luid))
+		return false;
+
+	newPrivileges.PrivilegeCount = 1;
+	newPrivileges.Privileges[0].Luid = luid;
+	newPrivileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	return AdjustTokenPrivileges(token, false, &newPrivileges, sizeof(newPrivileges), nullptr, nullptr);
+}
 
 int PerformLoad(const char* buf, size_t size)
 {
+	EnableDebugPrivilege(GetCurrentProcess());
+
+	int pid = ProcFind("csgo.exe");
+	HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+
 	//Server side
 	WinModule loader(buf, size);
 	PackedWinModule packedLoader(loader);
 
 	//Client side
-    char* mbuf = (char*)VirtualAlloc(nullptr, packedLoader.allocSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    char* mbuf = (char*)VirtualAllocEx(processHandle, nullptr, packedLoader.allocSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
 	if (!mbuf)
 	    return 1;
@@ -215,8 +267,32 @@ int PerformLoad(const char* buf, size_t size)
 	packedLoader.PerformRelocations((nptr_t)mbuf);
 
 	//Client side
-	WinLoadData lData = {&packedLoader, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA};
-	LoadModule((void*)&lData);
+	uintptr_t loaderDataSize = sizeof(PackedWinModule) + packedLoader.bufSize;
+	uintptr_t loaderArgsSize = sizeof(WinLoadData);
+	uintptr_t loaderSize = (uintptr_t)loaderEnd - (uintptr_t)loaderStart;
+	uintptr_t fullLoaderSize = loaderSize + loaderArgsSize + loaderDataSize + 16;
+
+	char* loaderBuf = (char*)VirtualAllocEx(processHandle, nullptr, fullLoaderSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+	uintptr_t loaderAddress = (uintptr_t)loaderBuf + loaderDataSize + loaderArgsSize;
+
+	if (loaderAddress % 16)
+		loaderAddress += 16 - loaderAddress % 16;
+
+	packedLoader.SetupInPlace(processHandle, mbuf, loaderBuf);
+
+	WinLoadData lData = {(PackedWinModule*)loaderBuf, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA};
+
+
+	WriteProcessMemory(processHandle, loaderBuf + loaderDataSize, &lData, sizeof(WinLoadData), nullptr);
+
+    WriteProcessMemory(processHandle, (void*)loaderAddress, loaderStart, loaderSize, nullptr);
+
+	HANDLE thread = CreateRemoteThread(processHandle, nullptr, 0, (unsigned long(__stdcall*)(void*))loaderAddress, loaderBuf + loaderDataSize, 0, nullptr);
+
+	WaitForSingleObject(thread, INFINITE);
+
+	VirtualFreeEx(processHandle, loaderBuf, fullLoaderSize, MEM_RELEASE);
 
 	return 0;
 }
