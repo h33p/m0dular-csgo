@@ -10,9 +10,9 @@
 #include "engine.h"
 #include "impacts.h"
 
-#include "../signatures.h"
-#include "../hook_indices.h"
-#include "../interfaces.h"
+#include "../bits/signatures.h"
+#include "../bits/hook_indices.h"
+#include "../bits/interfaces.h"
 #include "tracing.h"
 #include "settings.h"
 

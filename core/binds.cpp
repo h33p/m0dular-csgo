@@ -5,7 +5,7 @@ BindManagerInstance* BindManager::sharedInstance = nullptr;
 BindManagerInstance::BindManagerInstance()
 	: cstart(__COUNTER__ + 1), bindList {
 #define HANDLE_OPTION(type, defaultValue, name, ...) new (Settings::settingsAlloc->allocate<BindImpl<type>>(1)) BindImpl<type>(__COUNTER__ - cstart, (Settings::bindSettings.operator->()), CCRC32(#name), type()),
-#include "option_list.h"
+#include "../bits/option_list.h"
 }, binds {}
 {
 }
@@ -27,7 +27,7 @@ void BindManagerInstance::InitializeLocalData()
 {
 	int cnt = 0;
 #define HANDLE_OPTION(type, defaultValue, name, ...) ((BindImpl<type>*)&*bindList[cnt++])->InitializeVTable();
-#include "option_list.h"
+#include "../bits/option_list.h"
 }
 
 

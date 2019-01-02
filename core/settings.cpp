@@ -195,6 +195,6 @@ SettingsInstance Settings::sharedInstance;
 
 namespace Settings
 {
-#define HANDLE_OPTION(type, defaultVal, name, ...) OPTIONDEF(name)(defaultVal);
-#include "option_list.h"
+#define HANDLE_OPTION(type, defaultVal, name, description, ...) OPTIONDEF(name)(defaultVal);
+#include "../bits/option_list.h"
 }

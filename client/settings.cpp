@@ -135,8 +135,8 @@ static int slid = 0;
 
 ConsoleSetting settingList[] =
 {
-#define HANDLE_OPTION(type, defaultVal, name, ...) {slid++, CCRC32(#name), STALLOC(#name), CCRC32(#type), &Settings::name, &GetPrintSetting<type, decltype(Settings::name)::Get> },
-#include "../core/option_list.h"
+#define HANDLE_OPTION(type, defaultVal, name, description, ...) {slid++, CCRC32(#name), STALLOC(#name), CCRC32(#type), &Settings::name, &GetPrintSetting<type, decltype(Settings::name)::Get> },
+#include "../bits/option_list.h"
 };
 
 ConsoleCommand<CommandFn> commandList[] =

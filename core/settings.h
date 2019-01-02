@@ -138,11 +138,11 @@ namespace Settings
 
 #define HANDLE_OPTION(...) 1 +
 	static constexpr int optionCount =
-#include "option_list.h"
+#include "../bits/option_list.h"
 		0;
 
-#define HANDLE_OPTION(type, defaultVal, name, ...) extern OPTION(type, name, __VA_ARGS__);
-#include "option_list.h"
+#define HANDLE_OPTION(type, defaultVal, name, description, ...) extern OPTION(type, name, __VA_ARGS__);
+#include "../bits/option_list.h"
 }
 
 #endif
