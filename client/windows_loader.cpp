@@ -52,9 +52,15 @@ WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool 
 	PIMAGE_DOS_HEADER dHeader = (PIMAGE_DOS_HEADER)buf;
 	//PIMAGE_DOS_HEADER moduleHeader = (PIMAGE_DOS_HEADER)moduleBuffer;
 
+	if (dHeader->e_magic != IMAGE_DOS_SIGNATURE)
+		return;
+
 	if (is64) {
 	} else {
 		PIMAGE_NT_HEADERS32 ntHeader = (PIMAGE_NT_HEADERS32)(buf + dHeader->e_lfanew);
+
+		if (ntHeader->Signature != IMAGE_NT_SIGNATURE)
+			return;
 
 		//TODO: Falsify header information
 		sections.push_back({0, 0, ntHeader->OptionalHeader.SizeOfHeaders, ntHeader->OptionalHeader.SizeOfHeaders});

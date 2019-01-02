@@ -66,17 +66,19 @@ struct WinModule;
 struct PackedWinModule
 {
 	uint32_t modBufSize;
-	char* moduleBuffer;
 	uint32_t bufSize;
 	uint32_t allocSize;
-	char* buffer;
 	uint32_t entryPointOffset;
-    uint32_t sectionOffset;
+	uint32_t sectionOffset;
 	uint32_t nameOffset;
-    uint32_t importsWHOffset;
-    uint32_t importsOffset;
-    uint32_t importThunksOffset;
-    uint32_t relocationOffset;
+	uint32_t importsWHOffset;
+	uint32_t importsOffset;
+	uint32_t importThunksOffset;
+	uint32_t relocationOffset;
+
+	//Pointers are at the end for simple communication with the server
+	char* moduleBuffer;
+	char* buffer;
 
 	PackedWinModule(const WinModule& mod);
 
