@@ -8,14 +8,12 @@
 
 #ifdef _WIN32
 #include <windows.h>
-using fileHandle = HANDLE;
 #else
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-using fileHandle = int;
 #endif
 
 
@@ -81,18 +79,16 @@ bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
 
 #ifdef _WIN32
 	fd = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, name);
-
+#if defined(M0DULAR_CLIENT) || defined(DEBUG)
 	if (!(void*)fd) {
 		fd = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, msz, name);
 		firstTime = true;
 	}
+#endif
 
 	if (fd) {
 		addr = (void*)MapViewOfFile(fd, FILE_MAP_ALL_ACCESS, 0, 0, msz);
 	}
-
-	if (!firstTime)
-		CloseHandle(fd);
 
 #else
     fd = shm_open(name, O_RDWR, S_IRUSR | S_IWUSR);
@@ -137,62 +133,65 @@ static void ConstructClass(T*& target, Args... args)
 	target = new(target) T(args...);
 }
 
-struct SettingsInstance
+SettingsInstance::SettingsInstance()
 {
-	void* alloc;
-	fileHandle fd;
+	bool firstTime = MapSharedMemory(fd, alloc, ALLOC_SIZE, ST("m0d_settings"));
 
-	SettingsInstance()
-	{
-	    bool firstTime = MapSharedMemory(fd, alloc, ALLOC_SIZE, ST("m0d_settings"));
+	Settings::allocBase = (uintptr_t)alloc;
 
-		Settings::allocBase = (uintptr_t)alloc;
+	if (!Settings::allocBase)
+		return;
 
-		uintptr_t finalAddress = Settings::allocBase;
-		for (IPCInit& i : initializedPointers) {
-			*i.target = finalAddress;
+	uintptr_t finalAddress = Settings::allocBase;
+	for (IPCInit& i : initializedPointers) {
+		*i.target = finalAddress;
 #ifdef DEBUG
-		    printf("%lx\n", finalAddress - (uintptr_t)alloc);
+		printf("%lx\n", finalAddress - (uintptr_t)alloc);
 #endif
-			finalAddress += i.size;
-		}
-
-		if (firstTime) {
-			ConstructClass(ipcCounter);
-			ConstructClass(Settings::settingsAlloc, ALLOC_SIZE - (finalAddress - Settings::allocBase), PlacementPolicy::FIND_FIRST, (void*)finalAddress);
-			ConstructClass(Settings::globalSettingsPtr);
-			ConstructClass(Settings::bindSettingsPtr);
-			ConstructClass(BindManager::sharedInstance);
-			ConstructClass(Settings::ipcLock);
-		}
-
-		BindManager::sharedInstance->InitializeLocalData();
-
-		(*ipcCounter)++;
+		finalAddress += i.size;
 	}
 
-	~SettingsInstance()
-	{
-		(*ipcCounter)--;
+	initialized = false;
 
-		bool unlink = false;
+	if (firstTime) {
+#if defined(M0DULAR_CLIENT) || defined(DEBUG)
+		ConstructClass(ipcCounter);
+		ConstructClass(Settings::settingsAlloc, ALLOC_SIZE - (finalAddress - Settings::allocBase), PlacementPolicy::FIND_FIRST, (void*)finalAddress);
+		ConstructClass(Settings::globalSettingsPtr);
+		ConstructClass(Settings::bindSettingsPtr);
+		ConstructClass(BindManager::sharedInstance);
+		ConstructClass(Settings::ipcLock);
+		initialized = true;
+#endif
+	} else
+		initialized = true;
 
-		if (!ipcCounter->load()) {
-			unlink = true;
-			DestructClass(ipcCounter);
-			DestructClass(Settings::settingsAlloc);
-			DestructClass(Settings::globalSettingsPtr);
-			DestructClass(Settings::bindSettingsPtr);
-			DestructClass(BindManager::sharedInstance);
-			DestructClass(Settings::ipcLock);
-		}
+	BindManager::sharedInstance->InitializeLocalData();
 
-		UnmapSharedMemory(alloc, fd, "m0d_settings", ALLOC_SIZE, unlink);
+	(*ipcCounter)++;
+}
+
+SettingsInstance::~SettingsInstance()
+{
+	(*ipcCounter)--;
+
+	bool unlink = false;
+
+	if (!ipcCounter->load()) {
+		unlink = true;
+		DestructClass(ipcCounter);
+		DestructClass(Settings::settingsAlloc);
+		DestructClass(Settings::globalSettingsPtr);
+		DestructClass(Settings::bindSettingsPtr);
+		DestructClass(BindManager::sharedInstance);
+		DestructClass(Settings::ipcLock);
 	}
-};
+
+	UnmapSharedMemory(alloc, fd, "m0d_settings", ALLOC_SIZE, unlink);
+}
 
 //TODO: Ensure this class gets constructed before anything else that depends on it. Currently this is done by changing file ordering, but does not work on GCC
-SettingsInstance sharedInstance;
+SettingsInstance Settings::sharedInstance;
 
 namespace Settings
 {

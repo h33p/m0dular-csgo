@@ -1,6 +1,11 @@
 #ifndef WINDOWS_HEADERS_H
 #define WINDOWS_HEADERS_H
 
+#ifdef _MSC_VER
+#include "../sdk/framework/wincludes.h"
+#include <winternl.h>
+#else
+
 #define IMAGE_NT_OPTIONAL_HDR32_MAGIC 0x10b
 #define IMAGE_NT_OPTIONAL_HDR64_MAGIC 0x20b
 #define IMAGE_DIRECTORY_ENTRY_EXPORT 0 /* Export Directory */
@@ -210,5 +215,21 @@ typedef struct _IMAGE_IMPORT_BY_NAME {
 	uint16_t Hint;
 	char Name[1];
 } IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
+
+typedef struct _LIST_ENTRY
+{
+    uintptr_t f_link;
+    uintptr_t b_link;
+} LIST_ENTRY;
+
+typedef struct _LDR_DATA_TABLE_ENTRY
+{
+	LIST_ENTRY InLoadOrderLinks;
+	LIST_ENTRY InMemoryOrderLinks;
+	LIST_ENTRY InInitializationOrderLinks;
+	void* DllBase;
+} LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
+
+#endif
 
 #endif

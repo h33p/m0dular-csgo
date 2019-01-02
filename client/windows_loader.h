@@ -6,10 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
+#include "windows_headers.h"
+#include "loader.h"
 
 //TODO: Don't rely on LTO removing all WinLoader code not meant to be accessible to the clients
 
@@ -18,10 +16,16 @@ using nptr_t = uint32_t;
 
 #ifndef _MSC_VER
 #define __stdcall
+#define __thiscall
+#define STRCASECMP strcasecmp
+#else
+#define STRCASECMP _stricmp
 #endif
 
 using GetProcAddressFn = int(__stdcall*)(void*, char*);
 using LoadLibraryAFn = void*(__stdcall*)(char*);
+using LdrpHandleTlsDataSTDFn = int(__stdcall*)(void*);
+using LdrpHandleTlsDataThisFn = int(__thiscall*)(void*);
 
 struct WinSection
 {
@@ -127,7 +131,7 @@ struct WinModule
 	{
 	}
 
-	WinModule(const char* buf, size_t size, bool is64 = false);
+	WinModule(const char* buf, size_t size, ModuleList* moduleList = nullptr, bool is64 = false);
 
 	uint32_t VirtToFile(uint32_t virtOffset, WinSection*& hint);
 	uint32_t FileToVirt(uint32_t virtOffset, WinSection*& hint);
@@ -146,6 +150,8 @@ struct WinLoadData
 	char* outBuf;
 	GetProcAddressFn pGetProcAddress;
 	LoadLibraryAFn pLoadLibraryA;
+	LdrpHandleTlsDataSTDFn pHandleTlsDataSTD;
+	LdrpHandleTlsDataThisFn pHandleTlsDataThis;
 };
 
 #ifdef _WIN32

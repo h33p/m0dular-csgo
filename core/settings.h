@@ -11,8 +11,10 @@
 
 #ifdef _WIN32
 #define offset_of(x, t) offsetof(x, t)
+using fileHandle = HANDLE;
 #else
 #define offset_of(x, t) (__builtin_constant_p(offsetof(x, t) ? offsetof(x, t) : offsetof(x, t)))
+using fileHandle = int;
 #endif
 
 //A packed allocator that injects additional data for bind management
@@ -100,6 +102,16 @@ struct AimbotHitbox
 	float pointScale = 0.5f;
 };
 
+struct SettingsInstance
+{
+	void* alloc;
+	fileHandle fd;
+	bool initialized;
+
+	SettingsInstance();
+	~SettingsInstance();
+};
+
 namespace Settings
 {
 	extern uintptr_t allocBase;
@@ -121,6 +133,8 @@ namespace Settings
 	extern SharedMutex* ipcLock;
 
 	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];
+
+	extern SettingsInstance sharedInstance;
 
 #define HANDLE_OPTION(...) 1 +
 	static constexpr int optionCount =

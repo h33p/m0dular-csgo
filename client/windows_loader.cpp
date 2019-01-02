@@ -1,13 +1,7 @@
 #include "windows_loader.h"
+#include "windows_headers.h"
 #include <string.h>
 #include <stdio.h>
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include "windows_headers.h"
-#endif
 
 using DllEntryPointFn = int(__stdcall*)(void*, unsigned int, void*);
 
@@ -50,7 +44,7 @@ uint32_t WinModule::FileToVirt(uint32_t bufOffset, WinSection*& hint)
 	}
 }
 
-WinModule::WinModule(const char* buf, size_t size, bool is64)
+WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool is64)
 {
 	//Calloc so as to not leak heap to end-users
 	moduleBuffer = (char*)calloc(size, 1);
@@ -115,10 +109,19 @@ WinModule::WinModule(const char* buf, size_t size, bool is64)
 			PIMAGE_THUNK_DATA32 firstThunk = (PIMAGE_THUNK_DATA32)(moduleBuffer + VirtToFile(importDirectory->FirstThunk, cachedSection));
 			//TODO: Find the right module inside the to be provided loaded module list
 			void* module = nullptr;
-
-			bool moduleLoaded = !!module;
 			char* name = moduleBuffer + VirtToFile(importDirectory->Name, cachedSection);
 			int len = strlen(name);
+
+			if (moduleList) {
+				for (auto& i : moduleList->modules) {
+					if (!STRCASECMP(moduleList->names.data() + i.nameOffset, name)) {
+						module = (void*)i.handle;
+						break;
+					}
+				}
+			}
+
+			bool moduleLoaded = !!module;
 			WinImportThunk* thunk = nullptr;
 
 			if (!moduleLoaded) {
@@ -318,6 +321,15 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 
 	//TODO: Handle TLS data manually
 	//TODO: Call LdrpHandleTlsData
+
+	LDR_DATA_TABLE_ENTRY dummyDataTable;
+
+	dummyDataTable.DllBase = outBuf;
+
+	if (wLoadData->pHandleTlsDataSTD)
+		wLoadData->pHandleTlsDataSTD(&dummyDataTable);
+	else
+		wLoadData->pHandleTlsDataThis(&dummyDataTable);
 
 	//DLL_PROCESS_ATTACH = 1
 	return ((DllEntryPointFn)(outBuf + packedModule->entryPointOffset))(outBuf, 1, nullptr);

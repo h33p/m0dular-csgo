@@ -14,6 +14,7 @@
 #include "../hook_indices.h"
 #include "../interfaces.h"
 #include "tracing.h"
+#include "settings.h"
 
 #ifdef _WIN32
 #include <d3d9.h>
@@ -100,7 +101,8 @@ void* __stdcall EntryPoint(void*)
 #endif
     DispatchToAllThreads<ThreadIDFn, AllocateThreadID>(nullptr);
 #ifndef LOADER_INITIALIZATION
-	InitializeHooks();
+	if (Settings::sharedInstance.initialized)
+		InitializeHooks();
 #endif
 	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer as tracer...\n"));
 	InitializeDynamicHooks();

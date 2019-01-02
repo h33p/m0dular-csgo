@@ -4,6 +4,8 @@
 #include <time.h>
 #include "loader.h"
 #include "main.h"
+#include "../sdk/framework/utils/pattern_scan.h"
+#include "../sdk/framework/utils/handles.h"
 
 int PerformLoad(const char* buf, size_t size);
 
@@ -25,9 +27,10 @@ void Load()
 	int ret = PerformLoad(buf, size);
 	free(buf);
 
-	if (ret)
-		STPRINT("Failed to load!\n");
-	else
+	if (ret) {
+		STPRINT("Failed to load! Error code ");
+		printf("%d\n", ret);
+	} else
 		STPRINT("Loaded successfully!\n");
 }
 
@@ -201,8 +204,75 @@ int PerformLoad(const char* buf, size_t size)
 #include <tlhelp32.h>
 #include <string.h>
 
+struct WindowsSignatureStorage
+{
+	uint32_t version;
+	std::vector<char*> signatures;
+	bool original;
+
+	template<typename T>
+	void FillSignatures(const T& arg)
+	{
+		signatures.push_back(_strdup((const char*)arg));
+	}
+
+	template<typename T, typename... Args>
+	void FillSignatures(const T& arg, const Args&... args)
+	{
+		signatures.push_back(_strdup((const char*)arg));
+		FillSignatures(args...);
+	}
+
+	template<typename... Args>
+	WindowsSignatureStorage(uint32_t ver, const Args&... args)
+	{
+		version = ver;
+		FillSignatures(args...);
+		original = true;
+	}
+
+	~WindowsSignatureStorage()
+	{
+		if (original)
+			for (auto& i : signatures)
+				free(i);
+	}
+
+	WindowsSignatureStorage(const WindowsSignatureStorage& o)
+	{
+		version = o.version;
+		signatures = o.signatures;
+		original = false;
+	}
+};
+
+WindowsSignatureStorage tlsSignatures[] =
+{
+	{10, ST("75 0B [E8 *? ? ? ?] 8B")},
+};
+
 extern void** loaderStart;
 extern void** loaderEnd;
+
+ModuleList::ModuleList(int64_t pid)
+{
+	HANDLE moduleList = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
+
+	if (moduleList == INVALID_HANDLE_VALUE)
+		return;
+
+	MODULEENTRY32 entry;
+	entry.dwSize = sizeof(MODULEENTRY32);
+
+	if (Module32First(moduleList, &entry))
+		while (Module32Next(moduleList, &entry)) {
+			uint32_t nameOffset = names.size();
+			int len = strlen(entry.szModule);
+			names.resize(names.size() + len + 1);
+		    memcpy(names.data() + nameOffset, entry.szModule, len + 1);
+			modules.push_back({(uint64_t)entry.hModule, (uint64_t)entry.modBaseAddr, (uint64_t)entry.modBaseSize, nameOffset});
+		}
+}
 
 static uint32_t ProcFind(const char* name)
 {
@@ -248,20 +318,70 @@ static bool EnableDebugPrivilege(HANDLE process)
 
 int PerformLoad(const char* buf, size_t size)
 {
+	//Client side
 	EnableDebugPrivilege(GetCurrentProcess());
 
 	int pid = ProcFind("csgo.exe");
 	HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
 
+	if (!processHandle)
+		return 1;
+
+	ModuleList moduleList(pid);
+
+	uintptr_t handleTlsInfoAddress = 0;
+
+	auto ntdllString = StackString("ntdll.dll");
+	ModuleInfo ntdllInfo = Handles::GetModuleInfo(ntdllString);
+
+	void (WINAPI* RtlGetVersionFunc)(PRTL_OSVERSIONINFOW) = nullptr;
+	RtlGetVersionFunc = (decltype(RtlGetVersionFunc))GetProcAddress(ntdllInfo.handle, ST("RtlGetVersion"));
+
+	RTL_OSVERSIONINFOW info;
+	memset(&info, 0, sizeof(info));
+	info.dwOSVersionInfoSize = sizeof(info);
+	RtlGetVersionFunc(&info);
+
+	for (auto& i : tlsSignatures) {
+		if (i.version == info.dwMajorVersion) {
+			for (auto& o : i.signatures) {
+				handleTlsInfoAddress = PatternScan::FindPattern(o, ntdllString);
+				if (handleTlsInfoAddress)
+					break;
+			}
+			break;
+		}
+	}
+
+	if (!handleTlsInfoAddress)
+		return 2;
+
+	handleTlsInfoAddress -= ntdllInfo.address;
+
+	for (auto& i : moduleList.modules) {
+		if (!STRCASECMP(ntdllString, moduleList.names.data() + i.nameOffset)) {
+			handleTlsInfoAddress += i.startAddress;
+			break;
+		}
+	}
+
+	LdrpHandleTlsDataSTDFn handleTlsDataSTD = nullptr;
+	LdrpHandleTlsDataThisFn handleTlsDataThis = nullptr;
+
+	if (info.dwMajorVersion > 8 || (info.dwMajorVersion == 8 && info.dwMinorVersion > 0))
+		handleTlsDataThis = (LdrpHandleTlsDataThisFn)handleTlsInfoAddress;
+	else
+		handleTlsDataSTD = (LdrpHandleTlsDataSTDFn)handleTlsInfoAddress;
+
 	//Server side
-	WinModule loader(buf, size);
+	WinModule loader(buf, size, &moduleList);
 	PackedWinModule packedLoader(loader);
 
 	//Client side
-    char* mbuf = (char*)VirtualAllocEx(processHandle, nullptr, packedLoader.allocSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+	char* mbuf = (char*)VirtualAllocEx(processHandle, nullptr, packedLoader.allocSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
 	if (!mbuf)
-	    return 1;
+	    return 3;
 
 	//Server side
 	packedLoader.PerformRelocations((nptr_t)mbuf);
@@ -274,6 +394,9 @@ int PerformLoad(const char* buf, size_t size)
 
 	char* loaderBuf = (char*)VirtualAllocEx(processHandle, nullptr, fullLoaderSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
+	if (!loaderBuf)
+		return 4;
+
 	uintptr_t loaderAddress = (uintptr_t)loaderBuf + loaderDataSize + loaderArgsSize;
 
 	if (loaderAddress % 16)
@@ -281,7 +404,7 @@ int PerformLoad(const char* buf, size_t size)
 
 	packedLoader.SetupInPlace(processHandle, mbuf, loaderBuf);
 
-	WinLoadData lData = {(PackedWinModule*)loaderBuf, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA};
+	WinLoadData lData = {(PackedWinModule*)loaderBuf, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA, handleTlsDataSTD, handleTlsDataThis};
 
 
 	WriteProcessMemory(processHandle, loaderBuf + loaderDataSize, &lData, sizeof(WinLoadData), nullptr);

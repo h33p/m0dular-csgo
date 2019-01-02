@@ -30,7 +30,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #else
-#include <windows.h>
+#include "../sdk/framework/wincludes.h"
 #include <winternl.h>
 #include <io.h>
 #endif
