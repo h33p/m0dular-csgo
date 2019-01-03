@@ -2,10 +2,13 @@
 #include "main.h"
 #include "settings.h"
 #include "loader.h"
+#include "server_comm.h"
 
 int main()
 {
 	DrawSplash();
+
+	ServerComm::Initialize();
 
 	int failcount = 0;
 
@@ -33,6 +36,8 @@ int main()
 	  failcount_increase:
 		failcount++;
 	}
+
+	ServerComm::Stop();
 
 	return 0;
 }

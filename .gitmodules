@@ -7,3 +7,6 @@
 [submodule "bits"]
 	path = bits
 	url = ../m0dular-csgo-bits.git
+[submodule "modules/ixwebsocket"]
+	path = modules/ixwebsocket
+	url = https://github.com/machinezone/IXWebSocket.git
