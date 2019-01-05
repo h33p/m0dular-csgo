@@ -22,8 +22,8 @@ using nptr_t = uint32_t;
 #define STRCASECMP _stricmp
 #endif
 
-using GetProcAddressFn = int(__stdcall*)(void*, char*);
-using LoadLibraryAFn = void*(__stdcall*)(char*);
+using GetProcAddressFn = int(__stdcall*)(void*, const char*);
+using LoadLibraryAFn = void*(__stdcall*)(const char*);
 using LdrpHandleTlsDataSTDFn = int(__stdcall*)(void*);
 using LdrpHandleTlsDataThisFn = int(__thiscall*)(void*);
 
@@ -50,7 +50,7 @@ struct WinImport
 
 struct WinImportH
 {
-	void* module;
+	uint64_t module;
 	WinImport imp;
 };
 
@@ -76,11 +76,20 @@ struct PackedWinModule
 	uint32_t importThunksOffset;
 	uint32_t relocationOffset;
 
+	uint64_t state;
 	//Pointers are at the end for simple communication with the server
-	char* moduleBuffer;
-	char* buffer;
+	const char* moduleBuffer;
+	const char* buffer;
+
+	static constexpr size_t serSizeSub = 2 * sizeof(char*) - sizeof(uint64_t);
 
 	PackedWinModule(const WinModule& mod);
+	PackedWinModule(const char*);
+	char* ToBuffer(uint32_t* outSize);
+
+	PackedWinModule()
+		: moduleBuffer(nullptr), buffer(nullptr) {}
+
 
 	PackedWinModule(const PackedWinModule& o)
 	{
@@ -99,10 +108,13 @@ struct PackedWinModule
 
 	~PackedWinModule()
 	{
+		if (state > 1)
+			return;
+
 		if (buffer)
-			free(buffer);
+			free((void*)buffer);
 		if (moduleBuffer)
-			free(moduleBuffer);
+			free((void*)moduleBuffer);
 	}
 
 	void PerformRelocations(nptr_t base);

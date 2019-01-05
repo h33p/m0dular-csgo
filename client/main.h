@@ -1,6 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 
+#include <stdio.h>
 #include "../sdk/framework/utils/stackstring.h"
 
 #ifdef __linux__
@@ -109,5 +110,9 @@ inline void DrawSplash()
 	}
 }
 
+
+void DisableEcho();
+void EnableEcho();
+void EchoInput(char* buf, size_t size, char mask);
 
 #endif

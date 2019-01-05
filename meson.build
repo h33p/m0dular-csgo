@@ -15,16 +15,9 @@ framework_other_utils = ['core_unity/framework_other_utils.cpp']
 framework_other_files = ['sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp',  'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp']
 keycode_files = ['modules/keycode/keyid.c']
 
-ixwebsocket_base_files = ['IXEventFd.cpp', 'IXSocket.cpp', 'IXSocketConnect.cpp', 'IXDNSLookup.cpp', 'IXWebSocket.cpp', 'IXWebSocketTransport.cpp', 'IXWebSocketPerMessageDeflate.cpp', 'IXWebSocketPerMessageDeflateOptions.cpp', 'IXSocketOpenSSL.cpp']
-ixwebsocket_files = []
-
-foreach f : ixwebsocket_base_files
-  ixwebsocket_files += join_paths('modules/ixwebsocket/ixwebsocket', f)
-endforeach
-
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_other_files + keycode_files + ['core/init.cpp']
-client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp'] + keycode_files
+client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
 
 if get_option('buildtype').startswith('debug')
   global_defines += 'DEBUG'
@@ -124,7 +117,7 @@ foreach p : global_defines
   add_project_arguments('-D'+p, language : 'cpp')
 endforeach
 
-includes += ['modules/ixwebsocket']
+includes += ['modules/websocketpp']
 
 incdir = include_directories(includes)
 
@@ -143,10 +136,11 @@ py3_dep = dependency('python3', required: false)
 
 client_add_compile_args = ['-DM0DULAR_CLIENT']
 
-ixsockets = static_library('ixwebsocket', files(ixwebsocket_files), c_args : compile_args + ['-DUSE_TLS', '-DIXWEBSOCKET_USE_TLS'], cpp_args : compile_args + ['-DUSE_TLS', '-DIXWEBSOCKET_USE_TLS'], link_args : linker_args + ['-lcrypto', '-lssl', '-lz'], dependencies : [thread_dep], include_directories : incdir)
+network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
+
 fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir)
 lib = shared_library('m0dular', files(file_list), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir)
-client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : [fwlib, ixsockets], include_directories : incdir)
+client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links, dependencies : [thread_dep], link_with : [fwlib], include_directories : incdir)
 
 bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir)
 

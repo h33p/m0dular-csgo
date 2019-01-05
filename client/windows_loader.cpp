@@ -162,7 +162,7 @@ WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool 
 				if (!moduleLoaded)
 					thunkedImports.push_back({nameOffset, FileToVirt((uint32_t)((char*)&firstThunk->u1.Function - moduleBuffer), cachedSection)});
 				else
-					importsWH.push_back({module, {nameOffset, FileToVirt((uint32_t)((char*)&firstThunk->u1.Function - moduleBuffer), cachedSection)}});
+					importsWH.push_back({(uint64_t)module, {nameOffset, FileToVirt((uint32_t)((char*)&firstThunk->u1.Function - moduleBuffer), cachedSection)}});
 
 				origFirstThunk++;
 				firstThunk++;
@@ -184,7 +184,7 @@ PackedWinModule::PackedWinModule(const WinModule& mod)
 	for (auto& i : mod.sections)
 		bufSize += i.bufSize;
 
-	moduleBuffer = (char*)malloc(bufSize);
+	char* moduleBuffer = (char*)malloc(bufSize);
 
 	uint32_t cbo = 0;
 	for (auto& i : mod.sections) {
@@ -211,7 +211,7 @@ PackedWinModule::PackedWinModule(const WinModule& mod)
 	relocationOffset = bufSize;
 	bufSize += sizeof(uint32_t) + sizeof(WinRelocation) * mod.relocations.size();
 
-	buffer = (char*)malloc(bufSize);
+	char* buffer = (char*)malloc(bufSize);
 
 	*(uint32_t*)(buffer + sectionOffset) = mod.sections.size();
 	memcpy(buffer + sectionOffset + sizeof(uint32_t), (char*)mod.sections.data(), sizeof(WinSection) * mod.sections.size());
@@ -229,6 +229,66 @@ PackedWinModule::PackedWinModule(const WinModule& mod)
 
 	*(uint32_t*)(buffer + relocationOffset) = mod.relocations.size();
 	memcpy(buffer + relocationOffset + sizeof(uint32_t), mod.relocations.data(), mod.relocations.size() * sizeof(WinRelocation));
+
+	this->moduleBuffer = moduleBuffer;
+	this->buffer = buffer;
+
+	state = 1;
+}
+
+PackedWinModule::PackedWinModule(const char* buf)
+{
+	uint32_t classSize = *(uint32_t*)buf;
+	const char* classBuf = buf + sizeof(uint32_t);
+	buf += classSize + sizeof(uint32_t);
+	uint32_t moduleSize = *(uint32_t*)buf;
+	const char* moduleBuf = buf + sizeof(uint32_t);
+	buf += moduleSize + sizeof(uint32_t);
+	uint32_t dataSize = *(uint32_t*)buf;
+	const char* dataBuf = buf + sizeof(uint32_t);
+
+	state = 0;
+
+	buffer = nullptr;
+	moduleBuffer = nullptr;
+
+	if (classSize != sizeof(PackedWinModule) - serSizeSub)
+		return;
+
+	memcpy(this, classBuf, classSize);
+
+	state = 0;
+
+	if (bufSize != dataSize || modBufSize != moduleSize)
+		return;
+
+	state = 2;
+	buffer = dataBuf;
+	moduleBuffer = moduleBuf;
+}
+
+char* PackedWinModule::ToBuffer(uint32_t* outSize)
+{
+	size_t allocSize = sizeof(PackedWinModule) - serSizeSub + modBufSize + bufSize + sizeof(uint32_t) * 3;
+	char* fullCBuf = (char*)malloc(allocSize);
+	char* cTempBuf = fullCBuf;
+
+	*(uint32_t*)cTempBuf = sizeof(PackedWinModule) - serSizeSub;
+	cTempBuf += sizeof(uint32_t);
+	memcpy(cTempBuf, this, sizeof(PackedWinModule) - serSizeSub);
+	cTempBuf += sizeof(PackedWinModule) - serSizeSub;
+	*(uint32_t*)cTempBuf = modBufSize;
+	cTempBuf += sizeof(uint32_t);
+	memcpy(cTempBuf, moduleBuffer, modBufSize);
+	cTempBuf += modBufSize;
+	*(uint32_t*)cTempBuf = bufSize;
+	cTempBuf += sizeof(uint32_t);
+	memcpy(cTempBuf, buffer, bufSize);
+
+	if (outSize)
+		*outSize = allocSize;
+
+	return fullCBuf;
 }
 
 void PackedWinModule::PerformRelocations(nptr_t base)
@@ -252,7 +312,7 @@ void PackedWinModule::SetupInPlace(HANDLE processHandle, char* targetModuleAddre
     wModule.buffer = targetDataAddress + sizeof(PackedWinModule);
 	wModule.moduleBuffer = nullptr;
 	WriteProcessMemory(processHandle, targetDataAddress, &wModule, sizeof(PackedWinModule), nullptr);
-	WriteProcessMemory(processHandle, wModule.buffer, buffer, bufSize, nullptr);
+	WriteProcessMemory(processHandle, (void*)wModule.buffer, (void*)buffer, bufSize, nullptr);
 	wModule.buffer = nullptr;
 
 	//Copy sections
@@ -293,18 +353,18 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 	GetProcAddressFn pGetProcAddress = wLoadData->pGetProcAddress;
 	LoadLibraryAFn pLoadLibraryA = wLoadData->pLoadLibraryA;
 
-	char* buffer = packedModule->buffer;
+	const char* buffer = packedModule->buffer;
 
-	char* names = buffer + packedModule->nameOffset;
+	const char* names = buffer + packedModule->nameOffset;
 
 	uint32_t* importHCount = (uint32_t*)(buffer + packedModule->importsWHOffset);
 	WinImportH* importsH = (WinImportH*)(importHCount + 1);
 
 	for (uint32_t i = 0; i < *importHCount; i++) {
 		if (importsH[i].imp.nameOffset < ~importsH[i].imp.nameOffset)
-			*(nptr_t*)(outBuf + importsH[i].imp.virtOffset) = pGetProcAddress(importsH[i].module, names + importsH[i].imp.nameOffset);
+			*(nptr_t*)(outBuf + importsH[i].imp.virtOffset) = pGetProcAddress((void*)importsH[i].module, names + importsH[i].imp.nameOffset);
 		else
-			*(nptr_t*)(outBuf + importsH[i].imp.virtOffset) = pGetProcAddress(importsH[i].module, (char*)(uintptr_t)~importsH[i].imp.nameOffset);
+			*(nptr_t*)(outBuf + importsH[i].imp.virtOffset) = pGetProcAddress((void*)importsH[i].module, (char*)(uintptr_t)~importsH[i].imp.nameOffset);
 	}
 
 	uint32_t* thunkedImportCount = (uint32_t*)(buffer + packedModule->importsOffset);
@@ -314,7 +374,7 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
     WinImportThunk* importThunks = (WinImportThunk*)(importThunkCount + 1);
 
 	for (uint32_t i = 0; i < *importThunkCount; i++) {
-		char* mod = names + importThunks[i].moduleNameOffset;
+		const char* mod = names + importThunks[i].moduleNameOffset;
 		void* module = pLoadLibraryA(mod);
 
 		for (uint32_t o = importThunks[i].importOffset; o < importThunks[i].importOffset + importThunks[i].importCount; o++) {

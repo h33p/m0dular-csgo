@@ -1,27 +1,63 @@
 #include "windows_loader.h"
 #include <Python.h>
 
-static PyObject* RelocateImage(PyObject* self, PyObject* args) {
+static PyObject* PreRelocateImage(PyObject* self, PyObject* args) {
 	int is64Bit;
-	uintptr_t address;
 	const char* inpBuf;
 	int count;
+	const char* moduleListBuf;
+	int moduleListCount;
 
-	if (!PyArg_ParseTuple(args, "ips#", &address, &is64Bit, &inpBuf, &count))
+	if (!PyArg_ParseTuple(args, "ps#s#", &is64Bit, &inpBuf, &count, &moduleListBuf, &moduleListCount))
 		return nullptr;
 
-	WinModule module(inpBuf, count, nullptr, is64Bit);
+	ModuleList moduleList, moduleList2;
+
+	const char* curModuleListBuf = moduleListBuf;
+
+	uint32_t namesCount = *(uint32_t*)curModuleListBuf;
+	curModuleListBuf += sizeof(uint32_t);
+	moduleList.names.resize(namesCount);
+	memcpy(moduleList.names.data(), curModuleListBuf, namesCount);
+	curModuleListBuf += namesCount;
+	uint32_t moduleInfoSize = *(uint32_t*)curModuleListBuf;
+	curModuleListBuf += sizeof(uint32_t);
+	moduleList.modules.resize(moduleInfoSize / sizeof(RemoteModuleInfo));
+	memcpy(moduleList.modules.data(), curModuleListBuf, moduleInfoSize);
+
+	WinModule module(inpBuf, count, &moduleList, is64Bit);
 	PackedWinModule packedModule(module);
 
-	PyObject* classBuf = PyBytes_FromStringAndSize((char*)&packedModule, sizeof(packedModule) - 2 * sizeof(char*));
-	PyObject* modBuf = PyBytes_FromStringAndSize(packedModule.moduleBuffer, packedModule.modBufSize);
-	PyObject* dataBuf = PyBytes_FromStringAndSize(packedModule.buffer, packedModule.bufSize);
+	uint32_t allocSize = 0;
+	char* fullCBuf = packedModule.ToBuffer(&allocSize);
+	PyObject* fullBuf = PyBytes_FromStringAndSize(fullCBuf, allocSize);
+	free(fullCBuf);
 
-	return Py_BuildValue("OOO", classBuf, modBuf, dataBuf);
+	return Py_BuildValue("iO", packedModule.allocSize, fullBuf);
+}
+
+static PyObject* RelocateImage(PyObject* self, PyObject* args) {
+	uint64_t address;
+	int count;
+	const char* inpBuf = nullptr;
+
+	if (!PyArg_ParseTuple(args, "is#", &address, &inpBuf, &count))
+		return nullptr;
+
+	PackedWinModule packedModule(inpBuf);
+
+	packedModule.PerformRelocations(address);
+
+	uint32_t allocSize = 0;
+	char* fullCBuf = packedModule.ToBuffer(&allocSize);
+	PyObject* fullBuf = PyBytes_FromStringAndSize(fullCBuf, allocSize);
+	free(fullCBuf);
+
+	return Py_BuildValue("O", fullBuf);
 }
 
 static PyMethodDef relocateMethods[] = {
-	{"relocate_image", (PyCFunction)RelocateImage, METH_VARARGS, "Relocate image and prepare for sending to the user."}, {nullptr, nullptr, 0, nullptr}
+	{"pre_relocate_image", (PyCFunction)PreRelocateImage, METH_VARARGS, "Perform the first pass at server based module loading."}, {"relocate_image", (PyCFunction)RelocateImage, METH_VARARGS, "Relocate image and prepare for sending to the user."}, {nullptr, nullptr, 0, nullptr}
 };
 
 static struct PyModuleDef relocatemodule = {
