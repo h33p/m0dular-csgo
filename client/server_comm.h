@@ -7,9 +7,10 @@
 namespace ServerComm
 {
 	extern bool connected;
+	extern bool quit;
 	extern Semaphore mainsem;
 
-	void Initialize();
+	bool Initialize();
 	void Stop();
 	void LoginCredentials();
 	void Send(const std::string& buf);

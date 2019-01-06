@@ -9,6 +9,10 @@
 #include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>
 
+#include "infoware/cpu.hpp"
+#include "infoware/gpu.hpp"
+#include "infoware/system.hpp"
+
 #include <sstream>
 
 typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
@@ -34,6 +38,8 @@ static ServerCommand commandList[] =
 {
 	{"lga"_crc32, LoginApproved},
 	{"lgr"_crc32, LoginRejected},
+	{"lgh"_crc32, LoginInvHWID},
+	{"lgi"_crc32, LoginInvIP},
 	{"clr"_crc32, CheatLibraryReceive},
 	{"la"_crc32, LibraryAllocate},
 	{"slr"_crc32, SettingsLibraryReceive},
@@ -75,7 +81,50 @@ static auto cert_buf = ST(
 
 bool printed = false;
 bool ServerComm::connected = false;
+bool ServerComm::quit = false;
 Semaphore ServerComm::mainsem;
+
+struct FPInstructionSet
+{
+	char* name;
+	iware::cpu::instruction_set_t set;
+
+	template<typename T>
+	FPInstructionSet(const T& inName, iware::cpu::instruction_set_t nset)
+		: name((char*)new ST(inName)), set(nset) {}
+
+	~FPInstructionSet()
+	{
+		if (name)
+			free(name);
+	}
+};
+
+FPInstructionSet fpInstList[] = {
+	{"sse2", iware::cpu::instruction_set_t::sse2},
+	{"sse3", iware::cpu::instruction_set_t::sse3},
+	{"sse4", iware::cpu::instruction_set_t::sse41},
+	{"avx", iware::cpu::instruction_set_t::avx},
+	{"avx2", iware::cpu::instruction_set_t::avx2},
+	//{"avx512", iware::cpu::instruction_set_t::avx512},
+};
+
+static const char* GPUVendorName(iware::gpu::vendor_t vendor) {
+	switch (vendor) {
+	  case iware::gpu::vendor_t::intel:
+		  return "Intel";
+	  case iware::gpu::vendor_t::amd:
+		  return "AMD";
+	  case iware::gpu::vendor_t::nvidia:
+		  return "NVidia";
+	  case iware::gpu::vendor_t::microsoft:
+		  return "Microsoft";
+	  case iware::gpu::vendor_t::qualcomm:
+		  return "Qualcomm";
+	  default:
+		  return "Unknown";
+	}
+}
 
 void ServerComm::LoginCredentials()
 {
@@ -88,9 +137,36 @@ void ServerComm::LoginCredentials()
 	STPRINT("Password: ");
 	EchoInput(password, 64, '*');
 
-	char buf[256];
+	char buf[2048];
 
-	sprintf(buf, "login\n%s\n%s\n", username, password);
+	int bestInstructionSet = 0;
+
+	for (int i = sizeof(fpInstList) / sizeof(FPInstructionSet) - 1; i >= 0; i--) {
+		if (iware::cpu::instruction_set_supported(fpInstList[i].set)) {
+			bestInstructionSet = i;
+			break;
+		}
+	}
+
+	char cpuname[128];
+	snprintf(cpuname, 128, "%s %s %s %s %d %s %d %s %d", iware::cpu::vendor_id().c_str(), iware::cpu::model_name().c_str(), fpInstList[bestInstructionSet].name, (char*)ST("L1"), (int)iware::cpu::cache(1).size / 1000, (char*)ST("L2"), (int)iware::cpu::cache(2).size / 1000, (char*)ST("L3"), (int)iware::cpu::cache(3).size / 1000);
+
+	const auto gpuInfos = iware::gpu::device_properties();
+
+	char gpuinfo[128];
+	gpuinfo[0] = '\0';
+
+	if (!gpuInfos.empty()) {
+		const auto& gpuProperties = gpuInfos[0];
+		snprintf(gpuinfo, 128, "%s %s %d", GPUVendorName(gpuProperties.vendor), gpuProperties.name.c_str(), (int)(gpuProperties.memory_size / 1000));
+	}
+
+	char raminfo[64];
+	const auto memory = iware::system::memory();
+
+	snprintf(raminfo, 64, "%lu%s", (unsigned long)memory.physical_total / 1000000lu, (char*)ST("MB"));
+
+	snprintf(buf, 2048, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n", (char*)ST("login"), username, password, (char*)ST("1.0"), (char*)StackString(LWM("linux", "windows", "macos")), fpInstList[bestInstructionSet].name, cpuname, gpuinfo, raminfo);
 
 	Send(buf);
 }
@@ -156,7 +232,7 @@ void* __stdcall SockThread(void*)
 	wsocket.run();
 }
 
-void ServerComm::Initialize()
+bool ServerComm::Initialize()
 {
 	BIO* cbio = BIO_new_mem_buf((void*)cert_buf, -1);
 	global_cert = nullptr;
@@ -182,7 +258,7 @@ void ServerComm::Initialize()
 	if (ec) {
 		STPRINT("could not create connection because: ");
 		printf("%s\n", ec.message().c_str());
-		return;
+		return false;
 	}
 
 	wsocket.connect(con);
@@ -197,8 +273,12 @@ void ServerComm::Initialize()
 		mainsem.Wait();
 		if (connected)
 			break;
+		if (quit)
+			return false;
 		ServerComm::LoginCredentials();
 	}
+
+	return true;
 }
 
 void ServerComm::Stop()

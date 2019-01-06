@@ -10,3 +10,6 @@
 [submodule "modules/websocketpp"]
 	path = modules/websocketpp
 	url = https://github.com/zaphoyd/websocketpp.git
+[submodule "modules/infoware"]
+	path = modules/infoware
+	url = https://github.com/ThePhD/infoware.git

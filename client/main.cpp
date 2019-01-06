@@ -24,7 +24,8 @@ int main()
 	DrawSplash();
 	SetColor(ANSI_COLOR_RESET);
 
-	ServerComm::Initialize();
+	if (!ServerComm::Initialize())
+		return 1;
 
 	int failcount = 0;
 

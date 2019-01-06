@@ -23,6 +23,24 @@ void LoginRejected(const std::string& str)
 	ServerComm::mainsem.Post();
 }
 
+void LoginInvHWID(const std::string& str)
+{
+	SetColor(ANSI_COLOR_RED);
+	STPRINT("Invalid HWID!\n");
+	SetColor(ANSI_COLOR_RESET);
+	ServerComm::quit = true;
+	ServerComm::mainsem.Post();
+}
+
+void LoginInvIP(const std::string& str)
+{
+	SetColor(ANSI_COLOR_RED);
+	STPRINT("Login blocked! Try again later...\n");
+	SetColor(ANSI_COLOR_RESET);
+	ServerComm::quit = true;
+	ServerComm::mainsem.Post();
+}
+
 void CheatLibraryReceive(const std::string& str)
 {
     //printf("Receive library payload size %u!\n", (uint32_t)str.size());
