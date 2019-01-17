@@ -175,15 +175,15 @@ client_add_compile_args = ['-DM0DULAR_CLIENT']
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
-infoware_lib = static_library('infoware', files(infoware_files), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, include_directories : incdir)
-fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir)
-lib = shared_library('m0dular', files(file_list), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir)
-client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links, dependencies : [thread_dep], link_with : [fwlib, infoware_lib], include_directories : incdir)
-
-bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir)
-
 if py3_dep.found()
   reloc_module = py_installation.extension_module('relocate', ['client/windows_loader.cpp', 'client/py_win_reloc.cpp'], dependencies: py3_dep)
 endif
+
+infoware_lib = static_library('infoware', files(infoware_files), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, include_directories : incdir)
+fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+lib = shared_library('m0dular', files(file_list), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links, dependencies : [thread_dep], link_with : [fwlib, infoware_lib], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+
+bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
 test('keybinds', bind_test)

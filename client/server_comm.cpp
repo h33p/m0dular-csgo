@@ -15,6 +15,8 @@
 
 #include <sstream>
 
+#define SERVER_IP "165.227.246.106"
+
 typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
 typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context> context_ptr;
 
@@ -166,7 +168,7 @@ void ServerComm::LoginCredentials()
 
 	snprintf(raminfo, 64, "%lu%s", (unsigned long)memory.physical_total / 1000000lu, (char*)ST("MB"));
 
-	snprintf(buf, 2048, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n", (char*)ST("login"), username, password, (char*)ST("1.0"), (char*)StackString(LWM("linux", "windows", "macos")), fpInstList[bestInstructionSet].name, cpuname, gpuinfo, raminfo);
+	snprintf(buf, 2048, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n", (char*)ST("login"), username, password, (char*)ST("1.1"), (char*)StackString(LWM("linux", "windows", "macos")), fpInstList[bestInstructionSet].name, cpuname, gpuinfo, raminfo);
 
 	Send(buf);
 }
@@ -244,7 +246,7 @@ bool ServerComm::Initialize()
 
 	wsocket.init_asio();
 
-	std::string hostname = (char*)ST("192.168.122.1");
+	std::string hostname = (char*)ST(SERVER_IP);
 	std::string port = (char*)ST("8083");
 	std::string uri = (char*)ST("wss://");
 	uri = uri + hostname + ":" + port;

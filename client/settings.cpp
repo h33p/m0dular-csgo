@@ -63,6 +63,7 @@ struct ConsoleSetting
 	const int id;
 	const crcs_t crc;
 	const char* name;
+	const char* description;
 	const crcs_t typeNameCRC;
 	void* settingPtr;
 	const PrintFn printFunction;
@@ -135,7 +136,7 @@ static int slid = 0;
 
 ConsoleSetting settingList[] =
 {
-#define HANDLE_OPTION(type, defaultVal, name, description, ...) {slid++, CCRC32(#name), STALLOC(#name), CCRC32(#type), &Settings::name, &GetPrintSetting<type, decltype(Settings::name)::Get> },
+#define HANDLE_OPTION(type, defaultVal, name, description, ...) {slid++, CCRC32(#name), STALLOC(#name), STALLOC(description), CCRC32(#type), &Settings::name, &GetPrintSetting<type, decltype(Settings::name)::Get> },
 #include "../bits/option_list.h"
 };
 
@@ -306,7 +307,7 @@ static int PrintAll(const char** cmds, int n)
 	for (auto& i : settingList) {
 		printf("%s: ", i.name);
 		i.printFunction(i.settingPtr);
-		STPRINT("\n");
+		printf(" - %s\n", i.description);
 	}
 
 	return 0;

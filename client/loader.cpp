@@ -15,18 +15,6 @@ std::vector<SubscriptionEntry> subscriptionList;
 
 void Load()
 {
-	srand(time(nullptr));
-#ifdef _WIN32
-	FILE* fp = fopen("libm0dular.dll", "rb");
-#else
-	FILE* fp = fopen("./build/libm0dular.so", "rb");
-#endif
-	fseek(fp, 0L, SEEK_END);
-	size_t size = ftell(fp);
-	fseek(fp, 0L, SEEK_SET);
-	char* buf = (char*)malloc(size);
-
-	fread(buf, size, 1, fp);
 
 	STPRINT("Select the cheat to load:\n");
 	STPRINT("ID\tVALID_UNTIL\tNAME\n");
@@ -47,7 +35,6 @@ void Load()
 		} else
 			STPRINT("Loaded successfully!\n");
 	}
-	free(buf);
 
 }
 
