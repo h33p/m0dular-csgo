@@ -1,5 +1,9 @@
 #!/bin/sh
 
+if [ "$#" -eq 0 ]; then
+    set -- $(cat autobuild_args.txt)
+fi
+
 BUILD_TYPE=$1
 shift
 ARGS=$@

@@ -1,0 +1,1 @@
+release reconfigure -Drandomize_link_order=true -Dbuild_all_instruction_variants=true
