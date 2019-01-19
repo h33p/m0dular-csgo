@@ -1,4 +1,7 @@
 build/*
+build_windows/*
+build_linux/*
+build_mac/*
 .DS_Store
 *.swp
 *.dylib

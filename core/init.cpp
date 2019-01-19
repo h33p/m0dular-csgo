@@ -13,6 +13,7 @@
 #include "../bits/signatures.h"
 #include "../bits/hook_indices.h"
 #include "../bits/interfaces.h"
+#include "../bits/identify.h"
 #include "tracing.h"
 #include "settings.h"
 
@@ -89,6 +90,8 @@ template<typename T, T& Fn>
 static void DispatchToAllThreads(void*);
 
 volatile bool cont = false;
+static volatile char* moduleIdentifyDependency = nullptr;
+static volatile char* moduleIdentifyDependency2 = nullptr;
 
 void* __stdcall EntryPoint(void*)
 {
@@ -99,12 +102,15 @@ void* __stdcall EntryPoint(void*)
 #ifndef LOADER_INITIALIZATION
 	InitializeOffsets();
 #endif
+	moduleIdentifyDependency = (volatile char*)GetModuleName((void*)RandomFloatExp, (void*)RandomFloatExp);
     DispatchToAllThreads<ThreadIDFn, AllocateThreadID>(nullptr);
 #ifndef LOADER_INITIALIZATION
 	if (Settings::sharedInstance.initialized)
 		InitializeHooks();
 #endif
 	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer as tracer...\n"));
+	moduleIdentifyDependency2 = (volatile char*)moduleName;
+	free((char*)moduleIdentifyDependency);
 	InitializeDynamicHooks();
 	cvar->ConsoleColorPrintf(Color(1.f, 0.f, 0.f, 1.f), ST("ERROR: I'm already tracer!\n"));
 	return nullptr;

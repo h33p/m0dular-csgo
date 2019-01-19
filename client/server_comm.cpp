@@ -16,6 +16,7 @@
 #include <sstream>
 
 #define SERVER_IP "165.227.246.106"
+#define LOADER_VERSION "1.2"
 
 typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
 typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context> context_ptr;
@@ -42,6 +43,7 @@ static ServerCommand commandList[] =
 	{"lgr"_crc32, LoginRejected},
 	{"lgh"_crc32, LoginInvHWID},
 	{"lgi"_crc32, LoginInvIP},
+	{"msg"_crc32, ServerMessage},
 	{"clr"_crc32, CheatLibraryReceive},
 	{"la"_crc32, LibraryAllocate},
 	{"slr"_crc32, SettingsLibraryReceive},
@@ -108,7 +110,7 @@ FPInstructionSet fpInstList[] = {
 	{"sse4", iware::cpu::instruction_set_t::sse41},
 	{"avx", iware::cpu::instruction_set_t::avx},
 	{"avx2", iware::cpu::instruction_set_t::avx2},
-	//{"avx512", iware::cpu::instruction_set_t::avx512},
+	{"avx512", iware::cpu::instruction_set_t::avx_512},
 };
 
 static const char* GPUVendorName(iware::gpu::vendor_t vendor) {
@@ -168,7 +170,7 @@ void ServerComm::LoginCredentials()
 
 	snprintf(raminfo, 64, "%lu%s", (unsigned long)memory.physical_total / 1000000lu, (char*)ST("MB"));
 
-	snprintf(buf, 2048, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n", (char*)ST("login"), username, password, (char*)ST("1.1"), (char*)StackString(LWM("linux", "windows", "macos")), fpInstList[bestInstructionSet].name, cpuname, gpuinfo, raminfo);
+	snprintf(buf, 2048, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n", (char*)ST("login"), username, password, (char*)ST(LOADER_VERSION), (char*)StackString(LWM("linux", "windows", "macos")), fpInstList[bestInstructionSet].name, cpuname, gpuinfo, raminfo);
 
 	Send(buf);
 }
@@ -231,7 +233,11 @@ context_ptr OnTlsInit(const char* hostname, websocketpp::connection_hdl)
 
 void* __stdcall SockThread(void*)
 {
-	wsocket.run();
+	try {
+		wsocket.run();
+	} catch (std::exception& e) {
+		ServerMessage(std::string(ST("Disconnected!\nMost functions will not work!")));
+	}
 }
 
 bool ServerComm::Initialize()

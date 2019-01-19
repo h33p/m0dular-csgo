@@ -1,1 +1,5 @@
 option('msvc_dir', type: 'string', value : '', description : 'The root directory for all msvc includes and libraries')
+option('use_static_libs', type: 'boolean', value : false, description : 'Use static libraries to possibly save compilation time. However, it usually results in longer linking time.')
+option('build_all_instruction_variants', type: 'boolean', value : false, description : 'Build all SSE2/SSE3/SSE41/AVX/AVX2/AVX512 variants of the library.')
+option('randomize_link_order', type: 'boolean', value : false, description : 'Randomize the link order of files. Results in functions binaries having vastly different code layout (only works on posix build environment).')
+option('module_identification', type: 'string', value : 'x52', description : 'Identification string to be embedded inside the module.')

@@ -41,6 +41,13 @@ void LoginInvIP(const std::string& str)
 	ServerComm::mainsem.Post();
 }
 
+void ServerMessage(const std::string& str)
+{
+	SetColor(ANSI_COLOR_YELLOW);
+	printf("%s\n", str.c_str());
+	SetColor(ANSI_COLOR_RESET);
+}
+
 void CheatLibraryReceive(const std::string& str)
 {
     //printf("Receive library payload size %u!\n", (uint32_t)str.size());

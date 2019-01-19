@@ -3,20 +3,28 @@ project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++
 pymod = import('python')
 py_installation = pymod.find_installation()
 
+randomize_link_order = get_option('randomize_link_order')
+
 compile_args = []
 linker_args = []
 combined_args = []
 external_link = []
 global_defines = ['PT_VISUALS', 'AIMBOT_THREADING', '_HAS_STATIC_RTTI=0']
 
+network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
+
+infoware_defines = []
+infoware_link_args = []
+
 core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp']
+
 framework_thread_utils = ['core_unity/framework_threads.cpp']
 framework_other_utils = ['core_unity/framework_other_utils.cpp']
 framework_other_files = ['sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp',  'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp']
 keycode_files = ['modules/keycode/keyid.c']
 
 #core/init.cpp has to be the last one to have proper initialization
-file_list = core_files + framework_other_files + keycode_files + ['core/init.cpp']
+file_list = core_files + framework_other_files + keycode_files
 client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
 
 infoware_comp_files = [
@@ -116,18 +124,24 @@ else
 endif
 
 if host_machine.system() == 'linux' or host_machine.system() == 'darwin'
+  #We need to patch infoware as there are syntax errors. Linux/OSX loader support with GPU HWID is non-essential at this stage
+  #infoware_defines += ['-DINFOWARE_USE_OPENCL']
+  #infoware_link_args += ['-lOpenCL']
   external_link += ['dl', 'rt']
   linker_args += ['-Wl,-Map=libm0dular.map', '-fvisibility=hidden']
   compile_args += '-fvisibility=hidden'
 else
+  infoware_defines += ['-DINFOWARE_USE_D3D']
+  infoware_link_args += ['-ldxgi']
   external_link += ['kernel32', 'msvcrt', 'd3d9', 'user32']
   linker_args += ['-Wl,-debugtype:all', '-Wl,-debug:full']
+  network_links += ['-lcrypt32']
 endif
 
 #Release type compile time and link time arguments
 if not get_option('buildtype').startswith('debug')
   if cc.get_id() != 'msvc'
-    compile_args += ['-flto=thin', '-Ofast', '-msse4.2', '-fno-stack-protector', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-fno-math-errno', '-fno-ident']
+    compile_args += ['-flto=thin', '-gsplit-dwarf', '-fno-stack-protector', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-fno-math-errno', '-fno-ident']
     if cc.get_id() != 'gcc'
       compile_args += ['-mllvm', '-inline-threshold=500', '-fvisibility=hidden']
       linker_args += ['-fuse-ld=lld', '-flto=thin']
@@ -140,7 +154,7 @@ if not get_option('buildtype').startswith('debug')
   if host_machine.system() != 'windows'
     linker_args += ['-Wl,--strip-all', '-Wl,--discard-all', '-Wl,--gc-sections']
   else
-    linker_args += ['-Wl,-safeseh:no', '-Wl,-opt:REF', '-O2']
+    linker_args += ['-Wl,-safeseh:no', '-Wl,-opt:REF', '-O2', '-Wl,-pdbaltpath:/home/buildslave/csgo/libm0dular.pdb']
   endif
 else #Debug type compile time and link time arguments
   compile_args += ['-g', '-O0']
@@ -173,16 +187,67 @@ py3_dep = dependency('python3', required: false)
 
 client_add_compile_args = ['-DM0DULAR_CLIENT']
 
-network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
-
 if py3_dep.found()
   reloc_module = py_installation.extension_module('relocate', ['client/windows_loader.cpp', 'client/py_win_reloc.cpp'], dependencies: py3_dep)
 endif
 
-infoware_lib = static_library('infoware', files(infoware_files), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, include_directories : incdir)
-fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
-lib = shared_library('m0dular', files(file_list), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep], link_with : fwlib, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
-client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links, dependencies : [thread_dep], link_with : [fwlib, infoware_lib], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+use_static_libs = get_option('use_static_libs')
+
+lib_link_with = []
+client_link_with = []
+
+lib_file_list = file_list
+
+module_identification = get_option('module_identification')
+
+module_id = static_library('module_id', files(['bits/identify.cpp']), cpp_args: compile_args + ['-DMODULE_IDENTIFICATION="'+module_identification+'"'])
+
+if use_static_libs
+  if randomize_link_order
+    shuffled_files = run_command('./random_shuffle.sh', infoware_files)
+    infoware_files = shuffled_files.stdout().split(' ')
+  endif
+
+  infoware_lib = static_library('infoware', files(infoware_files), c_args : compile_args + infoware_defines, cpp_args : compile_args + infoware_defines, link_args : linker_args + infoware_link_args, include_directories : incdir)
+
+  if randomize_link_order
+    shuffled_files = run_command('./random_shuffle.sh', framework_other_utils)
+    framework_other_utils = shuffled_files.stdout().split(' ')
+  endif
+
+  fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+
+  lib_link_with = [fwlib]
+  client_link_with = [fwlib, infoware_lib]
+else
+  lib_file_list += framework_thread_utils + framework_other_utils
+  client_file_list += framework_thread_utils + framework_other_utils + infoware_files
+  client_add_compile_args += infoware_defines
+endif
+
+lib_link_with += [module_id]
+
+build_all_instruction_variants = get_option('build_all_instruction_variants')
+
+if randomize_link_order
+  shuffled_files = run_command('./random_shuffle.sh', lib_file_list)
+  lib_file_list = shuffled_files.stdout().split(' ')
+endif
+
+if build_all_instruction_variants
+  foreach instr : [['sse2', ['-msse2', '-mno-sse3']], ['sse3', ['-msse3', '-mno-sse4.2']], ['sse4', ['-msse4.2']], ['avx', ['-mavx', '-mno-avx2']], ['avx2', ['-mavx2']], ['avx512', ['-mavx512f', '-mavx512cd', '-mavx512er']]]
+    shared_library('m0dular-' + instr[0], files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'] + instr[1], cpp_args : compile_args + ['-DM0DULAR_CHEAT'] + instr[1], link_args : linker_args, dependencies : [thread_dep], link_with : lib_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+  endforeach
+else
+  lib = shared_library('m0dular', files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep], link_with : lib_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+endif
+
+if randomize_link_order
+  shuffled_files = run_command('./random_shuffle.sh', client_file_list)
+  client_file_list = shuffled_files.stdout().split(' ')
+endif
+
+client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links + infoware_link_args, dependencies : [thread_dep], link_with : client_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
 bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
