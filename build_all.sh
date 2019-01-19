@@ -22,7 +22,7 @@ fi
 ./setupbuild.sh windows $BUILD_TYPE $ARGS
 
 if [ -d build ]; then
-    meson --reconfigure build --buildtype=$BUILD_TYPE $ARGS
+    meson reconfigure build --buildtype=$BUILD_TYPE $ARGS
 else
     meson build --buildtype=$BUILD_TYPE $ARGS
 fi

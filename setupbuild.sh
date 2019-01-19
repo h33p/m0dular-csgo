@@ -16,7 +16,7 @@ echo $CROSS_FILE
 echo $BUILD_TYPE
 
 if [ -d build_$BUILD_TARGET ]; then
-    meson --reconfigure build_$BUILD_TARGET --cross-file $CROSS_FILE -Dmsvc_dir=$WBUILD --buildtype=$BUILD_TYPE $ARGS
+    meson reconfigure build_$BUILD_TARGET --cross-file $CROSS_FILE -Dmsvc_dir=$WBUILD --buildtype=$BUILD_TYPE $ARGS
 else
     meson build_$BUILD_TARGET --cross-file $CROSS_FILE -Dmsvc_dir=$WBUILD --buildtype=$BUILD_TYPE $ARGS
 fi
