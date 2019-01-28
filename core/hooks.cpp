@@ -8,6 +8,7 @@
 #include "tracing.h"
 #include "settings.h"
 #include "binds.h"
+#include "mtr_scoped.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
 #ifdef __posix__
@@ -55,6 +56,9 @@ LRESULT __stdcall CSGOHooks::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 #endif
 
+static bool prevTraced = false;
+static int traceCount = 0;
+
 [[gnu::flatten]]
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
 {
@@ -78,12 +82,28 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	bSendPacket = *(bool**)FRAME_POINTER() - 0x1C;
 #endif
 
+#ifdef MTR_ENABLED
+	if (prevTraced != Settings::perfTrace) {
+	    prevTraced = Settings::perfTrace;
+
+		if (prevTraced) {
+			mtr_start();
+			cvar->ConsoleDPrintf("Starting trace\n");
+		} else {
+			mtr_stop();
+			cvar->ConsoleDPrintf("Ending trace\n");
+		}
+	}
+#endif
+
+	MTR_BEGIN("Hooks", "CreateMove");
 	Settings::ipcLock->rlock();
 	Tracing2::ResetTraceCount();
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
 	Settings::ipcLock->runlock();
+	MTR_END("Hooks", "CreateMove");
 
 	if (cmd->buttons & IN_ATTACK2 && cmd->buttons & IN_JUMP && cmd->viewangles[0] > 85)
 		Unload();

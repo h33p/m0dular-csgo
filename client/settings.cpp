@@ -1,13 +1,16 @@
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
-#include "../core/settings.h"
-#include "../core/binds.h"
+#include "settings.h"
 #include "../modules/keycode/keyid.h"
 #include "main.h"
+#include "game_settings_module.h"
 
 static uintptr_t clAllocBase = 0;
 generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
+
+static ConsoleSetting* settingList = nullptr;
+static size_t settingsCount = 0;
 
 
 static void Handle(const char* command, const char* name, const char** cmds, int n);
@@ -19,6 +22,7 @@ static void HandleCommand(const char** cmds, int n)
 
 void SettingsConsole()
 {
+	OnLoad(&settingList, &settingsCount);
 	SetColor(ANSI_COLOR_RESET);
 	STPRINT("\nSettings Console:\n");
 
@@ -55,20 +59,6 @@ void SettingsConsole()
 	STPRINT("quit\n");
 }
 
-typedef void(*PrintFn)(void*);
-typedef void(*PrintGroupFn)(crcs_t);
-
-struct ConsoleSetting
-{
-	const int id;
-	const crcs_t crc;
-	const char* name;
-	const char* description;
-	const crcs_t typeNameCRC;
-	void* settingPtr;
-	const PrintFn printFunction;
-};
-
 typedef int(*CommandFn)(const ConsoleSetting&, const char**, int);
 typedef int(*UnnamedCommandFn)(const char**, int);
 
@@ -84,31 +74,6 @@ struct ConsoleCommand
 
 template<typename T>
 struct ConsoleCommand;
-
-template<auto& Group, typename T>
-T GetSetting(crcs_t crc)
-{
-    return Group->template GetRuntime<T>(crc);
-}
-
-template<typename T, auto& Fn>
-void GetPrintSetting(void* in)
-{
-	typedef T(*FnVFn)(void*);
-	std::cout << ((FnVFn)Fn)(in);
-}
-
-template<typename T, auto& Fn>
-void GetPrintSettingGroups(crcs_t crc)
-{
-	std::cout << GetSetting<Settings::globalSettings, T>(crc) << " " << GetSetting<Settings::bindSettings, T>(crc);
-}
-
-template<auto& Group, typename T>
-void SetSetting(crcs_t crc, T value)
-{
-    Group->SetRuntime(value, crc);
-}
 
 template<typename T>
 T ParseStr(const char* str)
@@ -128,17 +93,6 @@ static int PrintAll(const char** cmds, int n);
 static int Binds(const char** cmds, int n);
 static int Save(const char** cmds, int n);
 static int Load(const char** cmds, int n);
-
-static int slid = 0;
-
-#define STTYPE(name) decltype(StackString(name))
-#define STALLOC(name) *(new (clAlloc.allocate<STTYPE(name)>(1)) StackString(name))
-
-ConsoleSetting settingList[] =
-{
-#define HANDLE_OPTION(type, defaultVal, name, description, ...) {slid++, CCRC32(#name), STALLOC(#name), STALLOC(description), CCRC32(#type), &Settings::name, &GetPrintSetting<type, decltype(Settings::name)::Get> },
-#include "../bits/option_list.h"
-};
 
 ConsoleCommand<CommandFn> commandList[] =
 {
@@ -203,7 +157,8 @@ static void Handle(const char* command, const char* name, const char** cmds, int
 
 	bool found = false;
 
-	for (auto& i : settingList) {
+	for (size_t o = 0; o < settingsCount; o++) {
+		auto& i = settingList[o];
 		if (i.crc == crc) {
 			int ret = cmd(i, cmds, n);
 
@@ -304,7 +259,8 @@ static int PrintAll(const char** cmds, int n)
 {
 	STPRINT("Printing all setting values:\n");
 
-	for (auto& i : settingList) {
+	for (size_t o = 0; o < settingsCount; o++) {
+		auto& i = settingList[o];
 		printf("%s: ", i.name);
 		i.printFunction(i.settingPtr);
 		printf(" - %s\n", i.description);
@@ -412,7 +368,8 @@ static int Binds(const char** cmds, int n)
 		if (!bind.pointer)
 			continue;
 
-		for (const auto& set : settingList) {
+		for (size_t i = 0; i < settingsCount; i++) {
+			const auto& set = settingList[i];
 			if (bind.pointer->handler == BindManager::sharedInstance->bindList[set.id]) {
 				switch(set.typeNameCRC) {
 				  case CCRC32("float"):

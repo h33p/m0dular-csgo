@@ -1,6 +1,7 @@
 #include "spread.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
+#include "mtr_scoped.h"
 
 static float randomFl1[256];
 static float randomFlPi1[256];
@@ -43,6 +44,8 @@ static void RunHitChance(HitChanceInput* inp);
 
 bool Spread::HitChance(Players* players, int targetEnt, vec3_t targetVec, int boneID, int chance)
 {
+	MTR_SCOPED_TRACE("Spread", "HitChance");
+
 	if (!randomPopulated)
 		PopulateRandomFloat();
 
@@ -145,6 +148,8 @@ static void PopulateRandomFloat()
 //This code should theoretically scale up to any SIMD level automatically with near perfect scaling.
 static void RunHitChance(HitChanceInput* inp)
 {
+	MTR_SCOPED_TRACE("Spread", "RunHitChance");
+
 	vec3_t spread[HITCHANCE_PER_JOB];
 	float randInaccuracy[HITCHANCE_PER_JOB];
 	float randSpread[HITCHANCE_PER_JOB];

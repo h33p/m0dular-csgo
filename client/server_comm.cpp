@@ -15,7 +15,7 @@
 
 #include <sstream>
 
-#define SERVER_IP "165.227.246.106"
+#define SERVER_IP "192.168.122.1"
 #define LOADER_VERSION "1.2"
 
 typedef websocketpp::client<websocketpp::config::asio_tls_client> client;

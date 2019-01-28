@@ -16,6 +16,7 @@
 #include "../bits/identify.h"
 #include "tracing.h"
 #include "settings.h"
+#include "mtr_scoped.h"
 
 #ifdef _WIN32
 #include <d3d9.h>
@@ -95,6 +96,11 @@ static volatile char* moduleIdentifyDependency2 = nullptr;
 
 void* __stdcall EntryPoint(void*)
 {
+#ifdef MTR_ENABLED
+	mtr_init("csgotrace.json");
+	MTR_META_PROCESS_NAME("thread_pool_test");
+#endif
+	MTR_SCOPED_TRACE("Initialization", "EntryPoint");
 #ifndef _WIN32
 	//freopen("/tmp/csout.txt", "w", stdout);
 #endif
@@ -113,6 +119,9 @@ void* __stdcall EntryPoint(void*)
 	free((char*)moduleIdentifyDependency);
 	InitializeDynamicHooks();
 	cvar->ConsoleColorPrintf(Color(1.f, 0.f, 0.f, 1.f), ST("ERROR: I'm already tracer!\n"));
+#ifdef MTR_ENABLED
+	mtr_stop();
+#endif
 	return nullptr;
 }
 
@@ -287,6 +296,12 @@ void Shutdown()
 {
 	if (firstTime) {
 
+#ifdef MTR_ENABLED
+		mtr_flush();
+		mtr_shutdown();
+		cvar->ConsoleDPrintf("Ending trace\n");
+#endif
+
 		firstTime = false;
 
 		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
@@ -375,4 +390,12 @@ InterfaceReg** GetInterfaceRegs(MHandle library)
 	uintptr_t jmp = (uintptr_t)GetProcAddress(library, StackString("CreateInterface")) + 4;
     return *(InterfaceReg***)(GetAbsoluteAddress(jmp, 1, 5) + 6);
 #endif
+}
+
+extern "C" char* strdup(const char* str)
+{
+	int len = strlen(str);
+	char* ret = (char*)malloc(len + 1);
+	memcpy(ret, str, len + 1);
+	return ret;
 }

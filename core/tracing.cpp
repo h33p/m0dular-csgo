@@ -6,6 +6,7 @@
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/framework/utils/intersect_box_impl.h"
+#include "mtr_scoped.h"
 
 static constexpr int MAX_N = 64;
 
@@ -29,6 +30,8 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 {
 	if (!n)
 		return;
+
+    MTR_SCOPED_TRACE("Tracing2", "TraceRayTargetOptimized");
 
 	CTraceFilterWorldOnly worldFilter;
 	int threadIDX = Threading::threadID + 1;
@@ -166,6 +169,8 @@ void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOut
 {
 	if (!n)
 		return;
+
+    MTR_SCOPED_TRACE("Tracing2", "PenetrateRayTargetOptimized");
 
 	int threadIDX = Threading::threadID + 1;
 

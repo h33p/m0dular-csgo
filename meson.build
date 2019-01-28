@@ -25,7 +25,7 @@ keycode_files = ['modules/keycode/keyid.c']
 
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_other_files + keycode_files
-client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
+client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/csgo_module.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
 
 infoware_comp_files = [
   'system/kernel_info/kernel_info_non_windows.cpp',
@@ -166,6 +166,7 @@ endif
 
 foreach p : global_defines
   add_project_arguments('-D'+p, language : 'cpp')
+  add_project_arguments('-D'+p, language : 'c')
 endforeach
 
 includes += ['modules/websocketpp', 'modules/infoware/include']

@@ -17,6 +17,7 @@
 #include "tracing.h"
 #include "settings.h"
 #include "awall.h"
+#include "mtr_scoped.h"
 
 #include <algorithm>
 #include <chrono>
@@ -96,6 +97,7 @@ bool FwBridge::IsEnemy(C_BasePlayer* ent)
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
+	MTR_BEGIN("FwBridge", "UpdateLocalData");
 	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
 	activeWeapon = localPlayer->activeWeapon();
 
@@ -119,8 +121,10 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 		lpData.weaponAmmo = 0;
 	}
 
+	MTR_BEGIN("SourceEnginePred", "EnginePrediction");
 	SourceEnginePred::Prepare(cmd, localPlayer, hostRunFrameFp);
 	SourceEnginePred::Run(cmd, localPlayer);
+	MTR_END("SourceEnginePred", "EnginePrediction");
 
 	//TODO: Clean this up
 #ifdef _WIN32
@@ -149,6 +153,7 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	lpData.flags = cflags;
 
 	SourceEssentials::UpdateData(cmd, &lpData);
+	MTR_END("FwBridge", "UpdateLocalData");
 }
 
 static std::vector<int> updatedPlayers;
@@ -156,6 +161,7 @@ static std::vector<int> nonUpdatedPlayers;
 
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
+	MTR_BEGIN("FwBridge", "UpdatePlayers");
 	UpdateData data(playerTrack.Push(), playerTrack.GetLastItem(1), &updatedPlayers, &nonUpdatedPlayers, false);
 	data.players.count = engine->GetMaxClients();
 	data.players.globalTime = globalVars->curtime;
@@ -172,6 +178,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 	playersFl = 0;
 	immuneFlags = 0;
 
+	MTR_BEGIN("FwBridge", "PreSortLoop");
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
 
@@ -203,11 +210,13 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		players[count].id = i;
 		count++;
 	}
+	MTR_END("FwBridge", "PreSortLoop");
 
 	std::sort(players, players + count, PlayerSort);
 
 	data.players.Allocate(count);
 
+	MTR_BEGIN("FwBridge", "PostSortLoop");
 	for (int i = 0; i < count; i++) {
 
 		C_BasePlayer* ent = players[i].player;
@@ -236,6 +245,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		data.players.flags[i] = cflags;
 	}
+	MTR_END("FwBridge", "PostSortLoop");
 
 	Engine::StartLagCompensation();
 
@@ -245,12 +255,15 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		LagCompensation::Run();
 	} else
 		playerTrack.UndoPush();
+
+	MTR_END("FwBridge", "UpdatePlayers");
 }
 
 static std::vector<int> hitboxUpdatedList;
 
 void FwBridge::FinishUpdating(UpdateData* data)
 {
+    MTR_SCOPED_TRACE("FwBridge", "FinishUpdating");
 	//Updating the hitboxes calls engine functions that only work on the main thread
 	//While it is being done, let's update other data on a seperate thread
 	//Flags depend on the animation fix fixing up the player.
@@ -285,6 +298,8 @@ static int prevtc = 0;
 
 void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
 {
+	MTR_SCOPED_TRACE("FwBridge", "RunFeatures");
+
 	backtrackCurtime = Settings::aimbotBacktrack ? Engine::CalculateBacktrackTime() + globalVars->interval_per_tick : TicksToTime(cmd->tick_count) + Engine::LerpTime();
 
 	if (Settings::aimbotSafeBacktrack)
@@ -333,6 +348,8 @@ bool prevPressed = true;
 
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
 {
+	MTR_SCOPED_TRACE("FwBridge", "ExecuteAimbot");
+
 	//Aimbot part
 	AimbotTarget target;
 	target.id = -1;
@@ -479,6 +496,8 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 static void ThreadedUpdate(UpdateData* data)
 {
+	MTR_SCOPED_TRACE("FwBridge", "ThreadedUpdate");
+
 	for (int i : *data->updatedPlayers) {
 		C_BasePlayer* ent = (C_BasePlayer*)data->players.instance[i];
 		data->players.boundsStart[i] = ent->mins();
@@ -679,6 +698,8 @@ static void UpdateHitbox(int idx, HitboxList* hbList)
 
 static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers)
 {
+	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxes");
+
 	for (int i : *updatedPlayers) {
 
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
@@ -836,6 +857,8 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 
 static void UpdateColliders(Players& __restrict players, const std::vector<int>* updatedHitboxPlayers)
 {
+	MTR_SCOPED_TRACE("FwBridge", "UpdateColliders");
+
 	for (int i : *updatedHitboxPlayers) {
 		for (int o = 0; o < NumOfSIMD(MAX_HITBOXES); o++) {
 

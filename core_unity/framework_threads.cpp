@@ -2,3 +2,6 @@
 #include "../sdk/framework/utils/mutex.cpp"
 #include "../sdk/framework/utils/shared_mutex.cpp"
 #include "../sdk/framework/utils/semaphores.cpp"
+#ifdef MTR_ENABLED
+#include "../sdk/framework/submodules/minitrace/minitrace.c"
+#endif

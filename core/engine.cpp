@@ -2,6 +2,7 @@
 #include "fw_bridge.h"
 #include "resolver.h"
 #include "settings.h"
+#include "mtr_scoped.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/math/mmath.h"
 #include "../sdk/source_csgo/sdk.h"
@@ -11,6 +12,7 @@ float dtime = 0;
 
 bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 {
+	MTR_SCOPED_TRACE("Engine", "UpdatePlayer");
 	ent->lastOcclusionCheck() = globalVars->framecount;
 	ent->occlusionFlags() = 0;
 	ent->occlusionFlags2() = -1;
@@ -107,6 +109,7 @@ int health[MAX_PLAYERS];
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
+    MTR_SCOPED_TRACE("Engine", "StartAnimationFix");
 	size_t count = players->count;
 
 	for (size_t i = 0; i < count; i++) {

@@ -3,6 +3,7 @@
 #include "engine.h"
 #include "temporary_animations.h"
 #include "resolver.h"
+#include "mtr_scoped.h"
 
 #include "../sdk/features/gamemovement.h"
 
@@ -28,6 +29,7 @@ static void UpdatePart2();
 
 void LagCompensation::PreRun()
 {
+    MTR_SCOPED_TRACE("LagCompensation", "PreRun");
 	CheckDynamic();
 
 	//Loop through the players and find which players do not have to be updated (will be copied over)
@@ -45,6 +47,7 @@ void LagCompensation::PreRun()
 
 void LagCompensation::Run()
 {
+    MTR_SCOPED_TRACE("LagCompensation", "Run");
 	UpdatePart2();
 }
 
@@ -292,6 +295,8 @@ static void UpdatePart2()
 	for (int i = track.Count() - 1; i >= 0; i--) {
 		Players& p = track[i];
 		UpdateData data(p, *prevTrack, &updatedPlayers, &nonUpdatedPlayersLC, true);
+
+		MTR_SCOPED_TRACE("LagCompensation", "SimulateTick");
 
 		updatedPlayers.clear();
 		nonUpdatedPlayersLC.clear();

@@ -9,7 +9,8 @@
 #include "../sdk/framework/utils/handles.h"
 #include "../sdk/framework/utils/semaphores.h"
 
-int PerformLoad(const char* subname, const char* gamename);
+int PerformLoad(const char* subname, long long pid);
+long long ProcFind(const char* name);
 
 std::vector<SubscriptionEntry> subscriptionList;
 
@@ -27,7 +28,7 @@ void Load()
 	scanf("%u", &loadID);
 
 	if (--loadID < subscriptionList.size()) {
-		int ret = PerformLoad(subscriptionList[loadID].int_name, subscriptionList[loadID].game_name);
+		int ret = PerformLoad(subscriptionList[loadID].int_name, ProcFind(subscriptionList[loadID].game_name));
 
 		if (ret) {
 			STPRINT("Failed to load! Error code ");
@@ -72,7 +73,7 @@ Semaphore loaderSem;
 	return outBuf;
 }
 
-pid_t ProcFind(const char* gameName)
+long long ProcFind(const char* gameName)
 {
 	unsigned int pid = 0;
 
@@ -96,7 +97,7 @@ void printfree(const char* buf)
 
 
 //We are too lazy to perform manual ELF rellocations so just let dlopen do all the work and then remap it so that the mapping is anonymous
-int PerformLoad(const char* subname, const char* gamename)
+int PerformLoad(const char* subname, long long pidIn)
 {
 	/*
 	char temp[30];
@@ -111,7 +112,7 @@ int PerformLoad(const char* subname, const char* gamename)
 
 	int fd = shm_open(temp, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 
-	pid_t pid = ProcFind(gamename);
+	pid_t pid = pidIn;
 
 	if (fd ^ -1) {
 		if (ftruncate(fd, size) ^ -1) {
@@ -294,7 +295,7 @@ ModuleList::ModuleList(int64_t pid)
 		}
 }
 
-static uint32_t ProcFind(const char* name)
+static long long ProcFind(const char* name)
 {
 	HANDLE processList = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
@@ -345,15 +346,17 @@ int loadRet = 0;
 char* mbuf = nullptr;
 char* sbuf = nullptr;
 
-int PerformLoad(const char* subname, const char* gamename)
+int PerformLoad(const char* subname, long long pid)
 {
 	loadRet = 0;
 
-	//Client side
 	EnableDebugPrivilege(GetCurrentProcess());
 
-	int pid = ProcFind(gamename);
-	processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+	//Load to self
+	if (pid == -1)
+		processHandle = GetCurrentProcess();
+	else
+		processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
 
 	if (!processHandle)
 		return 1;

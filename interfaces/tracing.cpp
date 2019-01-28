@@ -7,6 +7,7 @@
 #include "../sdk/framework/utils/threading.h"
 #include "../core/hooks.h"
 #include "../core/awall.h"
+#include "../core/mtr_scoped.h"
 
 int Tracing::TracePlayer(LocalPlayer* localPlayer, Players* players, vec3_t point, int eID, int depth, bool skipLocal)
 {
@@ -35,6 +36,7 @@ void Tracing::TracePointList(LocalPlayer* localPlayer, Players* players, size_t 
 	if (!n)
 		return;
 
+    MTR_SCOPED_TRACE("Tracing", "TracePointList");
 	traces.resize(n);
 	rays.resize(n);
 
