@@ -15,8 +15,8 @@
 
 #include <sstream>
 
-#define SERVER_IP "192.168.122.1"
-#define LOADER_VERSION "1.2"
+#define SERVER_IP "login.m0dular.cc"
+#define LOADER_VERSION "1.3"
 
 typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
 typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context> context_ptr;
