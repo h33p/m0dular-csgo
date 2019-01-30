@@ -127,7 +127,7 @@ void Impacts::HandleImpact(const CEffectData& effectData)
 				Players& players = FwBridge::playerTrack.GetLastItem(o);
 
 				int pID = players.sortIDs[entID];
-				if (pID >= MAX_PLAYERS)
+				if (pID >= MAX_PLAYERS || pID < 0)
 					continue;
 
 				int hbID = FwBridge::hitboxIDs[effectData.hitBox];
