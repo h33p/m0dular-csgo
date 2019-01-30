@@ -103,6 +103,8 @@ void* __stdcall EntryPoint(void*)
 	MTR_SCOPED_TRACE("Initialization", "EntryPoint");
 #ifndef _WIN32
 	//freopen("/tmp/csout.txt", "w", stdout);
+#else
+	//freopen("C:\\temp\\csout.txt", "w", stdout);
 #endif
 	Threading::InitThreads();
 #ifndef LOADER_INITIALIZATION
@@ -116,7 +118,7 @@ void* __stdcall EntryPoint(void*)
 #endif
 	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer as tracer...\n"));
 	moduleIdentifyDependency2 = (volatile char*)moduleName;
-	free((char*)moduleIdentifyDependency);
+    delete (char*)moduleIdentifyDependency;
 	InitializeDynamicHooks();
 	cvar->ConsoleColorPrintf(Color(1.f, 0.f, 0.f, 1.f), ST("ERROR: I'm already tracer!\n"));
 #ifdef MTR_ENABLED

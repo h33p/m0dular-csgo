@@ -28,12 +28,8 @@ file_list = core_files + framework_other_files + keycode_files
 client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/csgo_module.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
 
 infoware_comp_files = [
-  'system/kernel_info/kernel_info_non_windows.cpp',
-  'system/kernel_info/kernel_info_windows.cpp',
   'system/memory/memory_windows.cpp',
   'system/memory/memory_non_windows.cpp',
-  'system/OS_info/os_info_non_windows.cpp',
-  'system/OS_info/os_info_windows.cpp',
   'system/amounts/windows.cpp',
   'system/amounts/amounts_non_windows.cpp',
   'gpu/memory/d3d.cpp',

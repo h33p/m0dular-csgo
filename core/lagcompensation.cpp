@@ -294,18 +294,19 @@ static void UpdatePart2()
 
 	for (int i = track.Count() - 1; i >= 0; i--) {
 		Players& p = track[i];
-		UpdateData data(p, *prevTrack, &updatedPlayers, &nonUpdatedPlayersLC, true);
+		UpdateData data(p, *prevTrack, &updatedPlayersLC, &nonUpdatedPlayersLC, true);
 
 		MTR_SCOPED_TRACE("LagCompensation", "SimulateTick");
 
-		updatedPlayers.clear();
+		updatedPlayersLC.clear();
 		nonUpdatedPlayersLC.clear();
 
 		for (int o = 0; o < p.count; o++) {
 			int pID = p.unsortIDs[o];
 			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY) {
-				if (p.Resort(*prevTrack, o) < prevTrack->count)
-					nonUpdatedPlayersLC.push_back(i);
+				if (p.Resort(*prevTrack, o) < prevTrack->count) {
+					nonUpdatedPlayersLC.push_back(o);
+				}
 				continue;
 			}
 
@@ -314,7 +315,7 @@ static void UpdatePart2()
 			p.instance[o] = instances[pID];
 			SimulateUntil(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
 			p.flags[o] |= Flags::UPDATED;
-			updatedPlayers.push_back(o);
+			updatedPlayersLC.push_back(o);
 		}
 
 		FwBridge::FinishUpdating(&data);
