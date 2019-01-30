@@ -62,7 +62,8 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent);
   About the game side - not much you can do.
 */
 static void SwitchFlags(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* updatedList, std::vector<int>* updatedHitboxList);
+static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers);
+static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers);
 static void UpdateColliders(Players& __restrict players, const std::vector<int>* updatedHitboxList);
 
 static void MoveOrigin(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
@@ -287,9 +288,10 @@ void FwBridge::FinishUpdating(UpdateData* data)
 	hitboxUpdatedList.clear();
 
 	Threading::QueueJobRef(ThreadedUpdate, data);
-	UpdateHitboxes(data->players, data->updatedPlayers, &hitboxUpdatedList);
-	UpdateColliders(data->players, &hitboxUpdatedList);
+	UpdateHitboxesPart1(data->players, data->updatedPlayers);
 	Threading::FinishQueue();
+	UpdateHitboxesPart2(data->players, data->updatedPlayers, &hitboxUpdatedList);
+	UpdateColliders(data->players, &hitboxUpdatedList);
 	SwitchFlags(data->players, data->prevPlayers);
 }
 
@@ -696,12 +698,27 @@ static void UpdateHitbox(int idx, HitboxList* hbList)
 	hbList->mpDir[idx] = rot;
 }
 
-static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers)
+bool boneSetupOutput[MAX_PLAYERS];
+static Players* boneSetupPlayers = nullptr;
+
+static void ThreadedBoneSetup(void* index)
 {
-	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxes");
+	MTR_SCOPED_TRACE("FwBridge", "ThreadedBoneSetup");
+
+	int idx = (int)(uintptr_t)index;
+	boneSetupOutput[idx] = Engine::UpdatePlayer((C_BasePlayer*)boneSetupPlayers->instance[idx], boneSetupPlayers->bones[idx]);
+}
+
+static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers)
+{
+	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxesPart1");
+
+	memset(boneSetupOutput, 0, sizeof(boneSetupOutput));
+	boneSetupPlayers = &players;
+
+	int firstIDX = -1;
 
 	for (int i : *updatedPlayers) {
-
 		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
 
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
@@ -715,11 +732,24 @@ static void UpdateHitboxes(Players& __restrict players, const std::vector<int>* 
 		if (!set)
 			continue;
 
-		if (!Engine::UpdatePlayer(ent, players.bones[i]))
-			continue;
-
-		updatedHitboxPlayers->push_back(i);
+		if (firstIDX < 0)
+			firstIDX = i;
+		else
+			Threading::QueueJobRef(ThreadedBoneSetup, (void*)i);
 	}
+
+	//Perform one bone setup on the main thread to make it not idle
+	if (firstIDX >= 0)
+		ThreadedBoneSetup((void*)firstIDX);
+}
+
+static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers)
+{
+	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxesPart2");
+
+	for (int i = 0; i < MAX_PLAYERS; i++)
+		if (boneSetupOutput[i])
+			updatedHitboxPlayers->push_back(i);
 
 	for (int i : *updatedHitboxPlayers) {
 

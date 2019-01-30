@@ -97,12 +97,12 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 #endif
 
 	MTR_BEGIN("Hooks", "CreateMove");
-	Settings::ipcLock->rlock();
+	//Settings::ipcLock->rlock();
 	Tracing2::ResetTraceCount();
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
-	Settings::ipcLock->runlock();
+	//Settings::ipcLock->runlock();
 	MTR_END("Hooks", "CreateMove");
 
 	if (cmd->buttons & IN_ATTACK2 && cmd->buttons & IN_JUMP && cmd->viewangles[0] > 85)

@@ -261,6 +261,20 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 static std::vector<int> updatedPlayersLC;
 static std::vector<int> nonUpdatedPlayersLC;
 
+static Players* boneSetupPlayersLC = nullptr;
+
+static vec3 originalOriginsLC[MAX_PLAYERS];
+
+static void ThreadedPlayerReset(void* idx)
+{
+	MTR_SCOPED_TRACE("FwBridge", "ThreadedPlayerReset");
+
+	int i = (int)(uintptr_t)idx;
+
+	SetAbsOrigin(instances[i], originalOriginsLC[i]);
+	Engine::UpdatePlayer(instances[i], nullptr);
+}
+
 static void UpdatePart2()
 {
 	auto& track = *LagCompensation::futureTrack;
@@ -271,8 +285,7 @@ static void UpdatePart2()
 	vec3_t velocity[MAX_PLAYERS];
 	int tcSim[MAX_PLAYERS];
 	float tmSim[MAX_PLAYERS];
-
-	vec3 originalOriginsLC[MAX_PLAYERS];
+	uint64_t playersDirty = 0;
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & (1ull << i)) {
@@ -310,6 +323,8 @@ static void UpdatePart2()
 				continue;
 			}
 
+			playersDirty |= 1ull << pID;
+
 			tmSim[pID] += p.time[o] - csimtimes[pID];
 			tcSim[pID]++;
 			p.instance[o] = instances[pID];
@@ -322,16 +337,25 @@ static void UpdatePart2()
 		prevTrack = &p;
 	}
 
+	int firstIDX = -1;
+
 	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (FwBridge::playersFl & (1ull << i)) {
+		if (FwBridge::playersFl & playersDirty & (1ull << i)) {
 			if (!instances[i])
 				continue;
 
 			instances[i]->origin() = origin[i];
 			instances[i]->velocity() = velocity[i];
 
-			SetAbsOrigin(instances[i], originalOriginsLC[i]);
-			Engine::UpdatePlayer(instances[i], nullptr);
+			if (firstIDX < 0)
+				firstIDX = i;
+			else
+				Threading::QueueJobRef(ThreadedPlayerReset, (void*)i);
 		}
 	}
+
+	if (firstIDX >= 0)
+		ThreadedPlayerReset((void*)firstIDX);
+
+	Threading::FinishQueue();
 }
