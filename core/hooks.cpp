@@ -123,7 +123,7 @@ void __stdcall CSGOHooks::PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool for
 	if (!panelId) {
 		if (!strcmp(panelName, StackString("FocusOverlayPanel")))
 			panelId = vpanel;
-	} else if (panelId == vpanel) {
+	} else if (panelId == vpanel && Settings::debugVisuals) {
 		Visuals::Draw();
 	}
 

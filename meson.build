@@ -149,6 +149,8 @@ if not get_option('buildtype').startswith('debug')
 
   if host_machine.system() != 'windows'
     linker_args += ['-Wl,--strip-all', '-Wl,--discard-all', '-Wl,--gc-sections']
+    #compile_args += ['-fsanitize=address']
+    #external_link += ['asan']
   else
     linker_args += ['-Wl,-safeseh:no', '-Wl,-opt:REF', '-O2', '-Wl,-pdbaltpath:/home/buildslave/csgo/libm0dular.pdb']
   endif
@@ -156,8 +158,6 @@ else #Debug type compile time and link time arguments
   compile_args += ['-g', '-O0']
   #external_link += ['asan']
 
-  #compile_args += ['-fsanitize=address']
-  #external_link += ['asan']
 endif
 
 foreach p : global_defines

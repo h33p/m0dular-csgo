@@ -200,27 +200,29 @@ static void RenderPlayer(Players& pl, matrix4x4& w2s, vec2 screen, Color col)
 		if (pl.time[i] < globalVars->curtime - 0.2f)
 			continue;
 
-		for (auto u : Settings::aimbotHitboxes) {
+		if (Settings::debugVisuals > 1) {
+			for (auto u : Settings::aimbotHitboxes) {
 
-			if (FwBridge::hitboxIDs[u.hitbox] < 0 || !u.mask)
-				continue;
-
-			int o = FwBridge::hitboxIDs[u.hitbox];
-
-			mvec3 mpVec = pl.hitboxes[i].mpOffset[o];
-			mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o] * u.pointScale;
-			mpVec += ptVec;
-			mpVec = pl.hitboxes[i].wm[o].VecSoaTransform(mpVec);
-
-			bool flags[mpVec.Yt];
-			mvec3 screenPos = w2s.WorldToScreen(mpVec, screen, flags);
-
-			for (size_t u = 0; u < 1 + 0 *MULTIPOINT_COUNT; u++) {
-				if (!flags[u])
+				if (FwBridge::hitboxIDs[u.hitbox] < 0 || !u.mask)
 					continue;
-				vec3 screen = (vec3)screenPos.acc[u];
-				surface->DrawSetColor(col);
-				surface->DrawFilledRect(screen[0]-2, screen[1]-2, screen[0]+2, screen[1]+2);
+
+				int o = FwBridge::hitboxIDs[u.hitbox];
+
+				mvec3 mpVec = pl.hitboxes[i].mpOffset[o];
+				mvec3 ptVec = pl.hitboxes[i].mpDir[o] * pl.hitboxes[i].radius[o] * u.pointScale;
+				mpVec += ptVec;
+				mpVec = pl.hitboxes[i].wm[o].VecSoaTransform(mpVec);
+
+				bool flags[mpVec.Yt];
+				mvec3 screenPos = w2s.WorldToScreen(mpVec, screen, flags);
+
+				for (size_t u = 0; u < 1 + 0 *MULTIPOINT_COUNT; u++) {
+					if (!flags[u])
+						continue;
+					vec3 screen = (vec3)screenPos.acc[u];
+					surface->DrawSetColor(col);
+					surface->DrawFilledRect(screen[0]-2, screen[1]-2, screen[0]+2, screen[1]+2);
+				}
 			}
 		}
 
