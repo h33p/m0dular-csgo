@@ -11,6 +11,11 @@ combined_args = []
 external_link = []
 global_defines = ['PT_VISUALS', 'AIMBOT_THREADING', '_HAS_STATIC_RTTI=0']
 
+if get_option('performance_profiling') == true
+  global_defines += ['MTR_ENABLED=1']
+endif
+
+
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
 infoware_defines = []

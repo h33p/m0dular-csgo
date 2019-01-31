@@ -1,6 +1,6 @@
 #include "tracing.h"
 #include "hooks.h"
-#include "gametrace.h"
+#include "../sdk/features/gametrace.h"
 #include "tracecache.h"
 #include "awall.h"
 #include "../sdk/framework/utils/threading.h"

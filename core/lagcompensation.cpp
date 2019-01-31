@@ -161,7 +161,11 @@ static void UpdatePart1(uint64_t copyFlags)
 		int pc = 0;
 		int sortIDs[MAX_PLAYERS];
 		int unsortIDs[MAX_PLAYERS];
+
 		for (int o = 0; o < MAX_PLAYERS; o++) {
+
+			sortIDs[o] = -1;
+			unsortIDs[o] = -1;
 
 			if (~FwBridge::playersFl & (1ull << o) || ignoreFlags & (1ull << o) || !instances[o])
 				continue;
@@ -201,6 +205,8 @@ static void UpdatePart1(uint64_t copyFlags)
 //Simulate target player until specified time
 static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* curtime, Circle* path, float targetTime, bool updateAnims = false)
 {
+	MTR_SCOPED_TRACE("LagCompensation", "SimulateUntil");
+
 	int pID = p->unsortIDs[id];
 	C_BasePlayer* ent = instances[pID];
 	anim->SetTime(ent->prevSimulationTime() - *curtime);
@@ -258,6 +264,31 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	instances[pID]->flags() = fl;
 }
 
+struct SimulateUntilData
+{
+	Players* p;
+	int id;
+	TemporaryAnimations* anim;
+	float* curtime;
+	Circle* path;
+	float targetTime;
+	bool updateAnims;
+
+	SimulateUntilData(Players* pl, int i, TemporaryAnimations* anims, float* ct, Circle* p, float tt, bool updAnims = false)
+		: p(pl), id(i), anim(anims), curtime(ct), path(p), targetTime(tt), updateAnims(updAnims) {}
+
+	SimulateUntilData()
+		: updateAnims(false) {}
+};
+
+static std::atomic_int simedCount = 0;
+
+static void SimulateUntilThreaded(SimulateUntilData* data)
+{
+	SimulateUntil(data->p, data->id, data->anim, data->curtime, data->path, data->targetTime, data->updateAnims);
+	simedCount++;
+}
+
 static std::vector<int> updatedPlayersLC;
 static std::vector<int> nonUpdatedPlayersLC;
 
@@ -267,13 +298,16 @@ static vec3 originalOriginsLC[MAX_PLAYERS];
 
 static void ThreadedPlayerReset(void* idx)
 {
-	MTR_SCOPED_TRACE("FwBridge", "ThreadedPlayerReset");
+	MTR_SCOPED_TRACE("LagCompensation", "ThreadedPlayerReset");
 
 	int i = (int)(uintptr_t)idx;
 
 	SetAbsOrigin(instances[i], originalOriginsLC[i]);
 	Engine::UpdatePlayer(instances[i], nullptr);
 }
+
+static MultiUpdateData queuedUpdateDataLC;
+static std::vector<int> toQueueIDs;
 
 static void UpdatePart2()
 {
@@ -286,6 +320,9 @@ static void UpdatePart2()
 	int tcSim[MAX_PLAYERS];
 	float tmSim[MAX_PLAYERS];
 	uint64_t playersDirty = 0;
+	size_t updatePlayersStartIDX = 1;
+
+	int lcQuality = Settings::aimbotLagCompensation;
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & (1ull << i)) {
@@ -305,6 +342,10 @@ static void UpdatePart2()
 
 	Players* prevTrack = &FwBridge::playerTrack[0];
 
+	queuedUpdateDataLC.worldList.clear();
+	queuedUpdateDataLC.updatedIndices.clear();
+
+	queuedUpdateDataLC.worldList.push_back(prevTrack);
 	for (int i = track.Count() - 1; i >= 0; i--) {
 		Players& p = track[i];
 		UpdateData data(p, *prevTrack, &updatedPlayersLC, &nonUpdatedPlayersLC, true);
@@ -313,29 +354,70 @@ static void UpdatePart2()
 
 		updatedPlayersLC.clear();
 		nonUpdatedPlayersLC.clear();
+		toQueueIDs.clear();
+
+		int pushedCount = 0;
+		simedCount = 0;
+
+		SimulateUntilData mainThreadSimData;
 
 		for (int o = 0; o < p.count; o++) {
 			int pID = p.unsortIDs[o];
-			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY) {
-				if (p.Resort(*prevTrack, o) < prevTrack->count) {
-					nonUpdatedPlayersLC.push_back(o);
-				}
+			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY)
 				continue;
-			}
 
 			playersDirty |= 1ull << pID;
+
+			if (queuedUpdateDataLC.updatedIndices.find(pID) != queuedUpdateDataLC.updatedIndices.end() && lcQuality > 1) {
+				FwBridge::FinishUpdatingMultiWorld(&queuedUpdateDataLC, updatePlayersStartIDX);
+				queuedUpdateDataLC.worldList.clear();
+				queuedUpdateDataLC.updatedIndices.clear();
+				queuedUpdateDataLC.worldList.push_back(prevTrack);
+				updatePlayersStartIDX = 1;
+			}
 
 			tmSim[pID] += p.time[o] - csimtimes[pID];
 			tcSim[pID]++;
 			p.instance[o] = instances[pID];
-			SimulateUntil(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
+
+			auto simData = SimulateUntilData(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
+
+			if (pushedCount)
+				Threading::QueueJob(SimulateUntilThreaded, simData, true);
+			else
+				mainThreadSimData = simData;
+
 			p.flags[o] |= Flags::UPDATED;
 			updatedPlayersLC.push_back(o);
+		    toQueueIDs.push_back(pID);
+			pushedCount++;
 		}
 
-		FwBridge::FinishUpdating(&data);
+		for (int i : toQueueIDs)
+			queuedUpdateDataLC.updatedIndices[i] = queuedUpdateDataLC.worldList.size();
+
+		if (pushedCount)
+			SimulateUntilThreaded(&mainThreadSimData);
+
+		MTR_BEGIN("LagCompensation", "WaitForSimEnd");
+		while (simedCount < pushedCount)
+			;
+		MTR_END("LagCompensation", "WaitForSimEnd");
+
+		queuedUpdateDataLC.worldList.push_back(&p);
+		if (lcQuality > 1) {
+			FwBridge::StartUpdatingMultiWorld(&queuedUpdateDataLC, updatePlayersStartIDX);
+			updatePlayersStartIDX = queuedUpdateDataLC.worldList.size();
+		}
 		prevTrack = &p;
 	}
+
+	if (lcQuality <= 1)
+		FwBridge::StartUpdatingMultiWorld(&queuedUpdateDataLC, 1);
+
+	FwBridge::FinishUpdatingMultiWorld(&queuedUpdateDataLC, updatePlayersStartIDX);
+	queuedUpdateDataLC.worldList.clear();
+	queuedUpdateDataLC.updatedIndices.clear();
 
 	int firstIDX = -1;
 
@@ -350,12 +432,12 @@ static void UpdatePart2()
 			if (firstIDX < 0)
 				firstIDX = i;
 			else
-				Threading::QueueJobRef(ThreadedPlayerReset, (void*)i);
+				Threading::QueueJobRef(ThreadedPlayerReset, (void*)(uintptr_t)i);
 		}
 	}
 
 	if (firstIDX >= 0)
-		ThreadedPlayerReset((void*)firstIDX);
+		ThreadedPlayerReset((void*)(uintptr_t)firstIDX);
 
 	Threading::FinishQueue();
 }

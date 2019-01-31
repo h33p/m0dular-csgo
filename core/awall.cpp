@@ -1,6 +1,6 @@
 #include "awall.h"
 #include "tracing.h"
-#include "gametrace.h"
+#include "../sdk/features/gametrace.h"
 #include "fw_bridge.h"
 
 bool IsBreakableEntity(C_BaseEntity* ent)

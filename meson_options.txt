@@ -3,3 +3,4 @@ option('use_static_libs', type: 'boolean', value : false, description : 'Use sta
 option('build_all_instruction_variants', type: 'boolean', value : false, description : 'Build all SSE2/SSE3/SSE41/AVX/AVX2/AVX512 variants of the library.')
 option('randomize_link_order', type: 'boolean', value : false, description : 'Randomize the link order of files. Results in functions binaries having vastly different code layout (only works on posix build environment).')
 option('module_identification', type: 'string', value : 'x52', description : 'Identification string to be embedded inside the module.')
+option('performance_profiling', type: 'boolean', value: false, description : 'Record a performance trace and save it to file')

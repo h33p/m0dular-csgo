@@ -67,7 +67,7 @@ struct TraceCache
 	vec3_t pos;
 	float eyeHeight;
 	static constexpr uintptr_t nullBase = 0;
-	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, TRACE_CACHE_SIZE, PlacementPolicy::FIND_FIRST, true>> tree;
+	KDTree<traceang_t, 2, free_list_allocator<TreeNode_t<traceang_t>, nullBase, false, TRACE_CACHE_SIZE>> tree;
 	bool printed = false;
 
 	TraceCache() : traceCountTick(0), cachedTraceCountTick(0), pos(0), eyeHeight(0), tree()

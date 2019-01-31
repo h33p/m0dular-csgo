@@ -108,7 +108,7 @@ void Visuals::Draw()
 	for (size_t i = 0; i < 1 && i < FwBridge::playerTrack.Count(); i+=1)
 		RenderPlayer(FwBridge::playerTrack.GetLastItem(i), w2s, screen, Color(1.f, 0.f, 0.f, 1.f));
 	if (LagCompensation::futureTrack) {
-	    for (size_t i = 0; i < 1 && i < 0 * LagCompensation::futureTrack->Count(); i+=1)
+	    for (size_t i = 0; i < 0 && i < 1 * LagCompensation::futureTrack->Count(); i+=1)
 			RenderPlayer(LagCompensation::futureTrack->GetLastItem(i), w2s, screen, Color(0.f, 0.f, 1.f, 1.f));
 	}
 

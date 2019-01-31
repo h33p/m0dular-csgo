@@ -12,6 +12,7 @@ struct AimbotTarget;
 #include "../sdk/framework/utils/history_list.h"
 #include "../sdk/source_csgo/sdk.h"
 #include "macros.h"
+#include <map>
 
 #if defined(__linux__)
 #define RUNFRAME_TICK 0x3
@@ -128,6 +129,12 @@ struct UpdateData
 		: players(p1), prevPlayers(p2), updatedPlayers(uP), nonUpdatedPlayers(nuP), additionalUpdate(b1) {}
 };
 
+struct MultiUpdateData
+{
+	std::vector<Players*> worldList;
+	std::map<int, size_t> updatedIndices;
+};
+
 
 #define TICK_INTERVAL globalVars->interval_per_tick
 
@@ -162,6 +169,8 @@ namespace FwBridge
 
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);
+	void StartUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
+	void FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
 	bool IsEnemy(C_BasePlayer* ent);

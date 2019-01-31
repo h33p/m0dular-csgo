@@ -62,7 +62,7 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent);
   About the game side - not much you can do.
 */
 static void SwitchFlags(Players& __restrict players, Players& __restrict prevPlayers);
-static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers);
+static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers, bool async = false);
 static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers);
 static void UpdateColliders(Players& __restrict players, const std::vector<int>* updatedHitboxList);
 
@@ -265,9 +265,6 @@ static std::vector<int> hitboxUpdatedList;
 void FwBridge::FinishUpdating(UpdateData* data)
 {
     MTR_SCOPED_TRACE("FwBridge", "FinishUpdating");
-	//Updating the hitboxes calls engine functions that only work on the main thread
-	//While it is being done, let's update other data on a seperate thread
-	//Flags depend on the animation fix fixing up the player.
 	MoveOrigin(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 	MoveEyePos(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 
@@ -293,6 +290,77 @@ void FwBridge::FinishUpdating(UpdateData* data)
 	UpdateHitboxesPart2(data->players, data->updatedPlayers, &hitboxUpdatedList);
 	UpdateColliders(data->players, &hitboxUpdatedList);
 	SwitchFlags(data->players, data->prevPlayers);
+}
+
+//This is used to update each hitboxes at multiple time stamps (used in LagCompensation) in an effective and lockless way
+static std::vector<int> updatedPlayersTemp;
+static std::vector<int> nonUpdatedPlayersTemp;
+static std::vector<int> hitboxUpdatedListTemp;
+
+void FwBridge::StartUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
+{
+	MTR_SCOPED_TRACE("FwBridge", "StartUpdatingMultiWorld");
+
+	for (size_t i = startIDX; i < data->worldList.size(); i++) {
+		updatedPlayersTemp.clear();
+
+		for (const auto& o : data->updatedIndices) {
+			int u = data->worldList[i]->sortIDs[o.first];
+
+			if (u < 0 || u >= MAX_PLAYERS)
+				continue;
+
+			if (o.second == i)
+				updatedPlayersTemp.push_back(u);
+		}
+
+		UpdateHitboxesPart1(*data->worldList[i], &updatedPlayersTemp, true);
+	}
+}
+
+void FwBridge::FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
+{
+	MTR_SCOPED_TRACE("FwBridge", "FinishUpdatingMultiWorld");
+
+	Threading::FinishQueue();
+
+	for (size_t i = 1; i < data->worldList.size(); i++) {
+		updatedPlayersTemp.clear();
+		nonUpdatedPlayersTemp.clear();
+
+		for (const auto& o : data->updatedIndices) {
+			int u = data->worldList[i]->sortIDs[o.first];
+
+			if (u < 0 || u >= MAX_PLAYERS)
+				continue;
+
+			if (o.second == i)
+				updatedPlayersTemp.push_back(u);
+			else if (data->worldList[i]->Resort(*data->worldList[i - 1], u) < MAX_PLAYERS)
+				nonUpdatedPlayersTemp.push_back(u);
+		}
+
+		UpdateData tempData(*data->worldList[i], *data->worldList[i - 1], &updatedPlayersTemp, &nonUpdatedPlayersTemp, true);
+
+		MoveOrigin(*data->worldList[i], *data->worldList[i - 1], &nonUpdatedPlayersTemp);
+		MoveEyePos(*data->worldList[i], *data->worldList[i - 1], &nonUpdatedPlayersTemp);
+
+		for (int o : *tempData.updatedPlayers) {
+			C_BasePlayer* ent = (C_BasePlayer*)tempData.players.instance[o];
+		    tempData.players.origin[o] = ent->origin();
+			float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
+		    tempData.players.eyePos[o] = tempData.players.origin[o];
+		    tempData.players.eyePos[o][2] += eyeOffset;
+		}
+
+		//Do not thread this because it we do not have anything concurrent at the moment
+		ThreadedUpdate(&tempData);
+
+		hitboxUpdatedListTemp.clear();
+		UpdateHitboxesPart2(*data->worldList[i], &updatedPlayersTemp, &hitboxUpdatedListTemp);
+		UpdateColliders(*data->worldList[i], &hitboxUpdatedListTemp);
+		SwitchFlags(*data->worldList[i], *data->worldList[i - 1]);
+	}
 }
 
 static float prevBacktrackCurtime = 0;
@@ -698,23 +766,35 @@ static void UpdateHitbox(int idx, HitboxList* hbList)
 	hbList->mpDir[idx] = rot;
 }
 
-bool boneSetupOutput[MAX_PLAYERS];
-static Players* boneSetupPlayers = nullptr;
+//The code below is single-threaded when it comes to updating the same player (obviously), but multithreaded when updating multiple worlds
+
+struct BoneSetupData
+{
+	Players* players;
+	int idx;
+	bool output;
+
+	BoneSetupData()
+		: players(nullptr), idx(MAX_PLAYERS), output(false) {}
+
+	BoneSetupData(Players* p, int id, bool out)
+		: players(p), idx(id), output(out) {}
+};
+
+BoneSetupData boneSetupData[MAX_PLAYERS];
 
 static void ThreadedBoneSetup(void* index)
 {
 	MTR_SCOPED_TRACE("FwBridge", "ThreadedBoneSetup");
 
-	int idx = (int)(uintptr_t)index;
-	boneSetupOutput[idx] = Engine::UpdatePlayer((C_BasePlayer*)boneSetupPlayers->instance[idx], boneSetupPlayers->bones[idx]);
+	BoneSetupData* data = (BoneSetupData*)boneSetupData + (uintptr_t)index;
+
+	data->output = Engine::UpdatePlayer((C_BasePlayer*)data->players->instance[data->idx], data->players->bones[data->idx]);
 }
 
-static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers)
+static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers, bool async)
 {
 	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxesPart1");
-
-	memset(boneSetupOutput, 0, sizeof(boneSetupOutput));
-	boneSetupPlayers = &players;
 
 	int firstIDX = -1;
 
@@ -732,15 +812,17 @@ static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<i
 		if (!set)
 			continue;
 
-		if (firstIDX < 0)
-			firstIDX = i;
+		boneSetupData[players.unsortIDs[i]] = BoneSetupData(&players, i, false);
+
+		if (firstIDX < 0 && !async)
+			firstIDX = players.unsortIDs[i];
 		else
-			Threading::QueueJobRef(ThreadedBoneSetup, (void*)i);
+			Threading::QueueJobRef(ThreadedBoneSetup, (void*)(uintptr_t)players.unsortIDs[i]);
 	}
 
 	//Perform one bone setup on the main thread to make it not idle
 	if (firstIDX >= 0)
-		ThreadedBoneSetup((void*)firstIDX);
+		ThreadedBoneSetup((void*)(uintptr_t)firstIDX);
 }
 
 static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers)
@@ -748,8 +830,10 @@ static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<i
 	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxesPart2");
 
 	for (int i = 0; i < MAX_PLAYERS; i++)
-		if (boneSetupOutput[i])
-			updatedHitboxPlayers->push_back(i);
+		if (boneSetupData[i].players == &players && boneSetupData[i].output) {
+			updatedHitboxPlayers->push_back(players.sortIDs[i]);
+			boneSetupData[i] = BoneSetupData();
+		}
 
 	for (int i : *updatedHitboxPlayers) {
 

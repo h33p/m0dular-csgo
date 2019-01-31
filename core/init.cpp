@@ -97,7 +97,11 @@ static volatile char* moduleIdentifyDependency2 = nullptr;
 void* __stdcall EntryPoint(void*)
 {
 #ifdef MTR_ENABLED
-	mtr_init("csgotrace.json");
+#ifdef _WIN32
+	mtr_init("C:\\Temp\\csgotrace.json");
+#else
+	mtr_init("/tmp/csgotrace.json");
+#endif
 	MTR_META_PROCESS_NAME("thread_pool_test");
 #endif
 	MTR_SCOPED_TRACE("Initialization", "EntryPoint");
@@ -298,12 +302,6 @@ void Shutdown()
 {
 	if (firstTime) {
 
-#ifdef MTR_ENABLED
-		mtr_flush();
-		mtr_shutdown();
-		cvar->ConsoleDPrintf("Ending trace\n");
-#endif
-
 		firstTime = false;
 
 		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
@@ -345,6 +343,13 @@ void Shutdown()
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();
 		cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
+
+#ifdef MTR_ENABLED
+		mtr_flush();
+		mtr_shutdown();
+		cvar->ConsoleDPrintf("Ending trace\n");
+#endif
+
 	}
 }
 
