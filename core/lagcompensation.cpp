@@ -47,7 +47,7 @@ void LagCompensation::PreRun()
 
 void LagCompensation::Run()
 {
-    MTR_SCOPED_TRACE("LagCompensation", "Run");
+	MTR_SCOPED_TRACE("LagCompensation", "Run");
 	UpdatePart2();
 }
 
