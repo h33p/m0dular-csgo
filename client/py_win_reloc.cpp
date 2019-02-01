@@ -47,6 +47,7 @@ static PyObject* RelocateImage(PyObject* self, PyObject* args) {
 	PackedWinModule packedModule(inpBuf);
 
 	packedModule.PerformRelocations(address);
+	packedModule.RunCrypt();
 
 	uint32_t allocSize = 0;
 	char* fullCBuf = packedModule.ToBuffer(&allocSize);

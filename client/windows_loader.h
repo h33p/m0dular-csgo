@@ -65,6 +65,7 @@ struct WinModule;
 
 struct PackedWinModule
 {
+	//uint32_t xorKey;
 	uint32_t modBufSize;
 	uint32_t bufSize;
 	uint32_t allocSize;
@@ -88,7 +89,7 @@ struct PackedWinModule
 	char* ToBuffer(uint32_t* outSize);
 
 	PackedWinModule()
-		: moduleBuffer(nullptr), buffer(nullptr) {}
+		: moduleBuffer(nullptr), buffer(nullptr) {}//, xorKey(0) {}
 
 
 	PackedWinModule(const PackedWinModule& o)
@@ -117,6 +118,7 @@ struct PackedWinModule
 			free((void*)moduleBuffer);
 	}
 
+	void RunCrypt();
 	void PerformRelocations(nptr_t base);
 
 	//This is only meant to be available to the client side

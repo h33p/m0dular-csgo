@@ -3,6 +3,7 @@
 
 #include "settings.h"
 
-extern "C" void OnLoad(ConsoleSetting** sets, size_t* size);
+void OnLoad(ConsoleSetting** sets, size_t* size);
+extern "C" void Menu();
 
 #endif

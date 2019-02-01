@@ -8,8 +8,8 @@ void LoginRejected(const std::string& str);
 void LoginInvHWID(const std::string& str);
 void LoginInvIP(const std::string& str);
 void ServerMessage(const std::string& str);
-void CheatLibraryReceive(const std::string& str);
-void SettingsLibraryReceive(const std::string& str);
+void LibraryStartLoad(const std::string& str);
+void LibraryReceive(const std::string& str);
 void LibraryAllocate(const std::string& str);
 void SubscriptionList(const std::string& str);
 

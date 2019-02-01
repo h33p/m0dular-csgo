@@ -8,38 +8,74 @@
 #include "../sdk/framework/utils/pattern_scan.h"
 #include "../sdk/framework/utils/handles.h"
 #include "../sdk/framework/utils/semaphores.h"
+#include "../sdk/framework/utils/threading.h"
 
-int PerformLoad(const char* subname, long long pid);
+void StartLoad(long pid);
+int PerformLoad(void*);
 long long ProcFind(const char* name);
+static std::vector<ProcessEntry> GetProcessList();
+
+Semaphore loaderSem;
+int loadRet = 0;
 
 std::vector<SubscriptionEntry> subscriptionList;
 
-void Load()
+void Load(int loadID)
 {
+	loadRet = 0;
+	//Send updated process list to the server
+	auto list = GetProcessList();
 
-	STPRINT("Select the cheat to load:\n");
-	STPRINT("ID\tVALID_UNTIL\tNAME\n");
+	char* procBuf = (char*)malloc(list.size() * 128);
 
-	for (size_t i = 0; i < subscriptionList.size(); i++)
-		printf("%lu\t%s\t%s\n", i + 1, subscriptionList[i].subscription_date, subscriptionList[i].name);
+	procBuf[0] = '\0';
 
-	uint32_t loadID = 0;
+	strcat(procBuf, ST("pl"));
 
-	scanf("%u", &loadID);
-
-	if (--loadID < subscriptionList.size()) {
-		int ret = PerformLoad(subscriptionList[loadID].int_name, ProcFind(subscriptionList[loadID].game_name));
-
-		if (ret) {
-			STPRINT("Failed to load! Error code ");
-			printf("%d\n", ret);
-		} else
-			STPRINT("Loaded successfully!\n");
+	for (const ProcessEntry& i : list) {
+		char procEntry[128];
+		snprintf(procEntry, 127, "\n%lld:%s", i.pid, i.name);
+		strcat(procBuf, procEntry);
 	}
 
+	ServerComm::Send(std::string(procBuf));
+
+	free(procBuf);
+
+	char loadBuf[256];
+
+	snprintf(loadBuf, 255, "%s %s", (char*)ST("ldm"), subscriptionList[loadID].int_name);
+
+	ServerComm::Send(std::string(loadBuf));
+
+	//The lock will be unlocked by the loader
+	loaderSem.TimedWait(60000);
+
+	if (loadRet) {
+		STPRINT("Failed to load! Error code ");
+		printf("%d\n", loadRet);
+	} else
+		STPRINT("Loaded successfully!\n");
 }
 
-Semaphore loaderSem;
+void LoadMenu(int loadID)
+{
+	loadRet = 0;
+
+	char loadBuf[256];
+
+	snprintf(loadBuf, 255, "%s %s", (char*)ST("lds"), subscriptionList[loadID].int_name);
+
+	ServerComm::Send(std::string(loadBuf));
+
+	//The lock will be unlocked by the loader
+	loaderSem.TimedWait(60000);
+
+	if (loadRet) {
+		STPRINT("Failed to initialize menu! Error code ");
+		printf("%d\n", loadRet);
+	}
+}
 
 #if defined(__linux__)
 #define GAME_NAME "csgo_linux64"
@@ -315,7 +351,32 @@ static long long ProcFind(const char* name)
 		}
 	}
 
+	CloseHandle(processList);
+
 	return 0;
+}
+
+static std::vector<ProcessEntry> GetProcessList()
+{
+	std::vector<ProcessEntry> ret;
+
+	HANDLE processList = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	if (processList == INVALID_HANDLE_VALUE)
+		return ret;
+
+	if (WaitForSingleObject(processList, 0) == WAIT_TIMEOUT)
+		return ret;
+
+	PROCESSENTRY32 proc;
+	proc.dwSize = sizeof(PROCESSENTRY32);
+
+	while (Process32Next(processList, &proc))
+		ret.push_back(ProcessEntry(proc.th32ProcessID, proc.szExeFile));
+
+	CloseHandle(processList);
+
+	return ret;
 }
 
 static bool EnableDebugPrivilege(HANDLE process)
@@ -341,14 +402,15 @@ LdrpHandleTlsDataSTDFn handleTlsDataSTD = nullptr;
 LdrpHandleTlsDataThisFn handleTlsDataThis = nullptr;
 HANDLE processHandle = nullptr;
 
-int loadRet = 0;
-
 char* mbuf = nullptr;
 char* sbuf = nullptr;
+bool localLoad = false;
 
-int PerformLoad(const char* subname, long long pid)
+void StartLoad(long pid)
 {
 	loadRet = 0;
+	mbuf = nullptr;
+	sbuf = nullptr;
 
 	EnableDebugPrivilege(GetCurrentProcess());
 
@@ -358,8 +420,12 @@ int PerformLoad(const char* subname, long long pid)
 	else
 		processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
 
-	if (!processHandle)
-		return 1;
+	localLoad = pid == -1;
+
+	if (!processHandle) {
+		loadRet = 1;
+		return;
+	}
 
 	ModuleList moduleList(pid);
 
@@ -387,15 +453,19 @@ int PerformLoad(const char* subname, long long pid)
 		}
 	}
 
-	if (!handleTlsInfoAddress)
-		return 2;
+	if (!handleTlsInfoAddress) {
+	    loadRet = 2;
+		return;
+	}
 
-	handleTlsInfoAddress -= ntdllInfo.address;
+	if (!localLoad) {
+		handleTlsInfoAddress -= ntdllInfo.address;
 
-	for (auto& i : moduleList.modules) {
-		if (!STRCASECMP(ntdllString, moduleList.names.data() + i.nameOffset)) {
-			handleTlsInfoAddress += i.startAddress;
-			break;
+		for (auto& i : moduleList.modules) {
+			if (!STRCASECMP(ntdllString, moduleList.names.data() + i.nameOffset)) {
+				handleTlsInfoAddress += i.startAddress;
+				break;
+			}
 		}
 	}
 
@@ -411,9 +481,8 @@ int PerformLoad(const char* subname, long long pid)
 
 	char* requestBuf = (char*)malloc(100 + moduleList.names.size() + moduleList.modules.size() * sizeof(RemoteModuleInfo));
 	requestBuf[0] = '\0';
-	strcat(requestBuf, ST("ld\n"));
-	strcat(requestBuf, subname);
-	strcat(requestBuf, ST("\n"));
+	strcat(requestBuf, ST("lml\n"));
+	fflush(stdout);
 	int curidx = strlen(requestBuf);
 	*(uint32_t*)(requestBuf + curidx) = moduleList.names.size();
 	curidx += sizeof(uint32_t);
@@ -424,17 +493,16 @@ int PerformLoad(const char* subname, long long pid)
 	memcpy(requestBuf + curidx, moduleList.modules.data(), moduleList.modules.size() * sizeof(RemoteModuleInfo));
 	curidx += moduleList.modules.size() * sizeof(RemoteModuleInfo);
 	ServerComm::Send(std::string(requestBuf, curidx));
-
 	free(requestBuf);
+}
 
-	//Client side
+void ServerStartLoad(long pid)
+{
+	Threading::QueueJobRef(StartLoad, (void*)pid);
+}
 
-	//The lock will be unlocked by the loader
-	loaderSem.TimedWait(60000);
-
-	if (loadRet != 0)
-		return loadRet;
-
+static int PerformLoad(void*)
+{
 	if (!sbuf)
 		return 4;
 
@@ -443,38 +511,46 @@ int PerformLoad(const char* subname, long long pid)
 	if (!packedLoader.state)
 		loadRet = 5;
 	else {
-		uintptr_t loaderDataSize = sizeof(PackedWinModule) + packedLoader.bufSize;
-		uintptr_t loaderArgsSize = sizeof(WinLoadData);
-		uintptr_t loaderSize = (uintptr_t)loaderEnd - (uintptr_t)loaderStart;
-		uintptr_t fullLoaderSize = loaderSize + loaderArgsSize + loaderDataSize + 16;
+		if (localLoad) {
+			WinLoadData lData = {(PackedWinModule*)&packedLoader, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA, handleTlsDataSTD, handleTlsDataThis};
+			memcpy(mbuf, packedLoader.moduleBuffer, packedLoader.modBufSize);
+		    LoadPackedModule((void*)&lData);
+		} else {
+			uintptr_t loaderDataSize = sizeof(PackedWinModule) + packedLoader.bufSize;
+			uintptr_t loaderArgsSize = sizeof(WinLoadData);
+			uintptr_t loaderSize = (uintptr_t)loaderEnd - (uintptr_t)loaderStart;
+			uintptr_t fullLoaderSize = loaderSize + loaderArgsSize + loaderDataSize + 16;
 
-		char* loaderBuf = (char*)VirtualAllocEx(processHandle, nullptr, fullLoaderSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			char* loaderBuf = (char*)VirtualAllocEx(processHandle, nullptr, fullLoaderSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
-		if (!loaderBuf)
-			loadRet = 6;
-		else {
-			uintptr_t loaderAddress = (uintptr_t)loaderBuf + loaderDataSize + loaderArgsSize;
+			if (!loaderBuf)
+				loadRet = 6;
+			else {
+				uintptr_t loaderAddress = (uintptr_t)loaderBuf + loaderDataSize + loaderArgsSize;
 
-			if (loaderAddress % 16)
-				loaderAddress += 16 - loaderAddress % 16;
+				if (loaderAddress % 16)
+					loaderAddress += 16 - loaderAddress % 16;
 
-			packedLoader.SetupInPlace(processHandle, mbuf, loaderBuf);
+				packedLoader.SetupInPlace(processHandle, mbuf, loaderBuf);
 
-			WinLoadData lData = {(PackedWinModule*)loaderBuf, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA, handleTlsDataSTD, handleTlsDataThis};
+				WinLoadData lData = {(PackedWinModule*)loaderBuf, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA, handleTlsDataSTD, handleTlsDataThis};
 
-			WriteProcessMemory(processHandle, loaderBuf + loaderDataSize, &lData, sizeof(WinLoadData), nullptr);
+				WriteProcessMemory(processHandle, loaderBuf + loaderDataSize, &lData, sizeof(WinLoadData), nullptr);
 
-			WriteProcessMemory(processHandle, (void*)loaderAddress, loaderStart, loaderSize, nullptr);
+				WriteProcessMemory(processHandle, (void*)loaderAddress, loaderStart, loaderSize, nullptr);
 
-			HANDLE thread = CreateRemoteThread(processHandle, nullptr, 0, (unsigned long(__stdcall*)(void*))loaderAddress, loaderBuf + loaderDataSize, 0, nullptr);
+				HANDLE thread = CreateRemoteThread(processHandle, nullptr, 0, (unsigned long(__stdcall*)(void*))loaderAddress, loaderBuf + loaderDataSize, 0, nullptr);
 
-			WaitForSingleObject(thread, INFINITE);
+				WaitForSingleObject(thread, INFINITE);
 
-			VirtualFreeEx(processHandle, loaderBuf, fullLoaderSize, MEM_RELEASE);
+				VirtualFreeEx(processHandle, loaderBuf, fullLoaderSize, MEM_RELEASE);
+			}
 		}
 	}
 
 	free(sbuf);
+
+	loaderSem.Post();
 
 	return loadRet;
 }
@@ -483,7 +559,7 @@ void ServerReceiveModule(const char* dataIn, uint32_t size)
 {
 	sbuf = (char*)malloc(size);
 	memcpy(sbuf, dataIn, size);
-	loaderSem.Post();
+	Threading::QueueJobRef(PerformLoad, (void*)0);
 }
 
 uint64_t ServerAllocateModule(uint32_t allocSize)

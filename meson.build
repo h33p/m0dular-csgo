@@ -30,7 +30,9 @@ keycode_files = ['modules/keycode/keyid.c']
 
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_other_files + keycode_files
-client_file_list = ['core/settings.cpp', 'core/binds.cpp', 'client/csgo_module.cpp', 'client/settings.cpp', 'client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
+
+gamelib_files = ['core/settings.cpp', 'core/binds.cpp', 'client/csgo_module.cpp', 'client/settings.cpp']
+client_file_list = gamelib_files + ['client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
 
 infoware_comp_files = [
   'system/memory/memory_windows.cpp',

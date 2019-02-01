@@ -15,8 +15,13 @@ static ConsoleSetting csgoSettingList[] =
 
 size_t csgoSettingsCount = sizeof(csgoSettingList) / sizeof(csgoSettingList[0]);
 
-extern "C" void OnLoad(ConsoleSetting** sets, size_t* size)
+void OnLoad(ConsoleSetting** sets, size_t* size)
 {
 	*sets = csgoSettingList;
 	*size = csgoSettingsCount;
+}
+
+extern "C" void Menu()
+{
+	SettingsConsole();
 }

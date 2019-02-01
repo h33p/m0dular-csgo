@@ -16,7 +16,7 @@
 #include <sstream>
 
 #define SERVER_IP "login.m0dular.cc"
-#define LOADER_VERSION "1.3"
+#define LOADER_VERSION "2.0"
 
 typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
 typedef websocketpp::lib::shared_ptr<websocketpp::lib::asio::ssl::context> context_ptr;
@@ -44,9 +44,9 @@ static ServerCommand commandList[] =
 	{"lgh"_crc32, LoginInvHWID},
 	{"lgi"_crc32, LoginInvIP},
 	{"msg"_crc32, ServerMessage},
-	{"clr"_crc32, CheatLibraryReceive},
+	{"cld"_crc32, LibraryStartLoad},
 	{"la"_crc32, LibraryAllocate},
-	{"slr"_crc32, SettingsLibraryReceive},
+	{"clr"_crc32, LibraryReceive},
 	{"sul"_crc32, SubscriptionList},
 };
 
@@ -152,6 +152,7 @@ void ServerComm::LoginCredentials()
 		}
 	}
 
+	//TODO: Remove the cpu features from the cpu string and leave it to the server to concat it all
 	char cpuname[128];
 	snprintf(cpuname, 128, "%s %s %s %s %d %s %d %s %d", iware::cpu::vendor_id().c_str(), iware::cpu::model_name().c_str(), fpInstList[bestInstructionSet].name, (char*)ST("L1"), (int)iware::cpu::cache(1).size / 1000, (char*)ST("L2"), (int)iware::cpu::cache(2).size / 1000, (char*)ST("L3"), (int)iware::cpu::cache(3).size / 1000);
 

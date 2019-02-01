@@ -305,6 +305,17 @@ void PackedWinModule::PerformRelocations(nptr_t base)
 	relocationOffset = 0;
 }
 
+void PackedWinModule::RunCrypt()
+{
+	/*if (!xorKey)
+		for (size_t i = 0; i < sizeof(xorKey); i++)
+			((char*)&xorKey)[i] = (rand() % 256);
+
+	for (size_t i = 0; i < bufSize - (sizeof(xorKey) - 1); i += sizeof(xorKey))
+	*(uint32_t*)(moduleBuffer + i) ^= xorKey;*/
+}
+
+
 #ifdef _WIN32
 void PackedWinModule::SetupInPlace(HANDLE processHandle, char* targetModuleAddress, char* targetDataAddress)
 {
@@ -315,12 +326,8 @@ void PackedWinModule::SetupInPlace(HANDLE processHandle, char* targetModuleAddre
 	WriteProcessMemory(processHandle, (void*)wModule.buffer, (void*)buffer, bufSize, nullptr);
 	wModule.buffer = nullptr;
 
-	//Copy sections
-	uint32_t* sectionCount = (uint32_t*)(buffer + sectionOffset);
-	WinSection* sections = (WinSection*)(sectionCount + 1);
-
-	for (uint32_t i = 0; i < *sectionCount; i++)
-	    WriteProcessMemory(processHandle, targetModuleAddress + sections[i].virtOffset, moduleBuffer + sections[i].bufOffset, sections[i].bufSize, nullptr);
+	//Copy buffer into module
+	WriteProcessMemory(processHandle, targetModuleAddress, moduleBuffer, wModule.modBufSize, nullptr);
 }
 
 
@@ -354,8 +361,17 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 	LoadLibraryAFn pLoadLibraryA = wLoadData->pLoadLibraryA;
 
 	const char* buffer = packedModule->buffer;
-
 	const char* names = buffer + packedModule->nameOffset;
+
+	uint32_t* sectionCount = (uint32_t*)(buffer + packedModule->sectionOffset);
+	WinSection* sections = (WinSection*)(sectionCount + 1);
+
+	//TODO: We should actually copy a fake library using WriteProcessMemory section by section and then run this code from the second allocated buffer
+
+	// Decrypt and copy the sections backwards to not overwrite the buffer
+	for (uint32_t i = *sectionCount - 1; i < (~0u) - 2u; i--)
+		for (size_t o = sections[i].bufSize / sizeof(uint32_t) - 1; o < (~0u) - 2u; o--)
+			((uint32_t*)(outBuf + sections[i].virtOffset))[o] = ((uint32_t*)(outBuf + sections[i].bufOffset))[o];// ^ packedModule->xorKey;
 
 	uint32_t* importHCount = (uint32_t*)(buffer + packedModule->importsWHOffset);
 	WinImportH* importsH = (WinImportH*)(importHCount + 1);
@@ -386,8 +402,6 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 	}
 
 	//TODO: Handle TLS data manually
-	//TODO: Call LdrpHandleTlsData
-
 	LDR_DATA_TABLE_ENTRY dummyDataTable;
 
 	dummyDataTable.DllBase = outBuf;

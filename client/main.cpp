@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include "main.h"
-#include "settings.h"
+#include "game_settings_module.h"
 #include "loader.h"
 #include "server_comm.h"
+#include "../sdk/framework/utils/threading.h"
 
 #ifdef __linux__
 #include <termios.h>
@@ -21,6 +22,7 @@ int echoEnableCount = 0;
 
 int main()
 {
+	Threading::InitThreads();
 	DrawSplash();
 	SetColor(ANSI_COLOR_RESET);
 
@@ -29,31 +31,50 @@ int main()
 
 	int failcount = 0;
 
-	while (failcount < 10) {
-		SetColor(ANSI_COLOR_RESET);
-		STPRINT("Choose one of these options:\n1. Load the cheat\n2. Open settings console\nEOF. Quit\n\nEnter choice> ");
 
-		int val = 0;
+	while (failcount++ < 10) {
+		STPRINT("Select the cheat:\n");
+		STPRINT("ID\tVALID_UNTIL\tNAME\n");
 
-		if (scanf("%d", &val) == EOF)
-			break;
+		for (size_t i = 0; i < subscriptionList.size(); i++)
+			printf("%lu\t%s\t%s\n", i + 1, subscriptionList[i].subscription_date, subscriptionList[i].name);
 
-		switch(val) {
-		  case 1:
-			  Load();
-			  break;
-		  case 2:
-			  SettingsConsole();
-			  break;
-		  default:
-			  goto failcount_increase;
+		uint32_t loadID = 0;
+
+		scanf("%u", &loadID);
+
+		if (--loadID < subscriptionList.size()) {
+			failcount = 0;
+			while (failcount < 10) {
+				SetColor(ANSI_COLOR_RESET);
+				STPRINT("Choose one of these options:\n1. Load the cheat\n2. Open cheat menu\nQ. Quit\n\nEnter choice> ");
+
+			    char val[256];
+
+				if (scanf("%s", &val) == EOF || val[0] == 'q' || val[0] == 'Q')
+					break;
+
+				int valInt = strtol(val, nullptr, 10);
+
+				switch(valInt) {
+				  case 1:
+					  Load(loadID);
+					  break;
+				  case 2:
+					  Menu();
+					  break;
+				  default:
+					  goto failcount_increase;
+				}
+
+				failcount = -1;
+			  failcount_increase:
+				failcount++;
+			}
 		}
-
-		failcount = -1;
-	  failcount_increase:
-		failcount++;
 	}
 
+	Threading::EndThreads();
 	ServerComm::Stop();
 
 	return 0;

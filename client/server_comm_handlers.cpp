@@ -48,7 +48,13 @@ void ServerMessage(const std::string& str)
 	SetColor(ANSI_COLOR_RESET);
 }
 
-void CheatLibraryReceive(const std::string& str)
+void LibraryStartLoad(const std::string& str)
+{
+	long pid = strtol(str.c_str(), nullptr, 10);
+	ServerStartLoad(pid);
+}
+
+void LibraryReceive(const std::string& str)
 {
     //printf("Receive library payload size %u!\n", (uint32_t)str.size());
 	ServerReceiveModule(str.c_str(), str.size());
@@ -65,11 +71,6 @@ void LibraryAllocate(const std::string& str)
 	ServerComm::Send(ret);
 }
 
-void SettingsLibraryReceive(const std::string& str)
-{
-//TODO: have a separate game-specific settings library that controls all the configuration
-}
-
 void SubscriptionList(const std::string& str)
 {
 	//STPRINT("Receive subscription list!\n");
@@ -78,7 +79,7 @@ void SubscriptionList(const std::string& str)
 	strncpy(dstr, str.c_str(), 255);
 	for (const char* s = strtok(dstr, "\n"); s; s = strtok(nullptr, "\n")) {
 		char name[128], sub_date[64], game_name[32], int_name[32];
-		sscanf(s, "%[^:]:%[^:]:%[^:]:%s", name, sub_date, int_name, game_name);
-		subscriptionList.push_back(SubscriptionEntry(name, sub_date, game_name, int_name));
+		sscanf(s, "%[^:]:%[^:]:%s", name, sub_date, int_name);
+		subscriptionList.push_back(SubscriptionEntry(name, sub_date, int_name));
 	}
 }
