@@ -16,13 +16,18 @@ long long ProcFind(const char* name);
 static std::vector<ProcessEntry> GetProcessList();
 
 Semaphore loaderSem;
+
+//These are set by the loader during the loading process. Not thread safe, obviously
 int loadRet = 0;
 
+static int lastModuleID = 0;
 std::vector<SubscriptionEntry> subscriptionList;
+std::vector<ModuleEntry> loadedModules;
 
-void Load(int loadID)
+int Load(int loadID)
 {
 	loadRet = 0;
+
 	//Send updated process list to the server
 	auto list = GetProcessList();
 
@@ -54,11 +59,14 @@ void Load(int loadID)
 	if (loadRet) {
 		STPRINT("Failed to load! Error code ");
 		printf("%d\n", loadRet);
+		return 0;
 	} else
 		STPRINT("Loaded successfully!\n");
+
+	return lastModuleID;
 }
 
-void LoadMenu(int loadID)
+int LoadCheatMenu(int loadID)
 {
 	loadRet = 0;
 
@@ -74,7 +82,10 @@ void LoadMenu(int loadID)
 	if (loadRet) {
 		STPRINT("Failed to initialize menu! Error code ");
 		printf("%d\n", loadRet);
+		return 0;
 	}
+
+	return lastModuleID;
 }
 
 #if defined(__linux__)
@@ -311,6 +322,9 @@ WindowsSignatureStorage tlsSignatures[] =
 extern void** loaderStart;
 extern void** loaderEnd;
 
+extern void** unloaderStart;
+extern void** unloaderEnd;
+
 ModuleList::ModuleList(int64_t pid)
 {
 	HANDLE moduleList = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
@@ -482,7 +496,6 @@ void StartLoad(long pid)
 	char* requestBuf = (char*)malloc(100 + moduleList.names.size() + moduleList.modules.size() * sizeof(RemoteModuleInfo));
 	requestBuf[0] = '\0';
 	strcat(requestBuf, ST("lml\n"));
-	fflush(stdout);
 	int curidx = strlen(requestBuf);
 	*(uint32_t*)(requestBuf + curidx) = moduleList.names.size();
 	curidx += sizeof(uint32_t);
@@ -511,6 +524,9 @@ static int PerformLoad(void*)
 	if (!packedLoader.state)
 		loadRet = 5;
 	else {
+
+		loadedModules.push_back(ModuleEntry((uint64_t)processHandle, (uint64_t)mbuf, packedLoader.allocSize, ++lastModuleID, (ModuleExport*)(packedLoader.buffer + packedLoader.exportsOffset + sizeof(uint32_t)), *(uint32_t*)(packedLoader.buffer + packedLoader.exportsOffset)));
+
 		if (localLoad) {
 			WinLoadData lData = {(PackedWinModule*)&packedLoader, mbuf, (GetProcAddressFn)GetProcAddress, (LoadLibraryAFn)LoadLibraryA, handleTlsDataSTD, handleTlsDataThis};
 			memcpy(mbuf, packedLoader.moduleBuffer, packedLoader.modBufSize);
@@ -543,9 +559,14 @@ static int PerformLoad(void*)
 
 				WaitForSingleObject(thread, INFINITE);
 
-				VirtualFreeEx(processHandle, loaderBuf, fullLoaderSize, MEM_RELEASE);
+				VirtualFreeEx(processHandle, loaderBuf, 0, MEM_RELEASE);
 			}
 		}
+
+		//We send this after load so that the server can time the load time for various purposes
+		char buf[32];
+		snprintf(buf, 31, "%d", lastModuleID);
+		ServerComm::Send(std::string(buf));
 	}
 
 	free(sbuf);
@@ -553,6 +574,61 @@ static int PerformLoad(void*)
 	loaderSem.Post();
 
 	return loadRet;
+}
+
+void UnloadModule(long libID)
+{
+	//Find the module in question
+
+	ModuleEntry* entryPtr = nullptr;
+
+	for (ModuleEntry& i : loadedModules) {
+		if (i.moduleID == libID) {
+			entryPtr = &i;
+			break;
+		}
+	}
+
+	//Failure to unload. TODO: Inform the server about this?
+	if (!entryPtr)
+		return;
+
+	ModuleEntry entry = *entryPtr;
+
+	loadedModules.erase(loadedModules.begin() + (entryPtr - loadedModules.data()));
+
+	WinUnloadData unloadData = {(void*)(entry.baseAddress), (void*)(entry.baseAddress + entry.FindExport(CCRC32("__DllMain"))->baseOffset)};
+
+	HANDLE pHandle = (HANDLE)entry.handle;
+
+	if (pHandle == GetCurrentProcess())
+		UnloadGameModule((void*)&unloadData);
+	else {
+
+		uintptr_t unloaderOffset = sizeof(WinUnloadData);
+		uintptr_t unloaderSize = (uintptr_t)unloaderEnd - (uintptr_t)unloaderStart;
+
+		if (unloaderOffset % 16)
+		    unloaderOffset += 16 - unloaderOffset % 16;
+
+		char* unloaderBuf = (char*)VirtualAllocEx(pHandle, nullptr, unloaderOffset + unloaderSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		WriteProcessMemory(pHandle, unloaderBuf, &unloadData, sizeof(WinUnloadData), nullptr);
+		WriteProcessMemory(pHandle, unloaderBuf + unloaderOffset, unloaderStart, unloaderSize, nullptr);
+
+		HANDLE thread = CreateRemoteThread(pHandle, nullptr, 0, (unsigned long(__stdcall*)(void*))(unloaderBuf + unloaderOffset), unloaderBuf, 0, nullptr);
+
+		WaitForSingleObject(thread, INFINITE);
+
+		VirtualFreeEx(pHandle, unloaderBuf, 0, MEM_RELEASE);
+	}
+
+	VirtualFreeEx(pHandle, (void*)entry.baseAddress, 0, MEM_RELEASE);
+
+	CloseHandle(pHandle);
+
+	char buf[64];
+	snprintf(buf, 63, "%s %d", (char*)ST("um"), (int)libID);
+	ServerComm::Send(std::string(buf));
 }
 
 void ServerReceiveModule(const char* dataIn, uint32_t size)
@@ -573,6 +649,11 @@ uint64_t ServerAllocateModule(uint32_t allocSize)
 	}
 
 	return ret;
+}
+
+void ServerUnloadModule(int libID)
+{
+	Threading::QueueJobRef(UnloadModule, (void*)(long)libID);
 }
 
 #endif

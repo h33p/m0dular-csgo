@@ -192,7 +192,7 @@ py3_dep = dependency('python3', required: false)
 client_add_compile_args = ['-DM0DULAR_CLIENT']
 
 if py3_dep.found()
-  reloc_module = py_installation.extension_module('relocate', ['client/windows_loader.cpp', 'client/py_win_reloc.cpp'], dependencies: py3_dep)
+  reloc_module = py_installation.extension_module('relocate', ['client/windows_loader.cpp', 'client/py_win_reloc.cpp', 'sdk/framework/utils/crc32.cpp'], dependencies: py3_dep)
 endif
 
 use_static_libs = get_option('use_static_libs')

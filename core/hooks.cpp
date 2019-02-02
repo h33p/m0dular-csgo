@@ -21,6 +21,9 @@
 void Unload();
 extern bool shuttingDown;
 
+//This one is used when unloading
+AtomicLock CSGOHooks::createMoveLock;
+
 #ifdef __posix__
 uintptr_t origPollEvent = 0;
 uintptr_t* pollEventJump = nullptr;
@@ -71,6 +74,9 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	if (shuttingDown || !cmd->command_number || !cmd->tick_count)
 		return ret;
 
+	if (!CSGOHooks::createMoveLock.trylock())
+		return ret;
+
 	bool* bSendPacket = nullptr;
 	void* runFrameFp = ****(void*****)FRAME_POINTER();
 
@@ -107,6 +113,8 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	if (cmd->buttons & IN_ATTACK2 && cmd->buttons & IN_JUMP && cmd->viewangles[0] > 85)
 		Unload();
+
+	CSGOHooks::createMoveLock.unlock();
 
 	return false;
 }

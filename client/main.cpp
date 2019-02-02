@@ -31,6 +31,8 @@ int main()
 
 	int failcount = 0;
 
+	int menuModule = 0;
+	int cheatModule = 0;
 
 	while (failcount++ < 10) {
 		STPRINT("Select the cheat:\n");
@@ -45,23 +47,39 @@ int main()
 
 		if (--loadID < subscriptionList.size()) {
 			failcount = 0;
+
+			menuModule = 1;//LoadCheatMenu(loadID);
+
+			if (!menuModule)
+				continue;
+
 			while (failcount < 10) {
 				SetColor(ANSI_COLOR_RESET);
-				STPRINT("Choose one of these options:\n1. Load the cheat\n2. Open cheat menu\nQ. Quit\n\nEnter choice> ");
+				STPRINT("Choose one of these options:\n1. Load the cheat\n2. Open cheat menu\n3. Unload the cheat\nQ. Quit\n\nEnter choice> ");
 
 			    char val[256];
 
-				if (scanf("%s", &val) == EOF || val[0] == 'q' || val[0] == 'Q')
+				if (scanf("%s", val) == EOF || val[0] == 'q' || val[0] == 'Q')
 					break;
 
 				int valInt = strtol(val, nullptr, 10);
 
 				switch(valInt) {
 				  case 1:
-					  Load(loadID);
+					  if (!cheatModule)
+						  cheatModule = Load(loadID);
+					  else
+						  STPRINT("The cheat has already been loaded!\n");
 					  break;
 				  case 2:
 					  Menu();
+					  break;
+				  case 3:
+					  if (cheatModule) {
+						  UnloadModule(cheatModule);
+						  cheatModule = 0;
+					  } else
+						  STPRINT("The cheat is not loaded at the moment!\n");
 					  break;
 				  default:
 					  goto failcount_increase;
@@ -71,6 +89,9 @@ int main()
 			  failcount_increase:
 				failcount++;
 			}
+
+			//UnloadModule(menuModule);
+			menuModule = 0;
 		}
 	}
 

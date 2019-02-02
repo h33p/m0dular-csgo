@@ -47,6 +47,7 @@ static ServerCommand commandList[] =
 	{"cld"_crc32, LibraryStartLoad},
 	{"la"_crc32, LibraryAllocate},
 	{"clr"_crc32, LibraryReceive},
+	{"lui"_crc32, LibraryUnloadID},
 	{"sul"_crc32, SubscriptionList},
 };
 
@@ -239,6 +240,7 @@ void* __stdcall SockThread(void*)
 	} catch (std::exception& e) {
 		ServerMessage(std::string(ST("Disconnected!\nMost functions will not work!")));
 	}
+	return nullptr;
 }
 
 bool ServerComm::Initialize()

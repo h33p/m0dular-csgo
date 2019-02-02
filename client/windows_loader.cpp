@@ -1,7 +1,10 @@
 #include "windows_loader.h"
 #include "windows_headers.h"
+#include "../sdk/framework/utils/crc32.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 using DllEntryPointFn = int(__stdcall*)(void*, unsigned int, void*);
 
@@ -108,6 +111,22 @@ WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool 
 		moduleNTHeader->OptionalHeader.SizeOfImage -= 1234;
 		moduleNTHeader->OptionalHeader.SizeOfImage &= ~0xffff;
 
+
+		PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)(moduleBuffer + VirtToFile(ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, cachedSection));
+
+		uint32_t* exnames = (uint32_t*)(moduleBuffer + VirtToFile(exportDirectory->AddressOfNames, cachedSection));
+		uint16_t* ordinals = (uint16_t*)(moduleBuffer + VirtToFile(exportDirectory->AddressOfNameOrdinals, cachedSection));
+		uint32_t* functions = (uint32_t*)(moduleBuffer + VirtToFile(exportDirectory->AddressOfFunctions, cachedSection));
+
+		//Also push entry point as __DllMain for easy access
+		exports.push_back(ModuleExport(CCRC32("__DllMain"), entryPointOffset));
+
+		for (size_t i = 0; i < exportDirectory->NumberOfFunctions; i++) {
+			uint32_t crc = Crc32(moduleBuffer + VirtToFile(exnames[i], cachedSection), strlen(moduleBuffer + VirtToFile(exnames[i], cachedSection)));
+			exports.push_back(ModuleExport(crc, functions[ordinals[i]]));
+			functions[ordinals[i]] += ((rand() % 20000) - 10000) & ~0xff;
+		}
+
 		PIMAGE_IMPORT_DESCRIPTOR importDirectory = (PIMAGE_IMPORT_DESCRIPTOR)(moduleBuffer + VirtToFile(ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress, cachedSection));
 
 		while (importDirectory->Characteristics) {
@@ -179,6 +198,7 @@ WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool 
 
 PackedWinModule::PackedWinModule(const WinModule& mod)
 {
+	xorKey = 0;
 	bufSize = 0;
 
 	for (auto& i : mod.sections)
@@ -199,15 +219,17 @@ PackedWinModule::PackedWinModule(const WinModule& mod)
 	allocSize = mod.moduleSize;
 
 	sectionOffset = bufSize;
-    bufSize += sizeof(uint32_t) + sizeof(WinSection) * mod.sections.size();
+	bufSize += sizeof(uint32_t) + sizeof(WinSection) * mod.sections.size();
 	nameOffset = bufSize;
 	bufSize += mod.names.size();
 	importsWHOffset = bufSize;
-    bufSize += sizeof(uint32_t) + sizeof(WinImportH) * mod.importsWH.size();
+	bufSize += sizeof(uint32_t) + sizeof(WinImportH) * mod.importsWH.size();
 	importsOffset = bufSize;
-    bufSize += sizeof(uint32_t) + sizeof(WinImport) * mod.thunkedImports.size();
+	bufSize += sizeof(uint32_t) + sizeof(WinImport) * mod.thunkedImports.size();
 	importThunksOffset = bufSize;
-    bufSize += sizeof(uint32_t) + sizeof(WinImportThunk) * mod.importThunk.size();
+	bufSize += sizeof(uint32_t) + sizeof(WinImportThunk) * mod.importThunk.size();
+	exportsOffset = bufSize;
+	bufSize += sizeof(uint32_t) + sizeof(ModuleExport) * mod.exports.size();
 	relocationOffset = bufSize;
 	bufSize += sizeof(uint32_t) + sizeof(WinRelocation) * mod.relocations.size();
 
@@ -226,6 +248,9 @@ PackedWinModule::PackedWinModule(const WinModule& mod)
 
 	*(uint32_t*)(buffer + importThunksOffset) = mod.importThunk.size();
 	memcpy(buffer + importThunksOffset + sizeof(uint32_t), mod.importThunk.data(), mod.importThunk.size() * sizeof(WinImportThunk));
+
+	*(uint32_t*)(buffer + exportsOffset) = mod.exports.size();
+	memcpy(buffer + exportsOffset + sizeof(uint32_t), mod.exports.data(), mod.exports.size() * sizeof(ModuleExport));
 
 	*(uint32_t*)(buffer + relocationOffset) = mod.relocations.size();
 	memcpy(buffer + relocationOffset + sizeof(uint32_t), mod.relocations.data(), mod.relocations.size() * sizeof(WinRelocation));
@@ -307,12 +332,14 @@ void PackedWinModule::PerformRelocations(nptr_t base)
 
 void PackedWinModule::RunCrypt()
 {
-	/*if (!xorKey)
+	srand(time(nullptr));
+
+	if (!xorKey)
 		for (size_t i = 0; i < sizeof(xorKey); i++)
 			((char*)&xorKey)[i] = (rand() % 256);
 
-	for (size_t i = 0; i < bufSize - (sizeof(xorKey) - 1); i += sizeof(xorKey))
-	*(uint32_t*)(moduleBuffer + i) ^= xorKey;*/
+	for (size_t o = 0; o < modBufSize / sizeof(uint32_t); o++)
+		((uint32_t*)moduleBuffer)[o] ^= xorKey;
 }
 
 
@@ -369,9 +396,12 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 	//TODO: We should actually copy a fake library using WriteProcessMemory section by section and then run this code from the second allocated buffer
 
 	// Decrypt and copy the sections backwards to not overwrite the buffer
+	for (size_t o = 0; o < packedModule->modBufSize / sizeof(uint32_t); o++)
+		((uint32_t*)outBuf)[o] ^= packedModule->xorKey;
+
 	for (uint32_t i = *sectionCount - 1; i < (~0u) - 2u; i--)
 		for (size_t o = sections[i].bufSize / sizeof(uint32_t) - 1; o < (~0u) - 2u; o--)
-			((uint32_t*)(outBuf + sections[i].virtOffset))[o] = ((uint32_t*)(outBuf + sections[i].bufOffset))[o];// ^ packedModule->xorKey;
+			((uint32_t*)(outBuf + sections[i].virtOffset))[o] = ((uint32_t*)(outBuf + sections[i].bufOffset))[o];
 
 	uint32_t* importHCount = (uint32_t*)(buffer + packedModule->importsWHOffset);
 	WinImportH* importsH = (WinImportH*)(importHCount + 1);
@@ -414,4 +444,33 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 	//DLL_PROCESS_ATTACH = 1
 	return ((DllEntryPointFn)(outBuf + packedModule->entryPointOffset))(outBuf, 1, nullptr);
 }
+
+#if defined(_MSC_VER)
+#pragma comment(linker, "/merge:__text_code=_text")
+#pragma comment(linker, "/merge:__text_end=_text")
+
+__declspec(allocate("__text_end")) void* __text_end;
+
+void** unloaderStart = (void**)&UnloadGameModule;
+void** unloaderEnd = &__text_end;
+#else
+extern void* __start___text;
+extern void* __stop___text;
+void** unloaderStart = &__start___text;
+void** unloaderEnd = &__stop___text;
+#endif
+
+#if defined(_MSC_VER)
+__declspec(code_seg("__text_code"))
+#else
+[[gnu::section("__text")]]
+#endif
+unsigned long __stdcall UnloadGameModule(void* unloadData)
+{
+	WinUnloadData* data = (WinUnloadData*)unloadData;
+
+	//DLL_PROCESS_DETACH = 0
+	return ((DllEntryPointFn)data->entryPoint)((void*)data->baseAddress, 0, nullptr);
+}
+
 #endif

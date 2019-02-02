@@ -49,12 +49,57 @@ struct ProcessEntry
 	}
 };
 
-extern std::vector<SubscriptionEntry> subscriptionList;
+struct ModuleExport
+{
+	uint32_t crc;
+	uint32_t baseOffset;
 
-void Load(int loadID);
-void LoadMenu(int loadID);
+	ModuleExport()
+		: crc(0), baseOffset(0) {}
+
+	ModuleExport(uint32_t c, uint32_t off)
+		: crc(c), baseOffset(off) {}
+};
+
+struct ModuleEntry
+{
+	uint64_t handle;
+	uint64_t baseAddress;
+	uint32_t size;
+	int moduleID;
+	std::vector<ModuleExport> exports;
+
+	ModuleEntry(uint64_t h, uint64_t baddr, uint32_t sz, int mid, ModuleExport* exp, size_t expCount)
+	{
+		handle = h;
+		baseAddress = baddr;
+		size = sz;
+		moduleID = mid;
+
+		exports.reserve(expCount);
+
+		for (size_t i = 0; i < expCount; i++)
+			exports.push_back(exp[i]);
+	}
+
+	const ModuleExport* FindExport(uint32_t crc)
+	{
+		for (const ModuleExport& i : exports)
+			if (i.crc == crc)
+				return &i;
+		return nullptr;
+	}
+};
+
+extern std::vector<SubscriptionEntry> subscriptionList;
+extern std::vector<ModuleEntry> loadedModules;
+
+int Load(int loadID);
+int LoadCheatMenu(int loadID);
+void UnloadModule(long libID);
 void ServerStartLoad(long pid);
 void ServerReceiveModule(const char* dataIn, uint32_t dataSize);
 uint64_t ServerAllocateModule(uint32_t allocSize);
+void ServerUnloadModule(int libID);
 
 #endif

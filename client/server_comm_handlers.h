@@ -11,6 +11,7 @@ void ServerMessage(const std::string& str);
 void LibraryStartLoad(const std::string& str);
 void LibraryReceive(const std::string& str);
 void LibraryAllocate(const std::string& str);
+void LibraryUnloadID(const std::string& str);
 void SubscriptionList(const std::string& str);
 
 #endif

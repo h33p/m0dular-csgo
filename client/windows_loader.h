@@ -65,7 +65,7 @@ struct WinModule;
 
 struct PackedWinModule
 {
-	//uint32_t xorKey;
+	uint32_t xorKey;
 	uint32_t modBufSize;
 	uint32_t bufSize;
 	uint32_t allocSize;
@@ -75,6 +75,7 @@ struct PackedWinModule
 	uint32_t importsWHOffset;
 	uint32_t importsOffset;
 	uint32_t importThunksOffset;
+	uint32_t exportsOffset;
 	uint32_t relocationOffset;
 
 	uint64_t state;
@@ -89,7 +90,7 @@ struct PackedWinModule
 	char* ToBuffer(uint32_t* outSize);
 
 	PackedWinModule()
-		: moduleBuffer(nullptr), buffer(nullptr) {}//, xorKey(0) {}
+		: xorKey(0), moduleBuffer(nullptr), buffer(nullptr) {}
 
 
 	PackedWinModule(const PackedWinModule& o)
@@ -141,6 +142,7 @@ struct WinModule
 	std::vector<WinImport> thunkedImports;
 	std::vector<WinImportThunk> importThunk;
 	std::vector<WinRelocation> relocations;
+	std::vector<ModuleExport> exports;
 
 	WinModule()
 		: moduleBuffer()
@@ -170,8 +172,15 @@ struct WinLoadData
 	LdrpHandleTlsDataThisFn pHandleTlsDataThis;
 };
 
+struct WinUnloadData
+{
+	void* baseAddress;
+	void* entryPoint;
+};
+
 #ifdef _WIN32
 unsigned long __stdcall LoadPackedModule(void* loadData);
+unsigned long __stdcall UnloadGameModule(void* unloadData);
 #endif
 
 #endif

@@ -2,6 +2,7 @@
 #define HOOKS_H
 
 #include "../sdk/framework/utils/vfhook.h"
+#include "../sdk/framework/utils/atomic_lock.h"
 #include "../sdk/source_csgo/sdk.h"
 #include "../sdk/source_shared/hooks.h"
 #include <unordered_map>
@@ -33,6 +34,7 @@ namespace CSGOHooks
 	void __stdcall PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool forceRepaint, bool allowForce);
 #endif
 
+	extern AtomicLock createMoveLock;
 	extern std::unordered_map<C_BasePlayer*, VFuncHook*>* entityHooks;
 	void __fastcall EntityDestruct(FASTARGS);
 	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);

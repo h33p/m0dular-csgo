@@ -84,7 +84,7 @@ EventListener listener({Impacts::ImpactEvent});
 static void InitializeOffsets();
 static void InitializeHooks();
 static void InitializeDynamicHooks();
-void Shutdown();
+void Shutdown(bool delayAfterUnhook = false);
 void Unload();
 
 template<typename T, T& Fn>
@@ -153,7 +153,9 @@ int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 {
 #ifdef _WIN32
 	thisModule = hModule;
-	if (reasonForCall == DLL_PROCESS_ATTACH)
+	if (reasonForCall == DLL_PROCESS_DETACH)
+		Shutdown(true);
+	else if (reasonForCall == DLL_PROCESS_ATTACH)
 #endif
 		Threading::StartThread(EntryPoint, NULL);
 	return 1;
@@ -298,26 +300,11 @@ static void InitializeDynamicHooks()
 
 static bool firstTime = true;
 
-void Shutdown()
+void Shutdown(bool delayAfterUnhook)
 {
 	if (firstTime) {
 
 		firstTime = false;
-
-		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
-		DispatchToAllThreads<ThreadIDFn, FreeThreadID>(nullptr);
-		int ret = Threading::EndThreads();
-
-		if (ret)
-			cvar->ConsoleDPrintf(ST("Error ending threads! (%d)\n"), ret);
-
-		cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
-		for (HookDefine& i : hookIds) {
-			if (i.hook) {
-				delete i.hook;
-				i.hook = nullptr;
-			}
-		}
 
 #ifdef __posix__
 		if (pollEventJump)
@@ -340,9 +327,36 @@ void Shutdown()
 		EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
 		SourceNetvars::UnhookAll(netvarHooks, netvarCount);
 
+		if (delayAfterUnhook) {
+#ifdef _WIN32
+			Sleep(50);
+#else
+			usleep(50000);
+#endif
+		}
+
+		//Lock createmove before shutting down the cheat, since there is a high chance it is running at this exact moment
+		CSGOHooks::createMoveLock.lock();
+		CSGOHooks::createMoveLock.unlock();
+
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();
 		cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
+
+		cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
+		for (HookDefine& i : hookIds) {
+			if (i.hook) {
+				delete i.hook;
+				i.hook = nullptr;
+			}
+		}
+
+		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
+		DispatchToAllThreads<ThreadIDFn, FreeThreadID>(nullptr);
+		int ret = Threading::EndThreads();
+
+		if (ret)
+			cvar->ConsoleDPrintf(ST("Error ending threads! (%d)\n"), ret);
 
 #ifdef MTR_ENABLED
 		mtr_flush();
