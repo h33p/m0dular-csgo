@@ -18,9 +18,6 @@ endif
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
-infoware_defines = []
-infoware_link_args = []
-
 core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp']
 
 framework_thread_utils = ['core_unity/framework_threads.cpp']
@@ -33,39 +30,6 @@ file_list = core_files + framework_other_files + keycode_files
 
 menulib_files = ['core/settings.cpp', 'core/binds.cpp', 'menu_lib/csgo_module.cpp', 'menu_lib/settings.cpp'] + keycode_files
 client_file_list = ['client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp']
-
-infoware_comp_files = [
-  'system/memory/memory_windows.cpp',
-  'system/memory/memory_non_windows.cpp',
-  'system/amounts/windows.cpp',
-  'system/amounts/amounts_non_windows.cpp',
-  'gpu/memory/d3d.cpp',
-  'gpu/memory/blank_all.cpp',
-  'gpu/memory/OpenGL.cpp',
-  'gpu/memory/OpenCL.cpp',
-  'cpu/frequency/frequency_non_windows.cpp',
-  'cpu/frequency/frequency_windows.cpp',
-  'cpu/quantities_cache/quantities_cache_windows.cpp',
-  'cpu/quantities_cache/quantities_cache_non_windows.cpp',
-  'cpu/architecture/architecture_windows.cpp',
-  'cpu/architecture/architecture_non_windows.cpp',
-  'cpu/endianness/all.cpp',
-  'cpu/vendor_model_name/vendor_model_name_windows.cpp',
-  'cpu/vendor_model_name/vendor_id.cpp',
-  'cpu/vendor_model_name/vendor_model_name_non_windows.cpp',
-  'cpu/instuction_set/instruction_set_non_windows.cpp',
-  'cpu/instuction_set/instruction_set.cpp',
-  'cpu/instuction_set/instruction_set_windows.cpp',
-  'detail/cpuid.cpp',
-  'detail/pci.generated.cpp',
-  'detail/scope.cpp'
-]
-
-infoware_files = []
-
-foreach f : infoware_comp_files
-  infoware_files += [join_paths('modules/infoware/src', f)]
-endforeach
 
 if get_option('buildtype').startswith('debug')
   global_defines += 'DEBUG'
@@ -127,15 +91,10 @@ else
 endif
 
 if host_machine.system() == 'linux' or host_machine.system() == 'darwin'
-  #We need to patch infoware as there are syntax errors. Linux/OSX loader support with GPU HWID is non-essential at this stage
-  #infoware_defines += ['-DINFOWARE_USE_OPENCL']
-  #infoware_link_args += ['-lOpenCL']
   external_link += ['dl', 'rt']
   linker_args += ['-Wl,-Map=libm0dular.map', '-fvisibility=hidden']
   compile_args += '-fvisibility=hidden'
 else
-  infoware_defines += ['-DINFOWARE_USE_D3D']
-  infoware_link_args += ['-ldxgi']
   external_link += ['kernel32', 'msvcrt', 'd3d9', 'user32']
   linker_args += ['-Wl,-debugtype:all', '-Wl,-debug:full']
   network_links += ['-lcrypt32']
@@ -172,8 +131,6 @@ foreach p : global_defines
   add_project_arguments('-D'+p, language : 'c')
 endforeach
 
-includes += ['modules/websocketpp', 'modules/infoware/include']
-
 incdir = include_directories(includes)
 
 linker_args += '-Bdynamic'
@@ -191,14 +148,9 @@ py3_dep = dependency('python3', required: false)
 
 client_add_compile_args = ['-DM0DULAR_CLIENT']
 
-if py3_dep.found()
-  reloc_module = py_installation.extension_module('relocate', ['client/windows_loader.cpp', 'client/py_win_reloc.cpp', 'sdk/framework/utils/crc32.cpp'], dependencies: py3_dep)
-endif
-
 use_static_libs = get_option('use_static_libs')
 
 lib_link_with = []
-client_link_with = []
 menulib_link_with = []
 
 lib_file_list = file_list
@@ -209,13 +161,6 @@ module_id = static_library('module_id', files(['bits/identify.cpp']), cpp_args: 
 
 if use_static_libs
   if randomize_link_order
-    shuffled_files = run_command('./random_shuffle.sh', infoware_files)
-    infoware_files = shuffled_files.stdout().split(' ')
-  endif
-
-  infoware_lib = static_library('infoware', files(infoware_files), c_args : compile_args + infoware_defines, cpp_args : compile_args + infoware_defines, link_args : linker_args + infoware_link_args, include_directories : incdir)
-
-  if randomize_link_order
     shuffled_files = run_command('./random_shuffle.sh', framework_other_utils)
     framework_other_utils = shuffled_files.stdout().split(' ')
   endif
@@ -223,18 +168,14 @@ if use_static_libs
   fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
   lib_link_with = [fwlib]
-  client_link_with = [fwlib, infoware_lib]
   menulib_link_with = [fwlib]
 else
   lib_file_list += framework_thread_utils + framework_other_utils
-  client_file_list += framework_thread_utils + framework_other_utils + infoware_files
-  client_add_compile_args += infoware_defines
   menulib_files += framework_other_utils
 endif
 
 lib_link_with += [module_id]
 menulib_link_with += [module_id]
-client_link_with += [module_id]
 
 build_all_instruction_variants = get_option('build_all_instruction_variants')
 
@@ -251,13 +192,7 @@ else
   lib = shared_library('m0dular', files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep], link_with : lib_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 endif
 
-if randomize_link_order
-  shuffled_files = run_command('./random_shuffle.sh', client_file_list)
-  client_file_list = shuffled_files.stdout().split(' ')
-endif
-
 menulib = shared_library('mlm0dular', files(menulib_files), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
-client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links + infoware_link_args, dependencies : [thread_dep], link_with : client_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
 bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 

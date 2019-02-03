@@ -7,12 +7,6 @@
 [submodule "bits"]
 	path = bits
 	url = ../m0dular-csgo-bits.git
-[submodule "modules/websocketpp"]
-	path = modules/websocketpp
-	url = https://github.com/zaphoyd/websocketpp.git
-[submodule "modules/infoware"]
-	path = modules/infoware
-	url = https://github.com/ThePhD/infoware.git
 [submodule "client"]
 	path = client
 	url = ../m0dular-client.git
