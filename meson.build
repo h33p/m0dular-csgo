@@ -31,8 +31,8 @@ keycode_files = ['modules/keycode/keyid.c']
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_other_files + keycode_files
 
-gamelib_files = ['core/settings.cpp', 'core/binds.cpp', 'client/csgo_module.cpp', 'client/settings.cpp']
-client_file_list = gamelib_files + ['client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp'] + keycode_files
+gamelib_files = ['core/settings.cpp', 'core/binds.cpp', 'client/csgo_module.cpp', 'client/settings.cpp'] + keycode_files
+client_file_list = ['client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp']
 
 infoware_comp_files = [
   'system/memory/memory_windows.cpp',
@@ -199,6 +199,7 @@ use_static_libs = get_option('use_static_libs')
 
 lib_link_with = []
 client_link_with = []
+gamelib_link_with = []
 
 lib_file_list = file_list
 
@@ -223,13 +224,17 @@ if use_static_libs
 
   lib_link_with = [fwlib]
   client_link_with = [fwlib, infoware_lib]
+  gamelib_link_with = [fwlib]
 else
   lib_file_list += framework_thread_utils + framework_other_utils
   client_file_list += framework_thread_utils + framework_other_utils + infoware_files
   client_add_compile_args += infoware_defines
+  gamelib_files += framework_thread_utils + framework_other_utils
 endif
 
 lib_link_with += [module_id]
+gamelib_link_with += [module_id]
+client_link_with += [module_id]
 
 build_all_instruction_variants = get_option('build_all_instruction_variants')
 
@@ -251,6 +256,7 @@ if randomize_link_order
   client_file_list = shuffled_files.stdout().split(' ')
 endif
 
+gamelib = shared_library('mlm0dular', files(gamelib_files), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : gamelib_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 client = executable('clm0dular', files(client_file_list), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args + network_links + infoware_link_args, dependencies : [thread_dep], link_with : client_link_with, include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
 bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : incdir, cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])

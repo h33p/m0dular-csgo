@@ -14,6 +14,12 @@
 //Windows CSGO is 32 bit and we are currently targetting 32 bit systems
 using nptr_t = uint32_t;
 
+//We must must have this inlined in the windows loader module and we do not want to deal with compiler anomalies especially in debug builds
+#define XOR_LEFT_SHIFT(key, SHIFT) ((key) ^ ((key) << SHIFT))
+#define XOR_RIGHT_SHIFT(key, SHIFT) ((key) ^ ((key) >> SHIFT))
+#define XOR_RAND2(key, SHIFT1, SHIFT2, SHIFT3) XOR_LEFT_SHIFT(XOR_RIGHT_SHIFT(XOR_LEFT_SHIFT(key, SHIFT1), SHIFT2), SHIFT3)
+#define XOR_RAND(key) XOR_RAND2(key, 20, 25, 7)
+
 #ifndef _MSC_VER
 #define __stdcall
 #define __thiscall
@@ -26,6 +32,7 @@ using GetProcAddressFn = int(__stdcall*)(void*, const char*);
 using LoadLibraryAFn = void*(__stdcall*)(const char*);
 using LdrpHandleTlsDataSTDFn = int(__stdcall*)(void*);
 using LdrpHandleTlsDataThisFn = int(__thiscall*)(void*);
+using LdrpReleaseTlsEntryThisFn = int(__thiscall*)(void*);
 
 struct WinSection
 {
@@ -176,6 +183,9 @@ struct WinUnloadData
 {
 	void* baseAddress;
 	void* entryPoint;
+	LdrpHandleTlsDataSTDFn pHandleTlsDataSTD;
+	LdrpHandleTlsDataThisFn pHandleTlsDataThis;
+	LdrpReleaseTlsEntryThisFn pReleaseTlsEntryThis;
 };
 
 #ifdef _WIN32

@@ -319,6 +319,11 @@ WindowsSignatureStorage tlsSignatures[] =
 	{10, ST("75 0B [E8 *? ? ? ?] 8B")},
 };
 
+WindowsSignatureStorage freeTlsSignatures[] =
+{
+	{10, ST("[E8 *? ? ? ?] 80 7D C7 00 0F 84 9F D1 FA FF")},
+};
+
 extern void** loaderStart;
 extern void** loaderEnd;
 
@@ -416,6 +421,9 @@ LdrpHandleTlsDataSTDFn handleTlsDataSTD = nullptr;
 LdrpHandleTlsDataThisFn handleTlsDataThis = nullptr;
 HANDLE processHandle = nullptr;
 
+uintptr_t localReleaseTlsInfoAddress = 0;
+uintptr_t releaseTlsInfoOffset = 0;
+
 char* mbuf = nullptr;
 char* sbuf = nullptr;
 bool localLoad = false;
@@ -444,6 +452,7 @@ void StartLoad(long pid)
 	ModuleList moduleList(pid);
 
 	uintptr_t handleTlsInfoAddress = 0;
+	uintptr_t releaseTlsInfoAddress = 0;
 
 	auto ntdllString = StackString("ntdll.dll");
 	ModuleInfo ntdllInfo = Handles::GetModuleInfo(ntdllString);
@@ -467,13 +476,26 @@ void StartLoad(long pid)
 		}
 	}
 
-	if (!handleTlsInfoAddress) {
+	for (auto& i : freeTlsSignatures) {
+		if (i.version == info.dwMajorVersion) {
+			for (auto& o : i.signatures) {
+				releaseTlsInfoAddress = PatternScan::FindPattern(o, ntdllString);
+				if (handleTlsInfoAddress)
+					break;
+			}
+			break;
+		}
+	}
+
+	if (!handleTlsInfoAddress || !releaseTlsInfoAddress) {
 	    loadRet = 2;
 		return;
 	}
 
 	if (!localLoad) {
 		handleTlsInfoAddress -= ntdllInfo.address;
+		releaseTlsInfoAddress -= ntdllInfo.address;
+		releaseTlsInfoOffset = releaseTlsInfoAddress;
 
 		for (auto& i : moduleList.modules) {
 			if (!STRCASECMP(ntdllString, moduleList.names.data() + i.nameOffset)) {
@@ -481,7 +503,8 @@ void StartLoad(long pid)
 				break;
 			}
 		}
-	}
+	} else
+		localReleaseTlsInfoAddress = releaseTlsInfoAddress;
 
 	handleTlsDataSTD = nullptr;
 	handleTlsDataThis = nullptr;
@@ -597,7 +620,7 @@ void UnloadModule(long libID)
 
 	loadedModules.erase(loadedModules.begin() + (entryPtr - loadedModules.data()));
 
-	WinUnloadData unloadData = {(void*)(entry.baseAddress), (void*)(entry.baseAddress + entry.FindExport(CCRC32("__DllMain"))->baseOffset)};
+	WinUnloadData unloadData = {(void*)(entry.baseAddress), (void*)(entry.baseAddress + entry.FindExport(CCRC32("__DllMain"))->baseOffset), handleTlsDataSTD, handleTlsDataThis, (LdrpReleaseTlsEntryThisFn)localReleaseTlsInfoAddress};
 
 	HANDLE pHandle = (HANDLE)entry.handle;
 

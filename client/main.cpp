@@ -20,6 +20,8 @@ uint32_t oldMode = 0;
 #endif
 int echoEnableCount = 0;
 
+std::remove_reference<decltype(Menu)>::type* MenuPtr = nullptr;
+
 int main()
 {
 	Threading::InitThreads();
@@ -48,10 +50,24 @@ int main()
 		if (--loadID < subscriptionList.size()) {
 			failcount = 0;
 
-			menuModule = 1;//LoadCheatMenu(loadID);
+			menuModule = LoadCheatMenu(loadID);
 
 			if (!menuModule)
 				continue;
+
+			for (ModuleEntry& i : loadedModules) {
+				if (i.moduleID == menuModule) {
+					const ModuleExport* mExport = i.FindExport(CCRC32("Menu"));
+					if (mExport)
+						MenuPtr = (decltype(MenuPtr))(i.baseAddress + mExport->baseOffset);
+					break;
+				}
+			}
+
+			if (!MenuPtr) {
+				STPRINT("Failed to load client!\n");
+				continue;
+			}
 
 			while (failcount < 10) {
 				SetColor(ANSI_COLOR_RESET);
@@ -72,7 +88,7 @@ int main()
 						  STPRINT("The cheat has already been loaded!\n");
 					  break;
 				  case 2:
-					  Menu();
+					  MenuPtr();
 					  break;
 				  case 3:
 					  if (cheatModule) {
@@ -90,7 +106,7 @@ int main()
 				failcount++;
 			}
 
-			//UnloadModule(menuModule);
+			UnloadModule(menuModule);
 			menuModule = 0;
 		}
 	}

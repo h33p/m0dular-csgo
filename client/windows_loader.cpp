@@ -112,7 +112,9 @@ WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool 
 		moduleNTHeader->OptionalHeader.SizeOfImage &= ~0xffff;
 
 
-		PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)(moduleBuffer + VirtToFile(ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, cachedSection));
+		uint32_t exportsOffset = ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+		size_t exportsSize = ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+		PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)(moduleBuffer + VirtToFile(exportsOffset, cachedSection));
 
 		uint32_t* exnames = (uint32_t*)(moduleBuffer + VirtToFile(exportDirectory->AddressOfNames, cachedSection));
 		uint16_t* ordinals = (uint16_t*)(moduleBuffer + VirtToFile(exportDirectory->AddressOfNameOrdinals, cachedSection));
@@ -121,7 +123,11 @@ WinModule::WinModule(const char* buf, size_t size, ModuleList* moduleList, bool 
 		//Also push entry point as __DllMain for easy access
 		exports.push_back(ModuleExport(CCRC32("__DllMain"), entryPointOffset));
 
-		for (size_t i = 0; i < exportDirectory->NumberOfFunctions; i++) {
+		for (size_t i = 0; i < exportDirectory->NumberOfNames; i++) {
+
+			if (exnames[i] >= exportsOffset + exportsSize || exnames[i] < exportsOffset)
+				continue;
+
 			uint32_t crc = Crc32(moduleBuffer + VirtToFile(exnames[i], cachedSection), strlen(moduleBuffer + VirtToFile(exnames[i], cachedSection)));
 			exports.push_back(ModuleExport(crc, functions[ordinals[i]]));
 			functions[ordinals[i]] += ((rand() % 20000) - 10000) & ~0xff;
@@ -338,8 +344,16 @@ void PackedWinModule::RunCrypt()
 		for (size_t i = 0; i < sizeof(xorKey); i++)
 			((char*)&xorKey)[i] = (rand() % 256);
 
-	for (size_t o = 0; o < modBufSize / sizeof(uint32_t); o++)
-		((uint32_t*)moduleBuffer)[o] ^= xorKey;
+	uint32_t* sectionCount = (uint32_t*)(moduleBuffer + sectionOffset);
+	WinSection* sections = (WinSection*)(sectionCount + 1);
+
+	uint32_t tXorKey = xorKey;
+
+	//We do not want to encrypt the headers to make reversing more confusing. Also make the xor key rolling.
+	for (size_t o = 0; o < modBufSize / sizeof(uint32_t); o++) {
+		((uint32_t*)moduleBuffer)[o] ^= tXorKey;
+	    tXorKey = XOR_RAND(tXorKey);
+	}
 }
 
 
@@ -395,9 +409,11 @@ unsigned long __stdcall LoadPackedModule(void* loadData)
 
 	//TODO: We should actually copy a fake library using WriteProcessMemory section by section and then run this code from the second allocated buffer
 
-	// Decrypt and copy the sections backwards to not overwrite the buffer
-	for (size_t o = 0; o < packedModule->modBufSize / sizeof(uint32_t); o++)
+	// Dexor and copy the sections backwards to not overwrite the buffer.
+	for (size_t o = 0; o < packedModule->modBufSize / sizeof(uint32_t); o++) {
 		((uint32_t*)outBuf)[o] ^= packedModule->xorKey;
+		packedModule->xorKey = XOR_RAND(packedModule->xorKey);
+	}
 
 	for (uint32_t i = *sectionCount - 1; i < (~0u) - 2u; i--)
 		for (size_t o = sections[i].bufSize / sizeof(uint32_t) - 1; o < (~0u) - 2u; o--)
@@ -470,7 +486,19 @@ unsigned long __stdcall UnloadGameModule(void* unloadData)
 	WinUnloadData* data = (WinUnloadData*)unloadData;
 
 	//DLL_PROCESS_DETACH = 0
-	return ((DllEntryPointFn)data->entryPoint)((void*)data->baseAddress, 0, nullptr);
+	unsigned long ret = ((DllEntryPointFn)data->entryPoint)((void*)data->baseAddress, 0, nullptr);
+
+	//TODO: Figure out a way to remove tls data (set it up manually!)
+	/*LDR_DATA_TABLE_ENTRY dummyDataTable;
+
+	dummyDataTable.DllBase = (void*)data->baseAddress;
+
+	if (data->pHandleTlsDataSTD)
+	    data->pHandleTlsDataSTD(&dummyDataTable);
+	else
+	data->pHandleTlsDataThis(&dummyDataTable);*/
+
+	return ret;
 }
 
 #endif
