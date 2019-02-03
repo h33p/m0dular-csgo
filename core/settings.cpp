@@ -34,7 +34,6 @@ decltype(Settings::globalSettingsPtr) Settings::globalSettingsPtr = nullptr;
 decltype(Settings::globalSettings) Settings::globalSettings;
 decltype(Settings::bindSettingsPtr) Settings::bindSettingsPtr = nullptr;
 decltype(Settings::bindSettings) Settings::bindSettings;
-SharedMutex* Settings::ipcLock = nullptr;
 
 AimbotHitbox Settings::aimbotHitboxes[MAX_HITBOXES] = {
 	{ HITBOX_HEAD, SCAN_MULTIPOINT, 0.8f },
@@ -70,7 +69,6 @@ static IPCInit initializedPointers[] = {
 	IPCInit(Settings::globalSettingsPtr),
 	IPCInit(Settings::bindSettingsPtr),
 	IPCInit(BindManager::sharedInstance),
-	IPCInit(Settings::ipcLock),
 };
 
 bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
@@ -160,7 +158,6 @@ SettingsInstance::SettingsInstance()
 		ConstructClass(Settings::globalSettingsPtr);
 		ConstructClass(Settings::bindSettingsPtr);
 		ConstructClass(BindManager::sharedInstance);
-		ConstructClass(Settings::ipcLock);
 		initialized = true;
 #endif
 	} else
@@ -184,7 +181,6 @@ SettingsInstance::~SettingsInstance()
 		DestructClass(Settings::globalSettingsPtr);
 		DestructClass(Settings::bindSettingsPtr);
 		DestructClass(BindManager::sharedInstance);
-		DestructClass(Settings::ipcLock);
 	}
 
 	UnmapSharedMemory(alloc, fd, "m0d_settings", ALLOC_SIZE, unlink);

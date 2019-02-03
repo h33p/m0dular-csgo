@@ -3,8 +3,10 @@
 #include <sstream>
 #include "settings.h"
 #include "../modules/keycode/keyid.h"
-#include "main.h"
-#include "game_settings_module.h"
+#include "../client/main.h"
+#include "../client/game_settings_module.h"
+
+void OnLoad(ConsoleSetting** sets, size_t* size);
 
 static uintptr_t clAllocBase = 0;
 generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);

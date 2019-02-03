@@ -130,7 +130,6 @@ namespace Settings
 	extern pointer_proxy<globalSettingsPtr> globalSettings;
 	extern BindSettingsGroup<stateful_allocator<unsigned char, settingsAlloc>>* bindSettingsPtr;
 	extern pointer_proxy<bindSettingsPtr> bindSettings;
-	extern SharedMutex* ipcLock;
 
 	extern AimbotHitbox aimbotHitboxes[MAX_HITBOXES];
 
