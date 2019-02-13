@@ -69,12 +69,14 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	auto ret = origFn(CFASTARGS, inputSampleTime, cmd);
 
+	FwBridge::localPlayer = nullptr;
+
 	//CL_ExtraMouseUpdate branch eventually calls clientMode createMove with null command_number and tick_count
 	//Which we don't want to hook.
-	if (shuttingDown || !cmd->command_number || !cmd->tick_count)
+	if (!cmd->command_number || !cmd->tick_count)
 		return ret;
 
-	if (!CSGOHooks::createMoveLock.trylock())
+	if (shuttingDown || !CSGOHooks::createMoveLock.trylock())
 		return ret;
 
 	bool* bSendPacket = nullptr;
@@ -118,6 +120,14 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	return false;
 }
+
+void __fastcall CSGOHooks::OnRenderStart(FASTARGS)
+{
+	static auto origFn = hookViewRender->GetOriginal(CSGOHooks::OnRenderStart);
+	origFn(CFASTARGS);
+	Engine::FrameUpdate();
+}
+
 
 #ifdef PT_VISUALS
 void __stdcall CSGOHooks::PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool forceRepaint, bool allowForce)

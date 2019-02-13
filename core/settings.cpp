@@ -128,6 +128,10 @@ static void DestructClass(T*& target)
 template<typename T, typename... Args>
 static void ConstructClass(T*& target, Args... args)
 {
+#ifdef DEBUG
+	printf("Constructing %p\n", target);
+	fflush(stdout);
+#endif
 	target = new(target) T(args...);
 }
 
@@ -141,6 +145,10 @@ SettingsInstance::SettingsInstance()
 		return;
 
 	uintptr_t finalAddress = Settings::allocBase;
+#ifdef DEBUG
+	printf("Initializing pointers... BASE %p\n", alloc);
+#endif
+
 	for (IPCInit& i : initializedPointers) {
 		*i.target = finalAddress;
 #ifdef DEBUG
@@ -151,6 +159,9 @@ SettingsInstance::SettingsInstance()
 
 	initialized = false;
 
+#ifdef DEBUG
+	printf("Constructing classes...\n");
+#endif
 	if (firstTime) {
 #if defined(M0DULAR_CLIENT) || defined(DEBUG)
 		ConstructClass(ipcCounter);

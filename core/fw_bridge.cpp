@@ -102,6 +102,12 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
 	activeWeapon = localPlayer->activeWeapon();
 
+	//TODO: Move the settings part to a separate function
+#ifdef TESTING_FEATURES
+	SourceFakelag::ticksToChoke = Settings::fakelag;
+	SourceFakelag::breakLagCompensation = Settings::fakelagBreakLC;
+#endif
+
 	if (activeWeapon) {
 		lpData.weaponAmmo = activeWeapon->clip1();
 		CCSWeaponInfo* weaponInfo = GetWeaponInfo(weaponDatabase, activeWeapon->itemDefinitionIndex());
@@ -372,8 +378,10 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 
 	backtrackCurtime = Settings::aimbotBacktrack ? Engine::CalculateBacktrackTime() + globalVars->interval_per_tick : TicksToTime(cmd->tick_count) + Engine::LerpTime();
 
+#ifdef TESTING_FEATURES
 	if (Settings::aimbotSafeBacktrack)
 		backtrackCurtime = std::max(backtrackCurtime, prevBacktrackCurtime);
+#endif
 
 	prevBacktrackCurtime = backtrackCurtime;
 
@@ -383,13 +391,19 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 	if (Settings::autostrafer)
 		SourceAutostrafer::Run(cmd, &lpData, Settings::autostraferControl);
 
-	FakelagState_t state = Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) : FakelagState::LAST | FakelagState::FIRST;
+	FakelagState_t state =
+#ifdef TESTING_FEATURES
+		Settings::fakelag ? SourceFakelag::Run(cmd, &lpData, bSendPacket, !*((long*)hostRunFrameFp - RUNFRAME_TICK)) :
+#endif
+		FakelagState::LAST | FakelagState::FIRST;
 
 	if (Settings::aimbot)
 		ExecuteAimbot(cmd, bSendPacket, state);
 
+#ifdef TESTING_FEATURES
 	if (Settings::antiaim)
 		Antiaim::Run(cmd, state);
+#endif
 
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
@@ -398,6 +412,10 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 	prevtc = cmd->tick_count;
 
 	Visuals::shouldDraw = true;
+
+	Engine::localPlayerAngles.push_back(cmd->viewangles);
+	if (*bSendPacket)
+		Engine::localPlayerSentPacket = true;
 }
 
 
@@ -483,7 +501,11 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 			auto t1 = Clock::now();
 //#endif
-			target = Aimbot::RunAimbot(track, Settings::aimbotLagCompensation ? LagCompensation::futureTrack : nullptr, &lpData, hitboxList, &immuneFlags, pointScale, Settings::aimbotMinDamage);
+			target = Aimbot::RunAimbot(track,
+#ifdef TESTING_FEATURES
+									   Settings::aimbotLagCompensation ? LagCompensation::futureTrack :
+#endif
+									   nullptr, &lpData, hitboxList, &immuneFlags, pointScale, Settings::aimbotMinDamage);
 //#ifdef DEBUG
 			auto t2 = Clock::now();
 
@@ -521,7 +543,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 				cmd->tick_count = TimeToTicks(track->GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
 
 #ifdef PT_VISUALS
-				if (false && btTick >= 0)
+				if (btTick >= 0)
 					Visuals::RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
 #endif
 			} else

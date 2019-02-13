@@ -24,8 +24,10 @@
 
 VFuncHook* hookClientMode = nullptr;
 VFuncHook* hookPanel = nullptr;
+VFuncHook* hookViewRender = nullptr;
 
 CBaseClient* cl = nullptr;
+CServerGame* server = nullptr;
 IClientMode* clientMode = nullptr;
 IVEngineClient* engine = nullptr;
 IClientEntityList* entityList = nullptr;
@@ -57,6 +59,7 @@ SetAbsFn SetAbsOrigin = nullptr;
 SetAbsFn SetAbsAngles = nullptr;
 SetAbsFn SetAbsVelocity = nullptr;
 SetupBonesFn SetupBones = nullptr;
+int* modelBoneCounter = nullptr;
 
 RandomSeedFn RandomSeed = nullptr;
 RandomFloatFn RandomFloat = nullptr;
@@ -96,6 +99,8 @@ static volatile char* moduleIdentifyDependency2 = nullptr;
 
 void* __stdcall EntryPoint(void*)
 {
+	while (0 && !cont)
+		;
 #ifdef MTR_ENABLED
 #ifdef _WIN32
 	mtr_init("C:\\Temp\\csgotrace.json");
@@ -223,6 +228,7 @@ static void InitializeOffsets()
 	staticPropMgrClient = (CStaticPropMgr*)(staticPropMgr - 1);
 
 	PlatformSpecificOffsets();
+	SourceNetvars::InitializeServer(server);
 	SourceNetvars::Initialize(cl);
 	Threading::FinishQueue();
 }
@@ -261,6 +267,7 @@ static void InitializeHooks()
 {
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
+	hookViewRender = new VFuncHook(viewRender, false, 10);
 #ifdef PT_VISUALS
 	hookPanel = new VFuncHook(panel, false, 5);
 #endif

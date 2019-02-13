@@ -23,6 +23,8 @@ void OnLoad(ConsoleSetting** sets, size_t* size)
 
 #ifdef _WIN32
 __declspec(dllexport)
+#else
+__attribute__ ((visibility ("default")))
 #endif
 extern "C" void Menu()
 {

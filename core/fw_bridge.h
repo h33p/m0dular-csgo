@@ -26,6 +26,7 @@ struct AimbotTarget;
 #endif
 
 extern CBaseClient* cl;
+extern CServerGame* server;
 extern IClientMode* clientMode;
 extern IVEngineClient* engine;
 extern IClientEntityList* entityList;
@@ -95,6 +96,7 @@ extern SetAbsFn SetAbsOrigin;
 extern SetAbsFn SetAbsAngles;
 extern SetAbsFn SetAbsVelocity;
 extern SetupBonesFn SetupBones;
+extern int* modelBoneCounter;
 
 extern RandomSeedFn RandomSeed;
 extern RandomFloatFn RandomFloat;

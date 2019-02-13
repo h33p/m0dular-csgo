@@ -16,6 +16,7 @@
 
 extern VFuncHook* hookClientMode;
 extern VFuncHook* hookPanel;
+extern VFuncHook* hookViewRender;
 
 #ifdef __posix__
 union SDL_Event;
@@ -38,6 +39,7 @@ namespace CSGOHooks
 	extern std::unordered_map<C_BasePlayer*, VFuncHook*>* entityHooks;
 	void __fastcall EntityDestruct(FASTARGS);
 	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
+	void __fastcall OnRenderStart(FASTARGS);
 	void ImpactsEffect(const CEffectData& effectData);
 	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);
 

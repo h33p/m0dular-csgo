@@ -12,7 +12,7 @@ constexpr float MAX_CHOKESIM = 0.5f;
 int LagCompensation::quality = 0;
 HistoryList<Players, BACKTRACK_TICKS>* LagCompensation::futureTrack = nullptr;
 
-
+#ifdef TESTING_FEATURES
 static uint64_t dynamicFlags = 0;
 static HistoryList<Players, BACKTRACK_TICKS> fTrack[2];
 static int prevTrack = 0;
@@ -26,9 +26,11 @@ static C_BasePlayer* instances[MAX_PLAYERS];
 static void CheckDynamic();
 static void UpdatePart1(uint64_t copyFlags);
 static void UpdatePart2();
+#endif
 
 void LagCompensation::PreRun()
 {
+#ifdef TESTING_FEATURES
     MTR_SCOPED_TRACE("LagCompensation", "PreRun");
 	CheckDynamic();
 
@@ -43,14 +45,18 @@ void LagCompensation::PreRun()
 	}
 
 	UpdatePart1(copyFlags);
+#endif
 }
 
 void LagCompensation::Run()
 {
+#ifdef TESTING_FEATURES
 	MTR_SCOPED_TRACE("LagCompensation", "Run");
 	UpdatePart2();
+#endif
 }
 
+#ifdef TESTING_FEATURES
 static void CheckDynamic()
 {
 	dynamicFlags = 0;
@@ -441,3 +447,4 @@ static void UpdatePart2()
 
 	Threading::FinishQueue();
 }
+#endif

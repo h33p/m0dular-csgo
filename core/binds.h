@@ -162,10 +162,10 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 
 	inline void InitializeVTable()
 	{
-#ifdef DEBUG
-		printf("%lx\n", (uintptr_t)((Ptr)(uintptr_t)this).ptr);
-#endif
 		Base::vtbl = Settings::settingsLocalAlloc.allocate<BindHandlerIFaceVtable>(1);
+#ifdef DEBUG
+		printf("%lx %lx %p\n", (uintptr_t)((Ptr)(uintptr_t)this).ptr, sizeof(BindHandlerIFaceVtable), Base::vtbl.ptr);
+#endif
 		Base::vtbl->AllocKeyBind = AllocKeyBindST;
 		Base::vtbl->ReleaseKeyBind = ReleaseKeyBindST;
 		Base::vtbl->HandleEnable = HandleEnableST;

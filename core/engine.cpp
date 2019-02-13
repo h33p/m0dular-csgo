@@ -25,7 +25,12 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
-	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
+	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, globalVars->curtime + 10);
+
+	/*ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
+	ent->mostRecentBoneCounter() = 0;
+	ent->lastBoneFrameCount() = globalVars->framecount - 2;
+	ent->prevBoneMask() = 0;*/
 
 	//if (animState)
 	//	animState->groundedFraction = fractionBackup;
@@ -40,6 +45,9 @@ vec3 origins[MAX_PLAYERS];
 
 int Engine::numBones[MAX_PLAYERS];
 vec3_t Engine::velocities[MAX_PLAYERS];
+
+std::vector<vec3_t> Engine::localPlayerAngles;
+bool Engine::localPlayerSentPacket = false;
 
 void Engine::StartLagCompensation()
 {
@@ -101,11 +109,14 @@ void Engine::EndLagCompensation()
 AnimationLayer serverAnimations[MAX_PLAYERS][13];
 int prevFlags[MAX_PLAYERS];
 vec3_t prevOrigins[MAX_PLAYERS];
+vec3_t prevVelocities[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
 float Engine::originalLBY[MAX_PLAYERS];
 
 int health[MAX_PLAYERS];
+
+static uint64_t dirtyVisualBonesMask = ~0u;
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
@@ -135,19 +146,20 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 			//Predict the FL_ONGROUND flag.
 			//lastOnGround deals with some artifacting (FL_ONGROUND repeating for a couple of ticks) happenning by those checks
-			/*if (~pFlags[i] & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
+			if (~pFlags[i] & FL_ONGROUND || ~prevFlags[pID] & FL_ONGROUND) {
 				if (ent->animationLayers()[5].weight > 0.f && !lastOnGround[pID])
 					ent->flags() |= FL_ONGROUND;
 				else
 					ent->flags() &= ~FL_ONGROUND;
 			} else
-				  ent->flags() |= FL_ONGROUND;
+				ent->flags() |= FL_ONGROUND;
 
-				  lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;*/
+			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
-			if (ent->simulationTime() - prevSimulationTime[pID] > 0.f)
+			if (ent->simulationTime() - prevSimulationTime[pID] > 0.f) {
+				prevVelocities[pID] = velocities[pID];
 				velocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
-			SetAbsVelocity(ent, velocities[pID]);
+			}
 		}
 	}
 
@@ -163,28 +175,39 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			}
 
 			globalVars->curtime = ent->simulationTime();
-			//globalVars->framecount = animState->frameCount + 1;
+			globalVars->framecount = animState->frameCount + 1;
 			animState->updateTime = prevSimulationTime[pID]; //globalVars->curtime - globalVars->frametime * std::max(1, (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick));
 
-			//for (int i = 0; i < ticksToAnimate; i++) {
-			globalVars->frametime = globalVars->interval_per_tick;
-			ent->UpdateClientSideAnimation();
-			//}
+			int ticksToAnimate = (int)((ent->simulationTime() - prevSimulationTime[pID]) / globalVars->interval_per_tick);
+
+			//cvar->ConsoleDPrintf("ANIM %d ticks\n", ticksToAnimate);
+			for (int i = 0; i < ticksToAnimate; i++) {
+				dirtyVisualBonesMask |= (1u << pID);
+				float lerptime = (globalVars->curtime - prevSimulationTime[pID]) / (ent->simulationTime() - prevSimulationTime[pID]);
+				vec3_t velocity = prevVelocities[pID].Lerp(velocities[pID], lerptime);
+				SetAbsVelocity(ent, velocity);
+				globalVars->frametime = globalVars->interval_per_tick;
+				ent->UpdateClientSideAnimation();
+				globalVars->curtime += globalVars->interval_per_tick;
+				animState->groundedFraction = 0;
+			}
 
 			ent->angles()[1] = animState->goalFeetYaw;
 
 			SetAbsAngles(ent, ent->angles());
 			SetAbsOrigin(ent, ent->origin());
 			//ent->flags() = pFlags[i];
-			//prevFlags[pID] = ent->flags();
+			prevFlags[pID] = ent->flags();
 			prevOrigins[pID] = players->origin[i];
 			prevSimulationTime[pID] = ent->simulationTime();
 		}
 	}
 
 	//Resolver overwrites the pose parameters, we do not want the animstate to change them back!
+#ifdef TESTING_FEATURES
 	if (Settings::resolver)
 		Resolver::Run(players, prevPlayers);
+#endif
 
 	globalVars->curtime = curtime;
 	globalVars->frametime = frametime;
@@ -269,10 +292,7 @@ void Engine::Shutdown()
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
 
-		if (ent == FwBridge::localPlayer)
-			continue;
-
-		if (!ent || !ent->IsPlayer() || i == 0)
+		if (!ent || !ent->IsPlayer())
 			continue;
 
 		ent->clientSideAnimation() = true;
@@ -292,6 +312,146 @@ void Engine::HandleLBYProxy(C_BasePlayer* ent, float ang)
 
 	originalLBY[eID] = ang;
 	ent->lowerBodyYawTarget() = ang;
+}
+
+static void ValidateBoneCache(C_BasePlayer* ent)
+{
+	ent->lastBoneTime() = globalVars->curtime;
+	ent->mostRecentBoneCounter() = *modelBoneCounter;
+	ent->lastBoneFrameCount() = globalVars->framecount;
+	ent->prevBoneMask() = BONE_USED_BY_ANYTHING;
+}
+
+static matrix3x4_t bmatrices[MAX_PLAYERS][128];
+
+static void FrameUpdatePlayer(C_BasePlayer* ent)
+{
+	ent->mostRecentBoneCounter() = *modelBoneCounter - 1;
+	int flags = ent->effects();
+	ent->effects() |= EF_NOINTERP;
+	ent->SetupBones(bmatrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & BONE_USED_BY_HITBOX, globalVars->curtime);
+	ent->effects() = flags;
+	ValidateBoneCache(ent);
+}
+
+static matrix3x4_t lastLPMatrix[128];
+static matrix3x4_t firstLPMatrix[128];
+static matrix3x4_t tempMatrix[128];
+static vec3_t angleBackup;
+
+static float localPoseParamBackup[24];
+static AnimationLayer localAnimLayerBackup[13];
+
+static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
+{
+	//TODO: Only return when in first person.
+	return;
+
+	ent->lastOcclusionCheck() = globalVars->framecount;
+	ent->occlusionFlags() = 0;
+	ent->occlusionFlags2() = -1;
+	ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
+	ent->mostRecentBoneCounter() = 0;
+	ent->lastBoneFrameCount() = globalVars->framecount - 2;
+	ent->prevBoneMask() = 0;
+
+	int flags = ent->effects();
+	ent->effects() |= EF_NOINTERP;
+
+	CCSGOPlayerAnimState* state = ent->animState();
+	if (state) {
+		if (Engine::localPlayerSentPacket) {
+
+			//We simulate animations twice. First we get the "fake" animation state by only feeding in the last angle and then the "real" one
+			//CCSGOPlayerAnimState stateBackup = *ent->animState();
+
+			float ctbac = globalVars->curtime;
+			globalVars->curtime = (ent->tickBase() - Engine::localPlayerAngles.size()) * globalVars->interval_per_tick;
+
+			for (const vec3_t& ang : Engine::localPlayerAngles) {
+				globalVars->curtime += globalVars->interval_per_tick;
+
+				//TODO: Predict LBY
+
+				ent->localAngles() = ang;
+				ent->eyeAngles() = ang;
+				if (Settings::thirdPersonShowReal)
+					ent->UpdateClientSideAnimation();
+				angleBackup = ang;
+			}
+			if (!Settings::thirdPersonShowReal)
+				ent->UpdateClientSideAnimation();
+
+			Engine::localPlayerSentPacket = false;
+			Engine::localPlayerAngles.clear();
+
+			globalVars->curtime = ctbac;
+
+			ent->angles()[0] = 0;
+			ent->angles()[2] = 0;
+
+			memcpy(localAnimLayerBackup, ent->animationLayers(), sizeof(AnimationLayer) * 13);
+			memcpy(localPoseParamBackup, &ent->poseParameter(), sizeof(float) * 24);
+		}
+	}
+
+	ent->clientSideAnimation() = false;
+
+	ent->localAngles() = vec3(0);
+	ent->angles()[0] = 0;
+	ent->angles()[2] = 0;
+
+	SetAbsAngles(ent, ent->angles());
+	ent->SetupBones(tempMatrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
+	//ent->localAngles() = vec0;
+
+	if (false) {
+		if (SourceFakelag::state & FakelagState::LAST)
+			memcpy(lastLPMatrix, tempMatrix, sizeof(tempMatrix));
+		if (SourceFakelag::state & FakelagState::FIRST)
+			memcpy(firstLPMatrix, tempMatrix, sizeof(tempMatrix));
+	}
+
+	ent->effects() = flags;
+	ValidateBoneCache(ent);
+}
+
+//Players could have changed in this state, let's just loop the engine entity list
+void Engine::FrameUpdate()
+{
+	MTR_SCOPED_TRACE("Engine", "FrameUpdate");
+
+	C_BasePlayer* lp = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
+
+	for (int i = 1; i < 64; i++) {
+		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
+
+		if (!ent)
+			continue;
+
+		bool player = ent->IsPlayer();
+		bool dormant = ent->IsDormant();
+
+		if (!ent || !player || dormant || i == 0)
+			continue;
+
+		playerCount = i;
+
+		if (ent == lp)
+			continue;
+
+		if (~dirtyVisualBonesMask & (1u << i))
+			continue;
+
+		Threading::QueueJobRef(FrameUpdatePlayer, ent);
+	}
+
+	Threading::FinishQueue();
+
+	if (lp)
+		FrameUpdateLocalPlayer(lp);
+
+	dirtyVisualBonesMask = 0;
 }
 
 void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)
