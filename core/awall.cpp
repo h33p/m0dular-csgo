@@ -3,9 +3,38 @@
 #include "../sdk/features/gametrace.h"
 #include "fw_bridge.h"
 
-bool IsBreakableEntity(C_BaseEntity* ent)
+Mutex beLock;
+
+bool IsBreakableEntity(C_BasePlayer* ent)
 {
-	return false;
+	if (!ent || !ent->EntIndex())
+		return false;
+
+	int oldTakeDamage = 0;
+	ClientClass* entClass = ent->GetClientClass();
+	bool locked = false;
+
+	crcs_t crc = Crc32(entClass->networkName);
+
+	switch(crc) {
+	  case "CBrekableSurface"_crc32:
+	  case "CBaseDoor"_crc32:
+	  case "CBaseEntity"_crc32:
+		  beLock.lock();
+		  oldTakeDamage = ent->takeDamage();
+		  ent->takeDamage() = DAMAGE_YES;
+		  locked = true;
+		  break;
+	}
+
+	bool breakable = IsBreakableEntityNative(ent);
+
+	if (locked) {
+	    ent->takeDamage() = oldTakeDamage;
+		beLock.unlock();
+	}
+
+	return breakable;
 }
 
 //This is a so called first pass of autowall. Players are ignored so as to be able to cache the results.
@@ -24,7 +53,7 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 	Ray_t lineRay;
 	CTraceFilterSkipPlayers filter;
 
-	*inBreakable = IsBreakableEntity((C_BaseEntity*)inTrace.ent);
+	*inBreakable = IsBreakableEntity((C_BasePlayer*)inTrace.ent);
 
 	//TODO: Add hitbox handling pass
 
@@ -44,7 +73,7 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 
 			if (outTrace->DidHit() && !outTrace->startsolid) {
 				//NOTE: IsBreakableEntity check has to be done in a thread-safe way
-				*outBreakable = IsBreakableEntity((C_BaseEntity*)outTrace->ent);
+				*outBreakable = IsBreakableEntity((C_BasePlayer*)outTrace->ent);
 
 				if ((*inBreakable && *outBreakable) || inTrace.surface.flags & SURF_NODRAW || (~outTrace->surface.flags & SURF_NODRAW && outTrace->plane.normal.Dot(dir) <= 1.f))
 					return true;
