@@ -65,7 +65,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 		origin = FwBridge::lpData.origin;
 		angles = &ent->localAngles();
 	} else {
-		ent = (C_BasePlayer*)players.instance[id];
+		ent = FwBridge::GetPlayerFast(players, id);
 		origin = players.origin[id];
 		friendlyXOR = Flags::FRIENDLY ^ (players.flags[id] & Flags::FRIENDLY);
 		angles = &ent->eyeAngles();
@@ -79,7 +79,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 	C_BasePlayer* closestEnt = nullptr;
 
 	for (int i = 0; i < count; i++) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 		C_BaseCombatWeapon* weapon = ent->activeWeapon();
 		if (!weapon)
 			continue;

@@ -60,6 +60,7 @@ SetAbsFn SetAbsAngles = nullptr;
 SetAbsFn SetAbsVelocity = nullptr;
 SetupBonesFn SetupBones = nullptr;
 int* modelBoneCounter = nullptr;
+IsBreakableEntityFn IsBreakableEntityNative = nullptr;
 
 RandomSeedFn RandomSeed = nullptr;
 RandomFloatFn RandomFloat = nullptr;

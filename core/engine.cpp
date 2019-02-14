@@ -55,7 +55,7 @@ void Engine::StartLagCompensation()
 	for (int i = 0; i < players.count; i++) {
 		int id = players.unsortIDs[i];
 
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 
 		if (!ent)
 			continue;
@@ -82,7 +82,7 @@ void Engine::EndLagCompensation()
 	for (int i = 0; i < players.count; i++) {
 		int id = players.unsortIDs[i];
 
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 
 		if (!ent)
 			continue;
@@ -126,7 +126,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	for (size_t i = 0; i < count; i++) {
 		if (players->Resort(*prevPlayers, i) >= prevPlayers->count)
 			continue;
-		C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 		memcpy(serverAnimations[i], ent->animationLayers(), sizeof(AnimationLayer) * 13);
 	}
 
@@ -138,7 +138,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
-			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 			ent->clientSideAnimation() = false;
 
 			int pID = players->unsortIDs[i];
@@ -165,7 +165,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 	for (size_t i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
-			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 			CCSGOPlayerAnimState* animState = ent->animState();
 			int pID = players->unsortIDs[i];
 
@@ -216,7 +216,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	for (size_t i = 0; i < count; i++) {
 		if (players->Resort(*prevPlayers, i) >= prevPlayers->count)
 			continue;
-		C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 		memcpy(ent->animationLayers(), serverAnimations[i], sizeof(AnimationLayer) * 13);
 	}
 }

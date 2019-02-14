@@ -59,6 +59,7 @@ typedef vec3(__thiscall* Weapon_ShootPositionFn)(void*);
 typedef CCSWeaponInfo*(__thiscall*GetWeaponInfoFn)(void*, ItemDefinitionIndex);
 typedef void(__thiscall* SetAbsFn)(void*, const vec3& origin);
 typedef bool(__thiscall* SetupBonesFn)(C_BasePlayer*, matrix3x4_t*, int, int, float);
+typedef bool(__thiscall* IsBreakableEntityFn)(IClientEntity*);
 
 #ifdef _WIN32
 typedef void(__vectorcall* RunSimulationFn)(void*, void*, float, float, float, int, CUserCmd*, C_BaseEntity*);
@@ -97,6 +98,7 @@ extern SetAbsFn SetAbsAngles;
 extern SetAbsFn SetAbsVelocity;
 extern SetupBonesFn SetupBones;
 extern int* modelBoneCounter;
+extern IsBreakableEntityFn IsBreakableEntityNative;
 
 extern RandomSeedFn RandomSeed;
 extern RandomFloatFn RandomFloat;
@@ -153,11 +155,13 @@ inline int TimeToTicks(float time)
 namespace FwBridge
 {
 	extern HistoryList<Players, BACKTRACK_TICKS> playerTrack;
+	extern bool curPushed;
 	extern int playerCount;
 	extern uint64_t playersFl;
 	extern LocalPlayer lpData;
 	extern C_BasePlayer* localPlayer;
 	extern C_BaseCombatWeapon* activeWeapon;
+	extern C_BasePlayer* playerList[MAX_PLAYERS];
 	extern float backtrackCurtime;
 	extern int hitboxIDs[];
 	extern int reHitboxIDs[];
@@ -176,6 +180,13 @@ namespace FwBridge
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
 	bool IsEnemy(C_BasePlayer* ent);
+	C_BasePlayer* GetPlayer(const Players& players, int entID);
+
+	//No bounds checking. Do not use on history records!
+	inline C_BasePlayer* GetPlayerFast(const Players& players, int entID)
+	{
+		return playerList[players.unsortIDs[entID]];
+	}
 }
 
 #endif

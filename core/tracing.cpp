@@ -248,7 +248,7 @@ float Tracing2::TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeM
 		return -1.f;
 
 	//TODO: add target entity intersection test here in case we are not directly aiming at entity
-	if (eID >= 0 && tr->ent && (void*)tr->ent != players->instance[eID])
+	if (tr->ent && (void*)tr->ent != FwBridge::GetPlayer(*players, eID))
 		return -1.f;
 
 	if (false && eID >= 0) {
@@ -322,7 +322,11 @@ float Tracing2::ScaleDamage(Players* players, int id, float in, float armorPenet
 {
 	float armorSupport = false;
 
-	C_BasePlayer* ent = (C_BasePlayer*)players->instance[id];
+	C_BasePlayer* ent = FwBridge::GetPlayer(*players, id);
+
+	//TODO: Log this occurance
+	if (!ent)
+		return in;
 
 	float out = in;
 
@@ -435,7 +439,7 @@ int Tracing2::ClipTraceToPlayers(trace_t* tr, Players* players, uint64_t ignoreF
 						tr->surface.name = "**studio**";
 						tr->surface.flags = SURF_HITBOX;
 						tr->surface.surfaceProps = bone->surfacepropidx;
-						tr->ent = (IClientEntity*)players->instance[i];
+						tr->ent = (IClientEntity*)FwBridge::GetPlayer(*players, i);
 
 						curBestDMGMul = fmaxf(curBestDMGMul, dmgMul);
 

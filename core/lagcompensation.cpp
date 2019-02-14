@@ -21,7 +21,6 @@ vec3_t acceleration[MAX_PLAYERS];
 static HistoryList<vec3_t, 3> originsLC[MAX_PLAYERS];
 static HistoryList<vec3_t, 3> velocities[MAX_PLAYERS];
 static HistoryList<float, 3> simtimes[MAX_PLAYERS];
-static C_BasePlayer* instances[MAX_PLAYERS];
 
 static void CheckDynamic();
 static void UpdatePart1(uint64_t copyFlags);
@@ -140,11 +139,7 @@ static void UpdatePart1(uint64_t copyFlags)
 			simtimes[pID].Push(p.time[i]);
 			originsLC[pID].Push(p.origin[i]);
 		}
-		if (instances[pID] != p.instance[i])
-			ignoreFlags |= (1ull << pID);
-
-		instances[pID] = (C_BasePlayer*)p.instance[i];
-	    velocities[pID].Push((vec3_t)instances[pID]->velocity());
+		velocities[pID].Push((vec3_t)FwBridge::playerList[pID]->velocity());
 	}
 
 	//Calculate acceleration and next simtime
@@ -173,7 +168,7 @@ static void UpdatePart1(uint64_t copyFlags)
 			sortIDs[o] = -1;
 			unsortIDs[o] = -1;
 
-			if (~FwBridge::playersFl & (1ull << o) || ignoreFlags & (1ull << o) || !instances[o])
+			if (~FwBridge::playersFl & (1ull << o) || ignoreFlags & (1ull << o) || !FwBridge::playerList[o])
 				continue;
 
 			velocity[o] += acceleration[o];
@@ -197,7 +192,7 @@ static void UpdatePart1(uint64_t copyFlags)
 			for (int o = 0; o < next.count; o++) {
 				next.time[o] = nextSimtime[unsortIDs[o]];
 				next.flags[o] |= Flags::EXISTS;
-				C_BasePlayer* ent = instances[unsortIDs[o]];
+				C_BasePlayer* ent = FwBridge::playerList[unsortIDs[o]];
 				if (!FwBridge::IsEnemy(ent))
 					next.flags[o] |= Flags::FRIENDLY;
 			}
@@ -214,7 +209,7 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	MTR_SCOPED_TRACE("LagCompensation", "SimulateUntil");
 
 	int pID = p->unsortIDs[id];
-	C_BasePlayer* ent = instances[pID];
+	C_BasePlayer* ent = FwBridge::playerList[pID];
 	anim->SetTime(ent->prevSimulationTime() - *curtime);
 	int fl = ent->flags();
 	float ct = *curtime;
@@ -267,7 +262,7 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	p->velocity[id] = velocity;
 	p->time[id] = targetTime;
 	*curtime = targetTime;
-	instances[pID]->flags() = fl;
+	FwBridge::playerList[pID]->flags() = fl;
 }
 
 struct SimulateUntilData
@@ -308,8 +303,8 @@ static void ThreadedPlayerReset(void* idx)
 
 	int i = (int)(uintptr_t)idx;
 
-	SetAbsOrigin(instances[i], originalOriginsLC[i]);
-	Engine::UpdatePlayer(instances[i], nullptr);
+	SetAbsOrigin(FwBridge::playerList[i], originalOriginsLC[i]);
+	Engine::UpdatePlayer(FwBridge::playerList[i], nullptr);
 }
 
 static MultiUpdateData queuedUpdateDataLC;
@@ -332,15 +327,15 @@ static void UpdatePart2()
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & (1ull << i)) {
-			if (!instances[i])
+			if (!FwBridge::playerList[i])
 				continue;
-			originalOriginsLC[i] = instances[i]->GetClientRenderable()->GetRenderOrigin();
+			originalOriginsLC[i] = FwBridge::playerList[i]->GetClientRenderable()->GetRenderOrigin();
 			csimtimes[i] = simtimes[i][0];
-			anims[i].Init(instances[i]);
+			anims[i].Init(FwBridge::playerList[i]);
 			circles[i] = Circle(originsLC[i][0], originsLC[i][1], originsLC[i][2]);
 			origin[i] = originsLC[i][0];
-			velocity[i] = instances[i]->velocity();
-			instances[i]->velocity() = Engine::velocities[i];
+			velocity[i] = FwBridge::playerList[i]->velocity();
+			FwBridge::playerList[i]->velocity() = Engine::velocities[i];
 			tcSim[i] = 0;
 			tmSim[i] = 0;
 		}
@@ -369,7 +364,7 @@ static void UpdatePart2()
 
 		for (int o = 0; o < p.count; o++) {
 			int pID = p.unsortIDs[o];
-			if (!instances[pID] || p.flags[o] & Flags::FRIENDLY)
+			if (!FwBridge::playerList[pID] || p.flags[o] & Flags::FRIENDLY)
 				continue;
 
 			playersDirty |= 1ull << pID;
@@ -384,7 +379,7 @@ static void UpdatePart2()
 
 			tmSim[pID] += p.time[o] - csimtimes[pID];
 			tcSim[pID]++;
-			p.instance[o] = instances[pID];
+			//p.instance[o] = FwBridge::playerList[pID];
 
 			auto simData = SimulateUntilData(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
 
@@ -429,11 +424,11 @@ static void UpdatePart2()
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & playersDirty & (1ull << i)) {
-			if (!instances[i])
+			if (!FwBridge::playerList[i])
 				continue;
 
-			instances[i]->origin() = origin[i];
-			instances[i]->velocity() = velocity[i];
+			FwBridge::playerList[i]->origin() = origin[i];
+			FwBridge::playerList[i]->velocity() = velocity[i];
 
 			if (firstIDX < 0)
 				firstIDX = i;

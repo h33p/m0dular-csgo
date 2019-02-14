@@ -22,7 +22,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 	for (int i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
-			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 			AnimationLayer* layers = ent->animationLayers();
 			isMoving[pID] = (layers[4].weight != 0.0 || layers[6].cycle != 0.0 || layers[5].weight != 0.0) && ent->velocity().LengthSqr<2>() > 0.01f;
 		}
@@ -32,7 +32,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 	for (int i = 0; i < count; i++) {
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
-			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 			resolveBases[pID][0] = ent->eyeAngles()[1];
 		}
 	}
@@ -50,7 +50,7 @@ void Resolver::Run(Players* __restrict players, Players* __restrict prevPlayers)
 		int rID = players->Resort(*prevPlayers, i);
 		if (players->flags[i] & Flags::UPDATED) {
 			int pID = players->unsortIDs[i];
-			C_BasePlayer* ent = (C_BasePlayer*)players->instance[i];
+			C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 			if (rID >= MAX_PLAYERS || players->time[i] - prevPlayers->time[rID] > globalVars->interval_per_tick * 2) {
 				float targetAng = ent->eyeAngles()[1];
 

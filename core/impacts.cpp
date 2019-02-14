@@ -56,7 +56,7 @@ void Impacts::Tick()
 		int id = players.unsortIDs[i];
 		if (id < 0 || id >= MAX_PLAYERS)
 			continue;
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 		if (!ent)
 			continue;
 		//memcpy(backup.layers[id], ent->animationLayers(), sizeof(backup.layers[id]));
@@ -260,7 +260,7 @@ static void ProcessHitEntity(BulletData data)
 
 	C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(data.hitEnt);
 
-	if (!ent || ent->IsDormant())
+	if (!ent || ent->IsDormant() || ent->GetClientClass()->classID != ClassId::ClassId_CCSPlayer)
 		return;
 
 	//TODO: Handle this case by rotating the hitbox around the axis
@@ -449,7 +449,7 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 			cvar->ConsoleColorPrintf(colorMiss, ST("Missed shot due to incorrect animefix.\n"));
 	} else {
 
-		C_BasePlayer* instance = (C_BasePlayer*)players.instance[aimbotTarget->id];
+		C_BasePlayer* instance = FwBridge::GetPlayer(players, aimbotTarget->id);
 
 		if (hitFlags & (1ull << unsortID)) {
 			Resolver::HitPlayer(unsortID, players.flags[aimbotTarget->id] & Flags::ONGROUND, resolvedAngle[unsortID]);

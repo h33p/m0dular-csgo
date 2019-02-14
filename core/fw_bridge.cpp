@@ -25,6 +25,7 @@
 typedef std::chrono::high_resolution_clock Clock;
 
 C_BasePlayer* FwBridge::localPlayer = nullptr;
+C_BasePlayer* FwBridge::playerList[MAX_PLAYERS];
 int FwBridge::playerCount = 0;
 uint64_t FwBridge::playersFl = 0;
 C_BaseCombatWeapon* FwBridge::activeWeapon = nullptr;
@@ -33,6 +34,7 @@ int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
 int FwBridge::reHitboxIDs[MAX_HITBOXES];
 studiohdr_t* FwBridge::cachedHDRs[MAX_PLAYERS];
 HistoryList<Players, BACKTRACK_TICKS> FwBridge::playerTrack;
+bool FwBridge::curPushed = false;
 LocalPlayer FwBridge::lpData;
 HistoryList<AimbotTarget, BACKTRACK_TICKS> FwBridge::aimbotTargets;
 HistoryList<unsigned int, BACKTRACK_TICKS> FwBridge::aimbotTargetIntersects;
@@ -94,6 +96,19 @@ bool FwBridge::IsEnemy(C_BasePlayer* ent)
 	}
 
 	return ent->teamNum() ^ FwBridge::localPlayer->teamNum();
+}
+
+C_BasePlayer* FwBridge::GetPlayer(const Players& players, int entID)
+{
+	if (entID < 0 || entID >= MAX_PLAYERS)
+		return nullptr;
+
+	int uid = players.unsortIDs[entID];
+
+	if (uid < 0 || uid >= MAX_PLAYERS)
+		return nullptr;
+
+	return playerList[uid];
 }
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
@@ -175,6 +190,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	updatedPlayers.clear();
 	nonUpdatedPlayers.clear();
+	memset(playerList, 0, sizeof(playerList));
 
 	int count = 0;
 
@@ -199,6 +215,8 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 			continue;
 
 		playerCount = i;
+
+		playerList[i] = ent;
 
 		if (ent == localPlayer) {
 			lpData.ID = i;
@@ -228,7 +246,6 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		C_BasePlayer* ent = players[i].player;
 
-		data.players.instance[i] = (void*)ent;
 		data.players.fov[i] = players[i].fov;
 		data.players.sortIDs[players[i].id] = i;
 		data.players.unsortIDs[i] = players[i].id;
@@ -256,8 +273,11 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 	Engine::StartLagCompensation();
 
+	curPushed = false;
+
 	//We want to push empty lists only if the previous list was not empty.
 	if (count > 0 || data.prevPlayers.count > 0) {
+		curPushed = true;
 		FinishUpdating(&data);
 		LagCompensation::Run();
 	} else
@@ -275,7 +295,7 @@ void FwBridge::FinishUpdating(UpdateData* data)
 	MoveEyePos(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 
 	for (int i : *data->updatedPlayers) {
-		C_BasePlayer* ent = (C_BasePlayer*)data->players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(data->players, i);
 		data->players.origin[i] = ent->origin();
 		float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
 		data->players.eyePos[i] = data->players.origin[i];
@@ -352,7 +372,7 @@ void FwBridge::FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
 		MoveEyePos(*data->worldList[i], *data->worldList[i - 1], &nonUpdatedPlayersTemp);
 
 		for (int o : *tempData.updatedPlayers) {
-			C_BasePlayer* ent = (C_BasePlayer*)tempData.players.instance[o];
+			C_BasePlayer* ent = GetPlayerFast(tempData.players, o);
 		    tempData.players.origin[o] = ent->origin();
 			float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
 		    tempData.players.eyePos[o] = tempData.players.origin[o];
@@ -407,7 +427,9 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 
 	SourceEssentials::UpdateCMD(cmd, &lpData);
 	SourceEnginePred::Finish(cmd, localPlayer);
-	Engine::EndLagCompensation();
+
+	if (curPushed)
+		Engine::EndLagCompensation();
 
 	prevtc = cmd->tick_count;
 
@@ -591,7 +613,7 @@ static void ThreadedUpdate(UpdateData* data)
 	MTR_SCOPED_TRACE("FwBridge", "ThreadedUpdate");
 
 	for (int i : *data->updatedPlayers) {
-		C_BasePlayer* ent = (C_BasePlayer*)data->players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(data->players, i);
 		data->players.boundsStart[i] = ent->mins();
 		data->players.boundsEnd[i] = ent->maxs();
 		data->players.velocity[i] = ent->velocity();
@@ -811,7 +833,7 @@ static void ThreadedBoneSetup(void* index)
 
 	BoneSetupData* data = (BoneSetupData*)boneSetupData + (uintptr_t)index;
 
-	data->output = Engine::UpdatePlayer((C_BasePlayer*)data->players->instance[data->idx], data->players->bones[data->idx]);
+	data->output = Engine::UpdatePlayer(FwBridge::GetPlayerFast(*data->players, data->idx), data->players->bones[data->idx]);
 }
 
 static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<int>* updatedPlayers, bool async)
@@ -821,7 +843,7 @@ static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<i
 	int firstIDX = -1;
 
 	for (int i : *updatedPlayers) {
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 
@@ -861,7 +883,7 @@ static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<i
 
 		boneMatrix = players.bones[i];
 
-		C_BasePlayer* ent = (C_BasePlayer*)players.instance[i];
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 		mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
 
@@ -1022,7 +1044,7 @@ static void SwitchFlags(Players& __restrict players, Players& __restrict prevPla
 {
 	for (int i = 0; i < players.count; i++) {
 		int pID = players.Resort(prevPlayers, i);
-		if (pID < prevPlayers.count && players.flags[i] & Flags::EXISTS && (~players.flags[i]) & Flags::UPDATED && prevPlayers.flags[pID] & Flags::UPDATED && players.instance[i] == prevPlayers.instance[pID]) {
+		if (pID < prevPlayers.count && players.flags[i] & Flags::EXISTS && (~players.flags[i]) & Flags::UPDATED && prevPlayers.flags[pID] & Flags::UPDATED && FwBridge::GetPlayerFast(players, i) == FwBridge::GetPlayer(prevPlayers, pID)) {
 			int fl = players.flags[i];
 			players.flags[i] = prevPlayers.flags[pID];
 			prevPlayers.flags[pID] = fl;
