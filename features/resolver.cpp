@@ -1,7 +1,7 @@
 #include "resolver.h"
 #include "../sdk/features/resolver.h"
-#include "fw_bridge.h"
-#include "engine.h"
+#include "../core/fw_bridge.h"
+#include "../core/engine.h"
 
 static float resolveBases[MAX_PLAYERS][1];
 static float resolveOffsets[1][2] = {{-180.f, 180.f}};

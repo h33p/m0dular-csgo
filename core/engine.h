@@ -8,11 +8,6 @@ class C_BasePlayer;
 
 namespace Engine
 {
-	extern int numBones[];
-	extern vec3_t velocities[];
-	extern float originalLBY[];
-	extern std::vector<vec3_t> localPlayerAngles;
-	extern bool localPlayerSentPacket;
 	bool UpdatePlayer(C_BasePlayer* ent, matrix<3,4> out[128]);
 	float LerpTime();
 	float CalculateBacktrackTime();
@@ -20,8 +15,8 @@ namespace Engine
 	void EndLagCompensation();
 	void StartAnimationFix(Players* players, Players* prevPlayers);
 	void Shutdown();
-	void HandleLBYProxy(C_BasePlayer* ent, float ang);
 	void FrameUpdate();
+	bool IsEnemy(C_BasePlayer* ent);
 }
 
 #endif

@@ -1,9 +1,9 @@
 #include "lagcompensation.h"
-#include "fw_bridge.h"
-#include "engine.h"
-#include "temporary_animations.h"
 #include "resolver.h"
-#include "mtr_scoped.h"
+#include "../core/fw_bridge.h"
+#include "../core/engine.h"
+#include "../core/temporary_animations.h"
+#include "../core/mtr_scoped.h"
 
 #include "../sdk/features/gamemovement.h"
 
@@ -193,7 +193,7 @@ static void UpdatePart1(uint64_t copyFlags)
 				next.time[o] = nextSimtime[unsortIDs[o]];
 				next.flags[o] |= Flags::EXISTS;
 				C_BasePlayer* ent = FwBridge::playerList[unsortIDs[o]];
-				if (!FwBridge::IsEnemy(ent))
+				if (!Engine::IsEnemy(ent))
 					next.flags[o] |= Flags::FRIENDLY;
 			}
 		}
@@ -325,23 +325,26 @@ static void UpdatePart2()
 
 	int lcQuality = Settings::aimbotLagCompensation;
 
+	Players* prevTrack = &FwBridge::playerTrack[0];
+
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & (1ull << i)) {
 			if (!FwBridge::playerList[i])
 				continue;
+
+			int pID = prevTrack->sortIDs[i];
+
 			originalOriginsLC[i] = FwBridge::playerList[i]->GetClientRenderable()->GetRenderOrigin();
 			csimtimes[i] = simtimes[i][0];
 			anims[i].Init(FwBridge::playerList[i]);
 			circles[i] = Circle(originsLC[i][0], originsLC[i][1], originsLC[i][2]);
 			origin[i] = originsLC[i][0];
 			velocity[i] = FwBridge::playerList[i]->velocity();
-			FwBridge::playerList[i]->velocity() = Engine::velocities[i];
+			FwBridge::playerList[i]->velocity() = prevTrack->velocity[pID];
 			tcSim[i] = 0;
 			tmSim[i] = 0;
 		}
 	}
-
-	Players* prevTrack = &FwBridge::playerTrack[0];
 
 	queuedUpdateDataLC.worldList.clear();
 	queuedUpdateDataLC.updatedIndices.clear();

@@ -1,8 +1,8 @@
 #include "engine.h"
 #include "fw_bridge.h"
-#include "resolver.h"
 #include "settings.h"
 #include "mtr_scoped.h"
+#include "../features/resolver.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/math/mmath.h"
 #include "../sdk/source_csgo/sdk.h"
@@ -40,14 +40,8 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 	return ret;
 }
 
-matrix<3,4> matrices[MAX_PLAYERS][128];
-vec3 origins[MAX_PLAYERS];
-
-int Engine::numBones[MAX_PLAYERS];
-vec3_t Engine::velocities[MAX_PLAYERS];
-
-std::vector<vec3_t> Engine::localPlayerAngles;
-bool Engine::localPlayerSentPacket = false;
+static matrix<3,4> matrices[MAX_PLAYERS][128];
+static vec3 origins[MAX_PLAYERS];
 
 void Engine::StartLagCompensation()
 {
@@ -61,13 +55,10 @@ void Engine::StartLagCompensation()
 			continue;
 
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
-		if (!hdr) {
-			numBones[id] = 0;
+		if (!hdr)
 			continue;
-		}
 
 		int bones = hdr->numbones;
-		numBones[id] = bones;
 
 		origins[i] = ent->GetClientRenderable()->GetRenderOrigin();
 
@@ -110,9 +101,9 @@ AnimationLayer serverAnimations[MAX_PLAYERS][13];
 int prevFlags[MAX_PLAYERS];
 vec3_t prevOrigins[MAX_PLAYERS];
 vec3_t prevVelocities[MAX_PLAYERS];
+vec3_t curVelocities[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
-float Engine::originalLBY[MAX_PLAYERS];
 
 int health[MAX_PLAYERS];
 
@@ -157,8 +148,8 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			lastOnGround[pID] = ent->animationLayers()[5].weight > 0.f;
 
 			if (ent->simulationTime() - prevSimulationTime[pID] > 0.f) {
-				prevVelocities[pID] = velocities[pID];
-				velocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
+				prevVelocities[pID] = curVelocities[pID];
+				curVelocities[pID] = (players->origin[i] - prevOrigins[pID]) * (1.f / fmaxf(ent->simulationTime() - prevSimulationTime[pID], globalVars->interval_per_tick));
 			}
 		}
 	}
@@ -184,7 +175,7 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 			for (int i = 0; i < ticksToAnimate; i++) {
 				dirtyVisualBonesMask |= (1u << pID);
 				float lerptime = (globalVars->curtime - prevSimulationTime[pID]) / (ent->simulationTime() - prevSimulationTime[pID]);
-				vec3_t velocity = prevVelocities[pID].Lerp(velocities[pID], lerptime);
+				vec3_t velocity = prevVelocities[pID].Lerp(curVelocities[pID], lerptime);
 				SetAbsVelocity(ent, velocity);
 				globalVars->frametime = globalVars->interval_per_tick;
 				ent->UpdateClientSideAnimation();
@@ -228,6 +219,26 @@ ConVar* interpRatio = nullptr;
 ConVar* clInterp = nullptr;
 ConVar* minInterp = nullptr;
 ConVar* maxInterp = nullptr;
+
+static ConVar* gameType = nullptr;
+static ConVar* gameMode = nullptr;
+
+bool Engine::IsEnemy(C_BasePlayer* ent)
+{
+	if (!gameType)
+		gameType = cvar->FindVar(ST("game_type"));
+
+	if (!gameMode)
+		gameMode = cvar->FindVar(ST("game_mode"));
+
+	if (gameType->GetInt() == 6 && !gameMode->GetInt()) {
+		if (FwBridge::localPlayer->survivalTeamNum() == -1)
+			return true;
+		return FwBridge::localPlayer->survivalTeamNum() ^ ent->survivalTeamNum();
+	}
+
+	return ent->teamNum() ^ FwBridge::localPlayer->teamNum();
+}
 
 float Engine::LerpTime()
 {
@@ -300,20 +311,6 @@ void Engine::Shutdown()
 	}
 }
 
-void Engine::HandleLBYProxy(C_BasePlayer* ent, float ang)
-{
-	if (!ent)
-		return;
-
-	int eID = ent->EntIndex();
-
-	if (eID >= MAX_PLAYERS || eID < 0)
-		return;
-
-	originalLBY[eID] = ang;
-	ent->lowerBodyYawTarget() = ang;
-}
-
 static void ValidateBoneCache(C_BasePlayer* ent)
 {
 	ent->lastBoneTime() = globalVars->curtime;
@@ -322,14 +319,12 @@ static void ValidateBoneCache(C_BasePlayer* ent)
 	ent->prevBoneMask() = BONE_USED_BY_ANYTHING;
 }
 
-static matrix3x4_t bmatrices[MAX_PLAYERS][128];
-
 static void FrameUpdatePlayer(C_BasePlayer* ent)
 {
 	ent->mostRecentBoneCounter() = *modelBoneCounter - 1;
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
-	ent->SetupBones(bmatrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & BONE_USED_BY_HITBOX, globalVars->curtime);
+	ent->SetupBones(matrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & BONE_USED_BY_HITBOX, globalVars->curtime);
 	ent->effects() = flags;
 	ValidateBoneCache(ent);
 }
@@ -360,15 +355,15 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 
 	CCSGOPlayerAnimState* state = ent->animState();
 	if (state) {
-		if (Engine::localPlayerSentPacket) {
+		if (FwBridge::localPlayerSentPacket) {
 
 			//We simulate animations twice. First we get the "fake" animation state by only feeding in the last angle and then the "real" one
 			//CCSGOPlayerAnimState stateBackup = *ent->animState();
 
 			float ctbac = globalVars->curtime;
-			globalVars->curtime = (ent->tickBase() - Engine::localPlayerAngles.size()) * globalVars->interval_per_tick;
+			globalVars->curtime = (ent->tickBase() - FwBridge::localPlayerAngles.size()) * globalVars->interval_per_tick;
 
-			for (const vec3_t& ang : Engine::localPlayerAngles) {
+			for (const vec3_t& ang : FwBridge::localPlayerAngles) {
 				globalVars->curtime += globalVars->interval_per_tick;
 
 				//TODO: Predict LBY
@@ -382,8 +377,8 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 			if (!Settings::thirdPersonShowReal)
 				ent->UpdateClientSideAnimation();
 
-			Engine::localPlayerSentPacket = false;
-			Engine::localPlayerAngles.clear();
+			FwBridge::localPlayerSentPacket = false;
+			FwBridge::localPlayerAngles.clear();
 
 			globalVars->curtime = ctbac;
 
@@ -454,11 +449,11 @@ void Engine::FrameUpdate()
 	dirtyVisualBonesMask = 0;
 }
 
-void RunSimulation(CPrediction* prediction, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayer)
+void RunSimulation(CPrediction* predictionPtr, float curtime, int command_number, CUserCmd* tCmd, C_BaseEntity* localPlayerEnt)
 {
 #ifdef _WIN32
-	RunSimulationFunc(prediction, nullptr, 0, 0, curtime, command_number, tCmd, localPlayer);
+	RunSimulationFunc(predictionPtr, nullptr, 0, 0, curtime, command_number, tCmd, localPlayerEnt);
 #else
-	RunSimulationFunc(prediction, curtime, command_number, tCmd, localPlayer);
+	RunSimulationFunc(predictionPtr, curtime, command_number, tCmd, localPlayerEnt);
 #endif
 }

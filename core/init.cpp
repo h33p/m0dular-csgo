@@ -8,7 +8,6 @@
 #include "../sdk/source_csgo/sdk.h"
 #include "../sdk/source_shared/eventlistener.h"
 #include "engine.h"
-#include "impacts.h"
 
 #include "../bits/signatures.h"
 #include "../bits/hook_indices.h"
@@ -17,6 +16,8 @@
 #include "tracing.h"
 #include "settings.h"
 #include "mtr_scoped.h"
+
+#include "../features/impacts.h"
 
 #ifdef _WIN32
 #include <d3d9.h>

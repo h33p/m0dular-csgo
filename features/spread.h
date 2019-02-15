@@ -1,7 +1,9 @@
 #ifndef SPREAD_H
 #define SPREAD_H
 
-#include "fw_bridge.h"
+struct Players;
+struct CUserCmd;
+
 #include "../sdk/framework/features/aimbot_types.h"
 
 namespace Spread

@@ -1,8 +1,8 @@
 #ifndef TRACECACHE_H
 #define TRACECACHE_H
 
-#include "awall.h"
 #include "settings.h"
+#include "../features/awall.h"
 #include "../sdk/framework/utils/kd_tree.h"
 #include "../sdk/framework/utils/freelistallocator.h"
 #include "../sdk/framework/utils/allocwraps.h"

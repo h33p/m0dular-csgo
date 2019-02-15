@@ -172,6 +172,9 @@ namespace FwBridge
 	extern uint64_t immuneFlags;
 	extern int traceCountAvg;
 	extern int traceTimeAvg;
+	extern float originalLBY[];
+	extern std::vector<vec3_t> localPlayerAngles;
+	extern bool localPlayerSentPacket;
 
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);
@@ -179,7 +182,7 @@ namespace FwBridge
 	void FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
-	bool IsEnemy(C_BasePlayer* ent);
+	void HandleLBYProxy(C_BasePlayer* ent, float ang);
 	C_BasePlayer* GetPlayer(const Players& players, int entID);
 
 	//No bounds checking. Do not use on history records!

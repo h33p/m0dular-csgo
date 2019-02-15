@@ -1,7 +1,7 @@
 #include "visuals.h"
-#include "fw_bridge.h"
 #include "lagcompensation.h"
-#include "settings.h"
+#include "../core/fw_bridge.h"
+#include "../core/settings.h"
 
 bool Visuals::shouldDraw = false;
 

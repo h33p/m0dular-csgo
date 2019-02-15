@@ -21,12 +21,15 @@ void OnLoad(ConsoleSetting** sets, size_t* size)
 	*size = csgoSettingsCount;
 }
 
-#ifdef _WIN32
-__declspec(dllexport)
-#else
-__attribute__ ((visibility ("default")))
-#endif
-extern "C" void Menu()
+extern "C"
 {
-	SettingsConsole();
+#ifdef _WIN32
+	__declspec(dllexport)
+#else
+	__attribute__ ((visibility ("default")))
+#endif
+		void Menu()
+	{
+		SettingsConsole();
+	}
 }

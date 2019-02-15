@@ -1,7 +1,7 @@
 #include "awall.h"
-#include "tracing.h"
+#include "../core/tracing.h"
 #include "../sdk/features/gametrace.h"
-#include "fw_bridge.h"
+#include "../core/fw_bridge.h"
 
 Mutex beLock;
 
@@ -70,7 +70,6 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 
 			//This is a friendly reminder that our TODO list includes hitbox handling to be put right below here
 
-
 			if (outTrace->DidHit() && !outTrace->startsolid) {
 				//NOTE: IsBreakableEntity check has to be done in a thread-safe way
 				*outBreakable = IsBreakableEntity((C_BasePlayer*)outTrace->ent);
@@ -102,20 +101,12 @@ bool AutoWall::HandleBulletPenetrationWorld(const trace_t& inTrace, vec3_t dir, 
 	bool isNodraw = inTrace.surface.flags & SURF_NODRAW;
 
 	surfacedata_t* inSurfData = physProp->GetSurfaceData(inTrace.surface.surfaceProps);
-	/*const char* inName = physProp->GetPropName(inTrace.surface.surfaceProps);
-	if (!inName)
-	inName = "empty";*/
 	int inMat = inSurfData->game.material;
 	float inPenMod = inSurfData->game.flPenetrationModifier;
-	//float inDmgMod = inSurfData->game.flDamageModifier;
 
 	surfacedata_t* outSurfData = physProp->GetSurfaceData(outTrace->surface.surfaceProps);
-	/*const char* outName = physProp->GetPropName(outTrace->surface.surfaceProps);
-	if (!outName)
-	outName = "empty";*/
 	int outMat = outSurfData->game.material;
 	float outPenMod = outSurfData->game.flPenetrationModifier;
-	//float outDmgMod = outSurfData->game.flDamageModifier;
 
 	//Part of the newer penetration system
 	float finalDmgMod = 0.16f;
@@ -126,7 +117,7 @@ bool AutoWall::HandleBulletPenetrationWorld(const trace_t& inTrace, vec3_t dir, 
 		finalDmgMod = 0.05f;
 	else if (isGrate || isNodraw)
 		combinedPenMod = 1;
-	else if (inMat == CHAR_TEX_FLESH && !FwBridge::IsEnemy(ent) && !ff_damage_reduction_bullets) {
+	else if (inMat == CHAR_TEX_FLESH && !Engine::IsEnemy(ent) && !ff_damage_reduction_bullets) {
 		//TODO: This branch will never be used in the world trace pass, handle it in the players pass
 		if (!ff_damage_bullet_penetration)
 			return false;
@@ -145,8 +136,6 @@ bool AutoWall::HandleBulletPenetrationWorld(const trace_t& inTrace, vec3_t dir, 
 	float invPenMod = fmaxf(1.f / combinedPenMod, 0.f);
 
 	float lostDmg = fmaxf((invPenMod * thickness * (1.f / 24.f)) + ((*curDamage * finalDmgMod) + fmaxf(3.75f / penetrationPower, 0.f) * 3.f * invPenMod), 0.f);
-
-	//cvar->ConsoleDPrintf("LDMG %f (%f) | %d %s %d %s %f %f %f %f\n", lostDmg, thickness, inMat, inName, outMat, outName, inPenMod, outPenMod, finalDmgMod, combinedPenMod);
 
 	*curDamage -= lostDmg;
 
@@ -176,8 +165,6 @@ void AutoWall::FireBulletWorld(vec3_t start, vec3_t dir, float weaponRange, floa
 
 	bool hbp = true;
 
-	//cvar->ConsoleDPrintf("\n\nNew Trace:\n");
-
 	for (int hitsRemaining = MAX_INTERSECTS - 1; hitsRemaining >= 0 && curDamage && hbp; hitsRemaining--) {
 		//NOTE: xAE's code had this wrong. But it could also be Valve so you never know
 		curRange = weaponRange - curDistance;
@@ -192,15 +179,11 @@ void AutoWall::FireBulletWorld(vec3_t start, vec3_t dir, float weaponRange, floa
 
 		prevDamage = curDamage;
 		curDistance += inTrace.fraction * curRange;
-		//cvar->ConsoleDPrintf("DMGMUL %f ^ (%f * 0.002f)\n", weaponRangeModifier, curDistance);
 		curDamage *= powf(weaponRangeModifier, curDistance * 0.002f);
 
 		outDamages[*curOutID] = prevDamage - curDamage;
 		outTraces[*curOutID] = inTrace;
 		permaCache[(*curOutID)++] = true;
-
-		////cvar->ConsoleDPrintf("FB %f: %f (%f)\n", curDistance, curDamage, outDamages[*curOutID - 1]);
-		//cvar->ConsoleDPrintf("FB %f (%f %f %f): %f (%f)\n", curDistance, outTrace.endpos[0], outTrace.endpos[1], outTrace.endpos[2], curDamage, outDamages[*curOutID - 1]);
 
 		if (inTrace.fraction == 1.f || inPenMod < 0.1f || (curDistance > penDist && weaponPenetration > 0.f))
 			break;
@@ -219,9 +202,6 @@ void AutoWall::FireBulletWorld(vec3_t start, vec3_t dir, float weaponRange, floa
 		outTraces[*curOutID] = outTrace;
 		permaCache[(*curOutID)++] = !outBreakable;
 
-		////cvar->ConsoleDPrintf("FB %f: %f (%f)\n", curDistance, curDamage, outDamages[*curOutID - 1]);
-		//cvar->ConsoleDPrintf("FB %f (%f %f %f): %f (%f)\n", curDistance, outTrace.endpos[0], outTrace.endpos[1], outTrace.endpos[2], curDamage, outDamages[*curOutID - 1]);
-
 		curStart = outTrace.endpos;
 	}
 }
@@ -234,23 +214,16 @@ static bool PerformPlayerClipping(Players* players, const trace_t& inTrace, floa
 	tempTrace.ent = nullptr;
 	int ret = Tracing2::ClipTraceToPlayers(&tempTrace, players, *ignoreFlags);
 
-	//*curDistance += (inTrace.endpos - inTrace.startpos).Length();
-
-	//cvar->ConsoleDPrintf("Clipping dist %f dmg %f (- %f)\n", *curDistance, *curDamage, damageDelta);
-
 	if (ret >= 0 && ret < MAX_PLAYERS) {
-		//cvar->ConsoleDPrintf("Hit player! %d %d %d\n", ret, (int)FwBridge::IsEnemy((C_BasePlayer*)tempTrace.ent), tempTrace.hitgroup);
 		*ignoreFlags |= (1ull << ret);
 
 		float newDistanceDelta = tempTrace.startpos.DistTo(tempTrace.endpos);
-		//cvar->ConsoleDPrintf("DD: %f (%f) => (%f) %f\n", distanceDelta, inTrace.startpos.DistTo(inTrace.endpos), newDistanceDelta, distanceDelta - newDistanceDelta);
 		distanceDelta -= newDistanceDelta;
 		*curDistance += newDistanceDelta;
 
 
 		float newDamage = *curDamage * powf(weaponRangeModifier, *curDistance * 0.002f);
 		damageDelta -= *curDamage - newDamage;
-		//cvar->ConsoleDPrintf("PH Clip: %f\n", *curDamage - newDamage);
 		*curDamage = newDamage;
 
 		(*hitsRemaining)--;
@@ -258,11 +231,9 @@ static bool PerformPlayerClipping(Players* players, const trace_t& inTrace, floa
 		//We hit an enemy player
 		if (tempTrace.hitgroup != HitGroups::HITGROUP_GEAR &&
 			tempTrace.hitgroup != HitGroups::HITGROUP_GENERIC &&
-			FwBridge::IsEnemy((C_BasePlayer*)tempTrace.ent)) {
-			//cvar->ConsoleDPrintf("APPLY DAMAGE %d ->", (int)*curDamage);
+			Engine::IsEnemy((C_BasePlayer*)tempTrace.ent)) {
 			*curDamage = Tracing2::ScaleDamage(players, players->sortIDs[ret], *curDamage, weaponArmorPenetration, FwBridge::hitboxIDs[tempTrace.hitbox], tempTrace.hitgroup);
 
-			//cvar->ConsoleDPrintf(" %f\n", *curDamage);
 			return true;
 		}
 
@@ -299,28 +270,22 @@ float AutoWall::FireBulletPlayers(vec3_t start, vec3_t dir, float weaponRange, f
 		}
 	}*/
 
-	//cvar->ConsoleDPrintf("Cache size: %d\n", *cacheSize);
-
 	while (hitsRemaining > 0 && curID < *cacheSize) {
 		trace_t inTrace = inTraces[curID];
 
-		//cvar->ConsoleDPrintf("(%d) ", curID);
 		if (PerformPlayerClipping(players, inTrace, &curDistance, &curDamage, &hitsRemaining, &ignoreFlags, weaponRangeModifier, weaponArmorPenetration, inDamages[curID], inTraces[curID].startpos.DistTo(inTraces[curID].endpos))) {
 			return curDamage;
 		}
 
 		curID++;
 
-		//HandleBulletPenetration shrunk into 1 LOC
-		//cvar->ConsoleDPrintf("(%d) HBP %f -= %f\n", curID, curDamage, inDamages[curID]);
+		//HandleBulletPenetration shrunk into 2 LOC
 		curDamage -= inDamages[curID];
 		curDistance += inTraces[curID].startpos.DistTo(inTraces[curID].endpos);
 		curID++;
 
 		hitsRemaining--;
 	}
-
-	//cvar->ConsoleDPrintf("RET %f\n", curDamage);
 
 	return 0.f;
 }

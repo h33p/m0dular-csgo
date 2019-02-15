@@ -5,7 +5,8 @@ py_installation = pymod.find_installation()
 
 randomize_link_order = get_option('randomize_link_order')
 
-compile_args = []
+#TODO: Enable warnings for as many things as possible
+compile_args = [] #['-Weverything', '-Wno-padded', '-Wno-cast-align', '-Wno-weak-vtables', '-Wno-c++98-compat', '-Wno-old-style-cast']
 linker_args = []
 combined_args = []
 external_link = []
@@ -22,7 +23,7 @@ endif
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
-core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'core/spread.cpp', 'core/visuals.cpp', 'core/impacts.cpp', 'core/resolver.cpp', 'core/antiaim.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp']
+core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'impl/aimbot.cpp']
 
 framework_thread_utils = ['core_unity/framework_threads.cpp']
 framework_other_utils = ['core_unity/framework_other_utils.cpp']
@@ -41,7 +42,7 @@ endif
 
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
 
-includes = []
+includes = ['pch']
 libraries = []
 deps = []
 

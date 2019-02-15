@@ -7,17 +7,18 @@
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/framework/features/aimbot.h"
 
-#include "spread.h"
 #include "engine.h"
 #include "hooks.h"
-#include "visuals.h"
-#include "impacts.h"
-#include "antiaim.h"
-#include "lagcompensation.h"
 #include "tracing.h"
 #include "settings.h"
-#include "awall.h"
 #include "mtr_scoped.h"
+
+#include "../features/spread.h"
+#include "../features/visuals.h"
+#include "../features/impacts.h"
+#include "../features/antiaim.h"
+#include "../features/lagcompensation.h"
+#include "../features/awall.h"
 
 #include <algorithm>
 #include <chrono>
@@ -39,7 +40,9 @@ LocalPlayer FwBridge::lpData;
 HistoryList<AimbotTarget, BACKTRACK_TICKS> FwBridge::aimbotTargets;
 HistoryList<unsigned int, BACKTRACK_TICKS> FwBridge::aimbotTargetIntersects;
 uint64_t FwBridge::immuneFlags = 0;
-
+float FwBridge::originalLBY[MAX_PLAYERS];
+std::vector<vec3_t> FwBridge::localPlayerAngles;
+bool FwBridge::localPlayerSentPacket = false;
 
 static ConVar* weapon_recoil_scale = nullptr;
 
@@ -78,24 +81,18 @@ static void MoveArmor(Players& __restrict players, Players& __restrict prevPlaye
 static void MoveHitboxes(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
 static void MoveColliders(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList);
 
-static ConVar* game_type = nullptr;
-static ConVar* game_mode = nullptr;
-
-bool FwBridge::IsEnemy(C_BasePlayer* ent)
+void FwBridge::HandleLBYProxy(C_BasePlayer* ent, float ang)
 {
-	if (!game_type)
-		game_type = cvar->FindVar(ST("game_type"));
+	if (!ent)
+		return;
 
-	if (!game_mode)
-		game_mode = cvar->FindVar(ST("game_mode"));
+	int eID = ent->EntIndex();
 
-	if (game_type->GetInt() == 6 && !game_mode->GetInt()) {
-		if (FwBridge::localPlayer->survivalTeamNum() == -1)
-			return true;
-		return FwBridge::localPlayer->survivalTeamNum() ^ ent->survivalTeamNum();
-	}
+	if (eID >= MAX_PLAYERS || eID < 0)
+		return;
 
-	return ent->teamNum() ^ FwBridge::localPlayer->teamNum();
+	originalLBY[eID] = ang;
+	ent->lowerBodyYawTarget() = ang;
 }
 
 C_BasePlayer* FwBridge::GetPlayer(const Players& players, int entID)
@@ -435,9 +432,9 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 
 	Visuals::shouldDraw = true;
 
-	Engine::localPlayerAngles.push_back(cmd->viewangles);
+	FwBridge::localPlayerAngles.push_back(cmd->viewangles);
 	if (*bSendPacket)
-		Engine::localPlayerSentPacket = true;
+		FwBridge::localPlayerSentPacket = true;
 }
 
 
@@ -519,6 +516,8 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 				}
 			}
 
+			extern int minDamage;
+			minDamage = Settings::aimbotMinDamage;
 //#ifdef DEBUG
 
 			auto t1 = Clock::now();
@@ -527,7 +526,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 #ifdef TESTING_FEATURES
 									   Settings::aimbotLagCompensation ? LagCompensation::futureTrack :
 #endif
-									   nullptr, &lpData, hitboxList, &immuneFlags, pointScale, Settings::aimbotMinDamage);
+									   nullptr, &lpData, hitboxList, &immuneFlags, pointScale);
 //#ifdef DEBUG
 			auto t2 = Clock::now();
 
@@ -712,7 +711,7 @@ static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent)
 	if (flags & FL_DUCKING)
 		cflags |= Flags::DUCKING;
 	if (FwBridge::localPlayer) {
-		if (!FwBridge::IsEnemy(ent))
+		if (!Engine::IsEnemy(ent))
 			cflags |= Flags::FRIENDLY;
 	}
 }
@@ -733,8 +732,8 @@ static float damageMul[MAX_HITBOXES];
 
 static void UpdateCapsuleHitbox(int idx, HitboxList* hbList, vec3_t camDir[MAX_HITBOXES], vec3_t hUp[MAX_HITBOXES])
 {
-	vecSoa<float, MULTIPOINT_COUNT, 3> tOffset;
-	vecSoa<float, MULTIPOINT_COUNT, 3> tDir;
+	vecSoa<float, MULTIPOINT_COUNT, 3> tOffset(0);
+	vecSoa<float, MULTIPOINT_COUNT, 3> tDir(0);
 
 	int o = 0;
 

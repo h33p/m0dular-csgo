@@ -1,14 +1,14 @@
 #include "../sdk/framework/g_defines.h"
 #include "hooks.h"
 #include "fw_bridge.h"
-#include "../sdk/framework/utils/stackstring.h"
 #include "engine.h"
-#include "visuals.h"
-#include "impacts.h"
 #include "tracing.h"
 #include "settings.h"
 #include "binds.h"
 #include "mtr_scoped.h"
+#include "../features/visuals.h"
+#include "../features/impacts.h"
+#include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
 #ifdef __posix__
@@ -58,9 +58,6 @@ LRESULT __stdcall CSGOHooks::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 }
 
 #endif
-
-static bool prevTraced = false;
-static int traceCount = 0;
 
 [[gnu::flatten]]
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
@@ -181,5 +178,5 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 
 void CSGOHooks::LBYProxy(const CRecvProxyData* data, void* ent, void* out)
 {
-	Engine::HandleLBYProxy((C_BasePlayer*)ent, data->value.Float);
+    FwBridge::HandleLBYProxy((C_BasePlayer*)ent, data->value.Float);
 }

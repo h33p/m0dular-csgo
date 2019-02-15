@@ -2,7 +2,7 @@
 #include "hooks.h"
 #include "../sdk/features/gametrace.h"
 #include "tracecache.h"
-#include "awall.h"
+#include "../features/awall.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/intersect_impl.h"
 #include "../sdk/framework/utils/intersect_box_impl.h"

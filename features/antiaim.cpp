@@ -1,9 +1,9 @@
 #include "antiaim.h"
-#include "fw_bridge.h"
-#include "engine.h"
-#include "temporary_animations.h"
-#include "tracing.h"
 #include "visuals.h"
+#include "../core/fw_bridge.h"
+#include "../core/engine.h"
+#include "../core/temporary_animations.h"
+#include "../core/tracing.h"
 
 #include "../sdk/features/features.h"
 
