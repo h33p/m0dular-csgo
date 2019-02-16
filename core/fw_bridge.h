@@ -49,6 +49,7 @@ extern IStaticPropMgr* staticPropMgr;
 extern CStaticPropMgr* staticPropMgrClient;
 extern IModelLoader* modelLoader;
 extern IPhysicsSurfaceProps* physProp;
+extern CInput* input;
 
 typedef void (*CL_RunPredictionFn)(void);
 #ifdef _WIN32
@@ -180,6 +181,7 @@ namespace FwBridge
 	void FinishUpdating(UpdateData* data);
 	void StartUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
 	void FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
+	void UpdateLocalPlayer();
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
 	void HandleLBYProxy(C_BasePlayer* ent, float ang);

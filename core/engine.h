@@ -13,6 +13,7 @@ namespace Engine
 	float CalculateBacktrackTime();
 	void StartLagCompensation();
 	void EndLagCompensation();
+	matrix3x4_t GetDirectBone(C_BasePlayer* ent, studiohdr_t** hdr, size_t boneID);
 	void StartAnimationFix(Players* players, Players* prevPlayers);
 	void Shutdown();
 	void FrameUpdate();

@@ -8,6 +8,7 @@
 #include "mtr_scoped.h"
 #include "../features/visuals.h"
 #include "../features/impacts.h"
+#include "../features/cameramodes.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
@@ -122,9 +123,17 @@ void __fastcall CSGOHooks::OnRenderStart(FASTARGS)
 {
 	static auto origFn = hookViewRender->GetOriginal(CSGOHooks::OnRenderStart);
 	origFn(CFASTARGS);
+	FwBridge::UpdateLocalPlayer();
 	Engine::FrameUpdate();
 }
 
+void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
+{
+	static auto origFn = hookClientMode->GetOriginal(CSGOHooks::OverrideView);
+	FwBridge::UpdateLocalPlayer();
+	origFn(CFASTARGS, setup);
+	CameraModes::OverrideView(setup);
+}
 
 #ifdef PT_VISUALS
 void __stdcall CSGOHooks::PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool forceRepaint, bool allowForce)

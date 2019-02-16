@@ -108,11 +108,22 @@ C_BasePlayer* FwBridge::GetPlayer(const Players& players, int entID)
 	return playerList[uid];
 }
 
+void FwBridge::UpdateLocalPlayer()
+{
+	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
+	activeWeapon = nullptr;
+
+	if (!localPlayer)
+		return;
+
+	activeWeapon = localPlayer->activeWeapon();
+}
+
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 {
 	MTR_BEGIN("FwBridge", "UpdateLocalData");
-	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
-	activeWeapon = localPlayer->activeWeapon();
+
+	UpdateLocalPlayer();
 
 	//TODO: Move the settings part to a separate function
 #ifdef TESTING_FEATURES

@@ -91,6 +91,23 @@ void Engine::EndLagCompensation()
 	}
 }
 
+matrix3x4_t Engine::GetDirectBone(C_BasePlayer* ent, studiohdr_t** hdr, size_t boneID)
+{
+	if (!*hdr)
+		*hdr = mdlInfo->GetStudiomodel(ent->GetModel());
+
+	if (!*hdr)
+		return matrix3x4_t();
+
+	int bones = (*hdr)->numbones;
+
+	if (boneID > bones)
+		return matrix3x4_t();
+
+	CUtlVector<matrix3x4_t>& matrix = ent->boneMatrix();
+	return matrix.memory.memory[boneID];
+}
+
 /*
   Backup the server side animation layers.
   We will restore those later on. We set bClientSideAnimation to false,
@@ -339,9 +356,6 @@ static AnimationLayer localAnimLayerBackup[13];
 
 static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 {
-	//TODO: Only return when in first person.
-	return;
-
 	ent->lastOcclusionCheck() = globalVars->framecount;
 	ent->occlusionFlags() = 0;
 	ent->occlusionFlags2() = -1;
@@ -390,6 +404,7 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 		}
 	}
 
+	//FIXME: Disabling local player animations messes with viewmodel when jumping/crouching.
 	ent->clientSideAnimation() = false;
 
 	ent->localAngles() = vec3(0);
@@ -398,7 +413,6 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 
 	SetAbsAngles(ent, ent->angles());
 	ent->SetupBones(tempMatrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
-	//ent->localAngles() = vec0;
 
 	if (false) {
 		if (SourceFakelag::state & FakelagState::LAST)
@@ -416,8 +430,6 @@ void Engine::FrameUpdate()
 {
 	MTR_SCOPED_TRACE("Engine", "FrameUpdate");
 
-	C_BasePlayer* lp = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
-
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
 
@@ -432,7 +444,7 @@ void Engine::FrameUpdate()
 
 		playerCount = i;
 
-		if (ent == lp)
+		if (ent == FwBridge::localPlayer)
 			continue;
 
 		if (~dirtyVisualBonesMask & (1u << i))
@@ -441,10 +453,17 @@ void Engine::FrameUpdate()
 		Threading::QueueJobRef(FrameUpdatePlayer, ent);
 	}
 
+	if ((Settings::thirdPerson
+#ifdef TESTING_FEATURES
+		 || Settings::headCam
+#endif
+			) && !input->CAM_IsThirdPerson(-1))
+		input->CAM_ToThirdPerson();
+
 	Threading::FinishQueue();
 
-	if (lp)
-		FrameUpdateLocalPlayer(lp);
+	if (FwBridge::localPlayer)
+		FrameUpdateLocalPlayer(FwBridge::localPlayer);
 
 	dirtyVisualBonesMask = 0;
 }

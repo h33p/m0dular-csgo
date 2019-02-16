@@ -51,6 +51,7 @@ IStaticPropMgr* staticPropMgr = nullptr;
 CStaticPropMgr* staticPropMgrClient = nullptr;
 IModelLoader* modelLoader = nullptr;
 IPhysicsSurfaceProps* physProp = nullptr;
+CInput* input = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;

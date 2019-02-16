@@ -40,6 +40,7 @@ namespace CSGOHooks
 	void __fastcall EntityDestruct(FASTARGS);
 	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
 	void __fastcall OnRenderStart(FASTARGS);
+	void __fastcall OverrideView(FASTARGS, CViewSetup*);
 	void ImpactsEffect(const CEffectData& effectData);
 	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);
 
