@@ -176,6 +176,7 @@ namespace FwBridge
 	extern float originalLBY[];
 	extern std::vector<vec3_t> localPlayerAngles;
 	extern bool localPlayerSentPacket;
+	extern bool enableBoneSetup;
 
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);

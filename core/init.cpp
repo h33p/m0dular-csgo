@@ -171,6 +171,7 @@ int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 
 void SigOffset(const Signature* sig)
 {
+	MTR_SCOPED_TRACE("Initialization", "SigOffset");
 	*sig->result = PatternScan::FindPattern(sig->pattern, sig->module);
 #ifdef DEBUG
 	if (!*sig->result) {
@@ -221,6 +222,7 @@ static void GatherTierExports()
 
 static void InitializeOffsets()
 {
+	MTR_SCOPED_TRACE("Initialization", "InitializeOffsets");
 	for (size_t i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
 		Threading::QueueJobRef(SigOffset, signatures + i);
 
@@ -231,9 +233,13 @@ static void InitializeOffsets()
 	staticPropMgrClient = (CStaticPropMgr*)(staticPropMgr - 1);
 
 	PlatformSpecificOffsets();
+	MTR_BEGIN("Netvars", "ServerInitialize");
 	SourceNetvars::InitializeServer(server);
+	MTR_END("Netvars", "ServerInitialize");
+	MTR_BEGIN("Netvars", "Initialize");
 	SourceNetvars::Initialize(cl);
-	Threading::FinishQueue();
+	MTR_END("Netvars", "Initialize");
+	Threading::FinishQueue(true);
 }
 
 static Semaphore dispatchSem;
@@ -263,11 +269,12 @@ static void DispatchToAllThreads(void* data)
 
 	smtx.wunlock();
 
-	Threading::FinishQueue();
+	Threading::FinishQueue(false);
 }
 
 static void InitializeHooks()
 {
+	MTR_SCOPED_TRACE("Initialization", "InitializeHooks");
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
 	hookViewRender = new VFuncHook(viewRender, false, 10);
@@ -293,7 +300,7 @@ static void InitializeHooks()
 
 static void InitializeDynamicHooks()
 {
-	CSGOHooks::entityHooks = new std::unordered_map<C_BasePlayer*, VFuncHook*>();
+	MTR_SCOPED_TRACE("Initialization", "InitializeDynamicHooks");
 	EffectsHook::HookAll(effectHooks, effectsCount, *effectsHead);
 	SourceNetvars::HookAll(netvarHooks, netvarCount);
 	listener.Initialize(ST("bullet_impact"));
@@ -326,12 +333,9 @@ void Shutdown(bool delayAfterUnhook)
 
 
 		cvar->ConsoleDPrintf(ST("Removing entity hooks...\n"));
-		if (CSGOHooks::entityHooks) {
-			for (auto& i : *CSGOHooks::entityHooks)
-				delete i.second;
-			delete CSGOHooks::entityHooks;
-			CSGOHooks::entityHooks = nullptr;
-		}
+		for (auto& i : CSGOHooks::entityHooks)
+			delete i.second;
+		CSGOHooks::entityHooks.clear();
 
 		cvar->ConsoleDPrintf(ST("Removing effect hooks...\n"));
 		EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);

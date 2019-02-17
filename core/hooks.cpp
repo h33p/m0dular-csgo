@@ -60,6 +60,10 @@ LRESULT __stdcall CSGOHooks::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 #endif
 
+#ifdef MTR_ENABLED
+static bool prevTraced = false;
+#endif
+
 [[gnu::flatten]]
 bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCmd* cmd)
 {
@@ -104,10 +108,12 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	MTR_BEGIN("Hooks", "CreateMove");
 	//Settings::ipcLock->rlock();
+	FwBridge::enableBoneSetup = true;
 	Tracing2::ResetTraceCount();
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
 	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
+	FwBridge::enableBoneSetup = false;
 	//Settings::ipcLock->runlock();
 	MTR_END("Hooks", "CreateMove");
 
@@ -123,15 +129,19 @@ void __fastcall CSGOHooks::OnRenderStart(FASTARGS)
 {
 	static auto origFn = hookViewRender->GetOriginal(CSGOHooks::OnRenderStart);
 	origFn(CFASTARGS);
+	MTR_SCOPED_TRACE("Hooks", "OnRenderStart");
+	FwBridge::enableBoneSetup = true;
 	FwBridge::UpdateLocalPlayer();
 	Engine::FrameUpdate();
+	FwBridge::enableBoneSetup = false;
 }
 
 void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
 {
 	static auto origFn = hookClientMode->GetOriginal(CSGOHooks::OverrideView);
-	FwBridge::UpdateLocalPlayer();
 	origFn(CFASTARGS, setup);
+	MTR_SCOPED_TRACE("Hooks", "OverrideView");
+	FwBridge::UpdateLocalPlayer();
 	CameraModes::OverrideView(setup);
 }
 
@@ -155,7 +165,7 @@ void __stdcall CSGOHooks::PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool for
 }
 #endif
 
-std::unordered_map<C_BasePlayer*, VFuncHook*>* CSGOHooks::entityHooks = nullptr;
+std::unordered_map<C_BasePlayer*, VFuncHook*> CSGOHooks::entityHooks;
 
 /*
   For the time being we do not hook this on windows. So, we are going to leak memory
@@ -163,15 +173,30 @@ std::unordered_map<C_BasePlayer*, VFuncHook*>* CSGOHooks::entityHooks = nullptr;
 
 void __fastcall CSGOHooks::EntityDestruct(FASTARGS)
 {
-	VFuncHook* hook = entityHooks->at((C_BasePlayer*)thisptr);
+	VFuncHook* hook = entityHooks.at((C_BasePlayer*)thisptr);
 	auto origFn = hook->GetOriginal(CSGOHooks::EntityDestruct);
-	entityHooks->erase((C_BasePlayer*)thisptr);
+	entityHooks.erase((C_BasePlayer*)thisptr);
 	origFn(CFASTARGS);
 }
 
-bool __fastcall CSGOHooks::SetupBones(C_BasePlayer* thisptr, matrix3x4_t* matrix, int maxBones, int boneMask, float curtime)
+bool __fastcall CSGOHooks::SetupBones(FASTARGS, matrix3x4_t* matrix, int maxBones, int boneMask, float curtime)
 {
-	return ::SetupBones(thisptr, matrix, maxBones, boneMask, curtime);
+	C_BasePlayer* ent = (C_BasePlayer*)((uintptr_t*)thisptr - 1);
+
+	//if (!FwBridge::enableBoneSetup)
+	//	return false;
+	//cvar->ConsoleDPrintf("SB: %p %p %d %x %f\n", thisptr, matrix, maxBones, boneMask, curtime);
+	//cvar->ConsoleDPrintf("SB: %p\n", thisptr);
+	if (!FwBridge::enableBoneSetup && Engine::CopyBones(ent, matrix, maxBones))
+		return true;
+
+	if (!FwBridge::enableBoneSetup)
+		return false;
+
+	//cvar->ConsoleDPrintf("SBA: %p %p %d %x %f\n", thisptr, matrix, maxBones, boneMask, curtime);
+	VFuncHook* hook = entityHooks.at((C_BasePlayer*)thisptr);
+	auto origFn = hook->GetOriginal(CSGOHooks::SetupBones);
+	return origFn(CFASTARGS, matrix, maxBones, boneMask, curtime); //::SetupBones(thisptr, matrix, maxBones, boneMask, curtime);
 }
 
 extern EffectHook effectHooks[];

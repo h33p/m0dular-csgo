@@ -41,6 +41,7 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 }
 
 static matrix<3,4> matrices[MAX_PLAYERS][128];
+static bool bonesSetup[128];
 static vec3 origins[MAX_PLAYERS];
 
 void Engine::StartLagCompensation()
@@ -106,6 +107,34 @@ matrix3x4_t Engine::GetDirectBone(C_BasePlayer* ent, studiohdr_t** hdr, size_t b
 
 	CUtlVector<matrix3x4_t>& matrix = ent->boneMatrix();
 	return matrix.memory.memory[boneID];
+}
+
+bool Engine::CopyBones(C_BasePlayer* ent, matrix3x4_t* matrix, int maxBones)
+{
+	if (!ent)
+		return false;
+
+	int entID = ent->EntIndex();
+
+	if (!bonesSetup[entID])
+		return false;
+
+	if (!matrix)
+		return true;
+
+	studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
+
+	if (!hdr)
+		return false;
+
+	int bones = hdr->numbones;
+
+	if (maxBones < bones || bones > 128)
+		return false;
+
+	memcpy(matrix, matrices[entID], sizeof(matrix3x4_t) * Min(maxBones, bones));
+
+	return true;
 }
 
 /*
@@ -336,12 +365,77 @@ static void ValidateBoneCache(C_BasePlayer* ent)
 	ent->prevBoneMask() = BONE_USED_BY_ANYTHING;
 }
 
+static Players* lastLerpWorld[MAX_PLAYERS];
+static float lastLerpTime[MAX_PLAYERS];
+static vec3_t lerpedOrigin[MAX_PLAYERS];
+static vec3_t lastLerpedOrigin[MAX_PLAYERS];
+
 static void FrameUpdatePlayer(C_BasePlayer* ent)
 {
+	MTR_SCOPED_TRACE("Engine", "FrameUpdatePlayer");
+
 	ent->mostRecentBoneCounter() = *modelBoneCounter - 1;
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
-	ent->SetupBones(matrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & BONE_USED_BY_HITBOX, globalVars->curtime);
+
+	int entID = ent->EntIndex();
+
+	//TODO: Lerp the matrix to make it smooth
+	/*Players* players1 = nullptr;
+	Players* players2 = nullptr;
+	Players* players3 = nullptr;
+
+	for (size_t i = 0; i < FwBridge::playerTrack.Count(); i++) {
+		Players& players = FwBridge::playerTrack[i];
+		if (players.sortIDs[entID] >= 0 && players.sortIDs[entID] < players.count) {
+			if (!players1)
+				players1 = &players;
+			else if (!players2)
+				players2 = &players;
+			else { //players3 is currently unused but using it would give even smoohter result
+				players3 = &players;
+				break;
+			}
+		}
+	}
+
+	if (!players1) {
+		//lastLerpWorld[entID] = players1;
+		return;
+	}
+
+	int pID1 = players1->sortIDs[entID];
+
+	if (!lastLerpWorld[entID])
+		lerpedOrigin[entID] = players1->origin[pID1];
+
+	if (!lastLerpWorld[entID] || lastLerpWorld[entID] != players1) {
+		lastLerpTime[entID] = globalVars->curtime;
+		lastLerpWorld[entID] = players1;
+		lastLerpedOrigin[entID] = lerpedOrigin[entID];
+	}
+
+	float timeDelta = globalVars->curtime - lastLerpTime[entID];
+
+	if (players2) {
+		int pID2 = players2->sortIDs[entID];
+		float timeDeltaLerp = players1->time[pID1] - players2->time[pID2];
+		lerpedOrigin[entID] = lastLerpedOrigin[entID].LerpClamped(players1->origin[pID1], timeDelta / timeDeltaLerp);
+	} else
+		lerpedOrigin[entID] = players1->origin[pID1];
+
+		vec3_t originDelta = lerpedOrigin[entID] - players1->origin[pID1];*/
+
+	//FIXME: We need to call SetupBones or else the rendered matrix will mess up
+	if (dirtyVisualBonesMask & (1u << entID))
+		ent->SetupBones(matrices[entID], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & ~BONE_USED_BY_HITBOX, globalVars->curtime);
+	//memcpy(matrices[entID], players1->bones[pID1], MAXSTUDIOBONES);
+	/*for (size_t i = 0; i < MAXSTUDIOBONES; i++) {
+		matrices[entID][i].vec.AddRow(3, originDelta);
+	}*/
+
+	bonesSetup[entID] = true;
+	//lerpedOrigin[entID] = players1->origin[pID1];
 	ent->effects() = flags;
 	ValidateBoneCache(ent);
 }
@@ -356,6 +450,8 @@ static AnimationLayer localAnimLayerBackup[13];
 
 static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 {
+	MTR_SCOPED_TRACE("Engine", "FrameUpdateLocalPlayer");
+
 	ent->lastOcclusionCheck() = globalVars->framecount;
 	ent->occlusionFlags() = 0;
 	ent->occlusionFlags2() = -1;
@@ -412,7 +508,8 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 	ent->angles()[2] = 0;
 
 	SetAbsAngles(ent, ent->angles());
-	ent->SetupBones(tempMatrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
+	ent->SetupBones(matrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
+	bonesSetup[ent->EntIndex()] = true;
 
 	if (false) {
 		if (SourceFakelag::state & FakelagState::LAST)
@@ -429,6 +526,8 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 void Engine::FrameUpdate()
 {
 	MTR_SCOPED_TRACE("Engine", "FrameUpdate");
+
+	memset(bonesSetup, 0, sizeof(bonesSetup));
 
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
@@ -447,8 +546,8 @@ void Engine::FrameUpdate()
 		if (ent == FwBridge::localPlayer)
 			continue;
 
-		if (~dirtyVisualBonesMask & (1u << i))
-			continue;
+		//if (~dirtyVisualBonesMask & (1u << i))
+		//	continue;
 
 		Threading::QueueJobRef(FrameUpdatePlayer, ent);
 	}
@@ -460,7 +559,7 @@ void Engine::FrameUpdate()
 			) && !input->CAM_IsThirdPerson(-1))
 		input->CAM_ToThirdPerson();
 
-	Threading::FinishQueue();
+	Threading::FinishQueue(true);
 
 	if (FwBridge::localPlayer)
 		FrameUpdateLocalPlayer(FwBridge::localPlayer);

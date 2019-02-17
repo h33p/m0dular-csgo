@@ -13,7 +13,6 @@ void CameraModes::OverrideView(CViewSetup* setup)
 	if (!ent)
 		return;
 
-	studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 
 	if (Settings::thirdPerson) {
 		vec3_t forward, right, up;
@@ -29,6 +28,8 @@ void CameraModes::OverrideView(CViewSetup* setup)
 	}
 #ifdef TESTING_FEATURES
 	else if (Settings::headCam) {
+		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
+
 		if (!hdr)
 			return;
 

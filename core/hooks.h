@@ -36,9 +36,9 @@ namespace CSGOHooks
 #endif
 
 	extern AtomicLock createMoveLock;
-	extern std::unordered_map<C_BasePlayer*, VFuncHook*>* entityHooks;
+	extern std::unordered_map<C_BasePlayer*, VFuncHook*> entityHooks;
 	void __fastcall EntityDestruct(FASTARGS);
-	bool __fastcall SetupBones(C_BasePlayer*, matrix3x4_t*, int, int, float);
+	bool __fastcall SetupBones(FASTARGS, matrix3x4_t*, int, int, float);
 	void __fastcall OnRenderStart(FASTARGS);
 	void __fastcall OverrideView(FASTARGS, CViewSetup*);
 	void ImpactsEffect(const CEffectData& effectData);

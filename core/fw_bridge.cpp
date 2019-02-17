@@ -43,6 +43,7 @@ uint64_t FwBridge::immuneFlags = 0;
 float FwBridge::originalLBY[MAX_PLAYERS];
 std::vector<vec3_t> FwBridge::localPlayerAngles;
 bool FwBridge::localPlayerSentPacket = false;
+bool FwBridge::enableBoneSetup = true;
 
 static ConVar* weapon_recoil_scale = nullptr;
 
@@ -188,6 +189,7 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 
 static std::vector<int> updatedPlayers;
 static std::vector<int> nonUpdatedPlayers;
+static std::map<C_BasePlayer*, bool> entitiesToUnhook;
 
 void FwBridge::UpdatePlayers(CUserCmd* cmd)
 {
@@ -209,6 +211,15 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 	playersFl = 0;
 	immuneFlags = 0;
 
+	MTR_BEGIN("FwBridge", "EntHooksCheck");
+
+	entitiesToUnhook.clear();
+
+	for (const auto& i : CSGOHooks::entityHooks)
+		entitiesToUnhook[i.first] = true;
+
+	MTR_END("FwBridge", "EntHooksCheck");
+
 	MTR_BEGIN("FwBridge", "PreSortLoop");
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
@@ -221,6 +232,20 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		if (!ent || !player || dormant || i == 0)
 			continue;
+
+		//Hook the entity
+		C_BasePlayer* hookEnt = (C_BasePlayer*)((uintptr_t*)ent + 1);
+
+		if (CSGOHooks::entityHooks.find(hookEnt) == CSGOHooks::entityHooks.end()) {
+#ifdef DEBUG
+			cvar->ConsoleDPrintf("Hooking %p\n", hookEnt);
+#endif
+			VFuncHook* hook = new VFuncHook((void*)hookEnt);
+			CSGOHooks::entityHooks[hookEnt] = hook;
+			//TODO: Figure out a way to hook the destructor
+			hook->Hook(13, CSGOHooks::SetupBones);
+		} else
+			entitiesToUnhook[hookEnt] = false;
 
 		playerCount = i;
 
@@ -244,6 +269,15 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		count++;
 	}
 	MTR_END("FwBridge", "PreSortLoop");
+
+	for (auto& i : entitiesToUnhook)
+	    if (i.second) {
+#ifdef DEBUG
+			cvar->ConsoleDPrintf("Unhooking %p\n", i.first);
+#endif
+			delete CSGOHooks::entityHooks[i.first];
+			CSGOHooks::entityHooks.erase(i.first);
+		}
 
 	std::sort(players, players + count, PlayerSort);
 
@@ -320,7 +354,7 @@ void FwBridge::FinishUpdating(UpdateData* data)
 
 	Threading::QueueJobRef(ThreadedUpdate, data);
 	UpdateHitboxesPart1(data->players, data->updatedPlayers);
-	Threading::FinishQueue();
+	Threading::FinishQueue(true);
 	UpdateHitboxesPart2(data->players, data->updatedPlayers, &hitboxUpdatedList);
 	UpdateColliders(data->players, &hitboxUpdatedList);
 	SwitchFlags(data->players, data->prevPlayers);
@@ -356,7 +390,7 @@ void FwBridge::FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
 {
 	MTR_SCOPED_TRACE("FwBridge", "FinishUpdatingMultiWorld");
 
-	Threading::FinishQueue();
+	Threading::FinishQueue(true);
 
 	for (size_t i = 1; i < data->worldList.size(); i++) {
 		updatedPlayersTemp.clear();
@@ -850,8 +884,6 @@ static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<i
 {
 	MTR_SCOPED_TRACE("FwBridge", "UpdateHitboxesPart1");
 
-	int firstIDX = -1;
-
 	for (int i : *updatedPlayers) {
 		C_BasePlayer* ent = FwBridge::GetPlayerFast(players, i);
 
@@ -868,15 +900,8 @@ static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<i
 
 		boneSetupData[players.unsortIDs[i]] = BoneSetupData(&players, i, false);
 
-		if (firstIDX < 0 && !async)
-			firstIDX = players.unsortIDs[i];
-		else
-			Threading::QueueJobRef(ThreadedBoneSetup, (void*)(uintptr_t)players.unsortIDs[i]);
+		Threading::QueueJobRef(ThreadedBoneSetup, (void*)(uintptr_t)players.unsortIDs[i]);
 	}
-
-	//Perform one bone setup on the main thread to make it not idle
-	if (firstIDX >= 0)
-		ThreadedBoneSetup((void*)(uintptr_t)firstIDX);
 }
 
 static void UpdateHitboxesPart2(Players& __restrict players, const std::vector<int>* updatedPlayers, std::vector<int>* updatedHitboxPlayers)

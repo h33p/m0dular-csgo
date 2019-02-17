@@ -423,8 +423,6 @@ static void UpdatePart2()
 	queuedUpdateDataLC.worldList.clear();
 	queuedUpdateDataLC.updatedIndices.clear();
 
-	int firstIDX = -1;
-
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		if (FwBridge::playersFl & playersDirty & (1ull << i)) {
 			if (!FwBridge::playerList[i])
@@ -433,16 +431,10 @@ static void UpdatePart2()
 			FwBridge::playerList[i]->origin() = origin[i];
 			FwBridge::playerList[i]->velocity() = velocity[i];
 
-			if (firstIDX < 0)
-				firstIDX = i;
-			else
-				Threading::QueueJobRef(ThreadedPlayerReset, (void*)(uintptr_t)i);
+			Threading::QueueJobRef(ThreadedPlayerReset, (void*)(uintptr_t)i);
 		}
 	}
 
-	if (firstIDX >= 0)
-		ThreadedPlayerReset((void*)(uintptr_t)firstIDX);
-
-	Threading::FinishQueue();
+	Threading::FinishQueue(true);
 }
 #endif

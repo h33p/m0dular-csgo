@@ -14,6 +14,7 @@ namespace Engine
 	void StartLagCompensation();
 	void EndLagCompensation();
 	matrix3x4_t GetDirectBone(C_BasePlayer* ent, studiohdr_t** hdr, size_t boneID);
+	bool CopyBones(C_BasePlayer* ent, matrix3x4_t* matrix, int size);
 	void StartAnimationFix(Players* players, Players* prevPlayers);
 	void Shutdown();
 	void FrameUpdate();
