@@ -9,7 +9,7 @@
 void OnLoad(ConsoleSetting** sets, size_t* size);
 
 static uintptr_t clAllocBase = 0;
-generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
+static generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
 
 static ConsoleSetting* settingList = nullptr;
 static size_t settingsCount = 0;

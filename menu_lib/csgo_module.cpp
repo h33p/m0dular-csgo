@@ -3,7 +3,7 @@
 #include "../core/binds.h"
 
 static uintptr_t clAllocBase = 0;
-generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
+static generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPolicy::FIND_FIRST);
 
 static int slid = 0;
 
