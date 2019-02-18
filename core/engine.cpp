@@ -452,6 +452,14 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 {
 	MTR_SCOPED_TRACE("Engine", "FrameUpdateLocalPlayer");
 
+#ifndef _WIN32
+	if (!input->cameraInThirdPerson) {
+		ent->clientSideAnimation() = true;
+		ent->varMapping().interpolatedEntries = ent->varMapping().entries.size;
+		return;
+	}
+#endif
+
 	ent->lastOcclusionCheck() = globalVars->framecount;
 	ent->occlusionFlags() = 0;
 	ent->occlusionFlags2() = -1;
@@ -559,6 +567,8 @@ void Engine::FrameUpdate()
 			) && !input->CAM_IsThirdPerson(-1))
 		input->CAM_ToThirdPerson();
 
+	input->cameraOffset[2] = 0.f;
+
 	Threading::FinishQueue(true);
 
 	if (FwBridge::localPlayer)
@@ -572,6 +582,6 @@ void RunSimulation(CPrediction* predictionPtr, float curtime, int command_number
 #ifdef _WIN32
 	RunSimulationFunc(predictionPtr, nullptr, 0, 0, curtime, command_number, tCmd, localPlayerEnt);
 #else
-	RunSimulationFunc(predictionPtr, curtime, command_number, tCmd, localPlayerEnt);
+	RunSimulationFunc(predictionPtr, command_number, tCmd, localPlayerEnt, curtime);
 #endif
 }

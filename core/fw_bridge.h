@@ -65,7 +65,7 @@ typedef bool(__thiscall* IsBreakableEntityFn)(IClientEntity*);
 #ifdef _WIN32
 typedef void(__vectorcall* RunSimulationFn)(void*, void*, float, float, float, int, CUserCmd*, C_BaseEntity*);
 #else
-typedef void(*RunSimulationFn)(void*, float, int, CUserCmd*, C_BaseEntity*);
+typedef void(*RunSimulationFn)(void*, int, CUserCmd*, C_BaseEntity*, float);
 #endif
 
 typedef void (*RandomSeedFn)(int);
