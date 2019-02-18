@@ -32,8 +32,9 @@ T GetSetting(crcs_t crc)
 template<typename T, auto& Fn>
 void GetPrintSetting(void* in)
 {
+	void* Fn2 = (void*)&Fn;
 	typedef T(*FnVFn)(void*);
-	std::cout << ((FnVFn)Fn)(in);
+	std::cout << ((FnVFn)Fn2)(in);
 }
 
 template<typename T, auto& Fn>
