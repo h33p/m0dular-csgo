@@ -143,6 +143,7 @@ void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
 	MTR_SCOPED_TRACE("Hooks", "OverrideView");
 	FwBridge::UpdateLocalPlayer();
 	CameraModes::OverrideView(setup);
+	*postProcessDisable = Settings::disablePostProcessing;
 }
 
 #ifdef PT_VISUALS

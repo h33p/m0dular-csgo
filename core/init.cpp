@@ -63,6 +63,7 @@ SetAbsFn SetAbsVelocity = nullptr;
 SetupBonesFn SetupBones = nullptr;
 int* modelBoneCounter = nullptr;
 IsBreakableEntityFn IsBreakableEntityNative = nullptr;
+bool* postProcessDisable = nullptr;
 
 RandomSeedFn RandomSeed = nullptr;
 RandomFloatFn RandomFloat = nullptr;
@@ -113,10 +114,14 @@ void* __stdcall EntryPoint(void*)
 	MTR_META_PROCESS_NAME("thread_pool_test");
 #endif
 	MTR_SCOPED_TRACE("Initialization", "EntryPoint");
+#ifdef DEBUG_STDOUT
 #ifndef _WIN32
-	//freopen("/tmp/csout.txt", "w", stdout);
+	freopen("/tmp/csout.txt", "w", stdout);
 #else
-	//freopen("C:\\temp\\csout.txt", "w", stdout);
+	freopen("C:\\temp\\csout.txt", "w", stdout);
+#endif
+	printf("Initialize stdout\n");
+	fflush(stdout);
 #endif
 	Threading::InitThreads();
 #ifndef LOADER_INITIALIZATION
@@ -223,6 +228,7 @@ static void GatherTierExports()
 static void InitializeOffsets()
 {
 	MTR_SCOPED_TRACE("Initialization", "InitializeOffsets");
+
 	for (size_t i = 0; i < sizeof(signatures) / (sizeof((signatures)[0])); i++)
 		Threading::QueueJobRef(SigOffset, signatures + i);
 

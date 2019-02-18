@@ -100,6 +100,7 @@ extern SetAbsFn SetAbsVelocity;
 extern SetupBonesFn SetupBones;
 extern int* modelBoneCounter;
 extern IsBreakableEntityFn IsBreakableEntityNative;
+extern bool* postProcessDisable;
 
 extern RandomSeedFn RandomSeed;
 extern RandomFloatFn RandomFloat;
