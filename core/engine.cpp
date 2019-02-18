@@ -588,8 +588,12 @@ void Engine::FrameUpdate()
 
 	Threading::FinishQueue(true);
 
-	if (FwBridge::localPlayer)
+	if (FwBridge::localPlayer) {
 		FrameUpdateLocalPlayer(FwBridge::localPlayer);
+		//TODO: Move these small features to a separate source file in the features directory
+		if (Settings::noFlash)
+			FwBridge::localPlayer->flashDuration() = 0.f;
+	}
 
 	dirtyVisualBonesMask = 0;
 }
