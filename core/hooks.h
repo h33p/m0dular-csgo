@@ -43,6 +43,7 @@ namespace CSGOHooks
 	void __fastcall OverrideView(FASTARGS, CViewSetup*);
 	void ImpactsEffect(const CEffectData& effectData);
 	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);
+	void DidSmokeEffectProxy(const CRecvProxyData* data, void* ent, void* out);
 
 #ifdef __posix__
 	int PollEvent(SDL_Event* event);

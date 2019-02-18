@@ -101,6 +101,7 @@ extern SetupBonesFn SetupBones;
 extern int* modelBoneCounter;
 extern IsBreakableEntityFn IsBreakableEntityNative;
 extern bool* postProcessDisable;
+extern int* smokeCount;
 
 extern RandomSeedFn RandomSeed;
 extern RandomFloatFn RandomFloat;

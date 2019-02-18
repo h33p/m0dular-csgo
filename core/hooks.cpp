@@ -9,6 +9,7 @@
 #include "../features/visuals.h"
 #include "../features/impacts.h"
 #include "../features/cameramodes.h"
+#include "../features/nosmoke.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
@@ -143,6 +144,7 @@ void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
 	MTR_SCOPED_TRACE("Hooks", "OverrideView");
 	FwBridge::UpdateLocalPlayer();
 	CameraModes::OverrideView(setup);
+	NoSmoke::OnRenderStart();
 	*postProcessDisable = Settings::disablePostProcessing;
 }
 
@@ -214,4 +216,9 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 void CSGOHooks::LBYProxy(const CRecvProxyData* data, void* ent, void* out)
 {
     FwBridge::HandleLBYProxy((C_BasePlayer*)ent, data->value.Float);
+}
+
+void CSGOHooks::DidSmokeEffectProxy(const CRecvProxyData* data, void* ent, void* out)
+{
+	NoSmoke::HandleProxy(data, ent, out);
 }

@@ -64,6 +64,7 @@ SetupBonesFn SetupBones = nullptr;
 int* modelBoneCounter = nullptr;
 IsBreakableEntityFn IsBreakableEntityNative = nullptr;
 bool* postProcessDisable = nullptr;
+int* smokeCount = nullptr;
 
 RandomSeedFn RandomSeed = nullptr;
 RandomFloatFn RandomFloat = nullptr;
