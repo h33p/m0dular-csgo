@@ -792,7 +792,11 @@ static void UpdateCapsuleHitbox(int idx, HitboxList* hbList, vec3_t camDir[MAX_H
 	camCrossUp.Normalize();
 
 	vec3_t camDirUp = camCross.Cross(camDir[idx]);
+
 	camDirUp.Normalize();
+
+	camCrossUp = camDirUp.LerpClamped(camCrossUp, camCrossUp.Dot(camDirUp) * 1.5f);
+	camCrossUp.Normalize();
 
 	tOffset.AssignCol(o, hitboxes[idx]->bbmin);
 	tDir.AssignCol(o++, 0);
@@ -848,6 +852,9 @@ static void UpdateHitbox(int idx, HitboxList* hbList)
 		tOffset.AssignCol(o, s);
 		tDir.AssignCol(o++, 0);
 	}
+
+	//Make sure one (the first) point is in the middle - there is already enough overlap
+	tOffset.AssignCol(0, (bbmax + bbmin) * 0.5f);
 
 	hbList->mpOffset[idx] = tOffset.Rotate();
 	auto rot = tDir.Rotate();

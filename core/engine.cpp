@@ -10,22 +10,28 @@
 
 float dtime = 0;
 
-bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
+static void InvalidateBoneCache(C_BasePlayer* ent)
 {
-	MTR_SCOPED_TRACE("Engine", "UpdatePlayer");
 	ent->lastOcclusionCheck() = globalVars->framecount;
 	ent->occlusionFlags() = 0;
 	ent->occlusionFlags2() = -1;
 	ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
 	ent->mostRecentBoneCounter() = 0;
 	ent->lastBoneFrameCount() = globalVars->framecount - 2;
-	ent->prevBoneMask() = 0;
+	ent->prevBoneMask() = BONE_USED_BY_ANYTHING & ~BONE_USED_BY_HITBOX;
+}
 
+bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
+{
+	MTR_SCOPED_TRACE("Engine", "UpdatePlayer");
+
+	InvalidateBoneCache(ent);
 	ent->varMapping().interpolatedEntries = 0;
 
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
-	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, globalVars->curtime + 10);
+	//TODO: Figure out a way not to mess up the hitboxes when not using BONE_USED_BY_ANYTHING
+	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX | BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
 
 	/*ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
 	ent->mostRecentBoneCounter() = 0;
@@ -150,6 +156,7 @@ vec3_t prevVelocities[MAX_PLAYERS];
 vec3_t curVelocities[MAX_PLAYERS];
 bool lastOnGround[MAX_PLAYERS];
 float prevSimulationTime[MAX_PLAYERS];
+bool prevVisible[MAX_PLAYERS];
 
 int health[MAX_PLAYERS];
 
@@ -180,6 +187,11 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 
 			int pID = players->unsortIDs[i];
 			pFlags[i] = ent->flags();
+
+			if (!prevVisible[pID]) {
+				prevFlags[pID] = pFlags[i];
+				lastOnGround[pID] = pFlags[i] & FL_ONGROUND;
+			}
 
 			//Predict the FL_ONGROUND flag.
 			//lastOnGround deals with some artifacting (FL_ONGROUND repeating for a couple of ticks) happenning by those checks
@@ -250,9 +262,12 @@ void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 	globalVars->frametime = frametime;
 	globalVars->framecount = framecount;
 
+	memset(prevVisible, 0, sizeof(prevVisible));
+
 	for (size_t i = 0; i < count; i++) {
 		if (players->Resort(*prevPlayers, i) >= prevPlayers->count)
 			continue;
+		prevVisible[players->unsortIDs[i]] = true;
 		C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, i);
 		memcpy(ent->animationLayers(), serverAnimations[i], sizeof(AnimationLayer) * 13);
 	}
@@ -427,8 +442,10 @@ static void FrameUpdatePlayer(C_BasePlayer* ent)
 		vec3_t originDelta = lerpedOrigin[entID] - players1->origin[pID1];*/
 
 	//FIXME: We need to call SetupBones or else the rendered matrix will mess up
-	if (dirtyVisualBonesMask & (1u << entID))
-		ent->SetupBones(matrices[entID], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & ~BONE_USED_BY_HITBOX, globalVars->curtime);
+	if (dirtyVisualBonesMask & (1u << entID)) {
+		InvalidateBoneCache(ent);
+		ent->SetupBones(matrices[entID], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
+	}
 	//memcpy(matrices[entID], players1->bones[pID1], MAXSTUDIOBONES);
 	/*for (size_t i = 0; i < MAXSTUDIOBONES; i++) {
 		matrices[entID][i].vec.AddRow(3, originDelta);
@@ -516,7 +533,7 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 	ent->angles()[2] = 0;
 
 	SetAbsAngles(ent, ent->angles());
-	ent->SetupBones(matrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
+	ent->SetupBones(matrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING & ~BONE_USED_BY_HITBOX, globalVars->curtime);
 	bonesSetup[ent->EntIndex()] = true;
 
 	if (false) {
