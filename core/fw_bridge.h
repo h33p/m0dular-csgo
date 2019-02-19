@@ -50,6 +50,7 @@ extern CStaticPropMgr* staticPropMgrClient;
 extern IModelLoader* modelLoader;
 extern IPhysicsSurfaceProps* physProp;
 extern CInput* input;
+extern CSGameMovement* gameMovement;
 
 typedef void (*CL_RunPredictionFn)(void);
 #ifdef _WIN32
@@ -164,6 +165,7 @@ namespace FwBridge
 	extern LocalPlayer lpData;
 	extern C_BasePlayer* localPlayer;
 	extern C_BaseCombatWeapon* activeWeapon;
+	extern CCSWeaponInfo* weaponInfo;
 	extern C_BasePlayer* playerList[MAX_PLAYERS];
 	extern float backtrackCurtime;
 	extern int hitboxIDs[];

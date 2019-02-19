@@ -8,6 +8,7 @@ static constexpr float THIRD_PERSON_DISTANCE = 150;
 
 void CameraModes::OverrideView(CViewSetup* setup)
 {
+
 	//TODO: do this with the currently observed entity rather than local player
 
 	C_BasePlayer* ent = FwBridge::localPlayer;
@@ -15,9 +16,11 @@ void CameraModes::OverrideView(CViewSetup* setup)
 	if (!ent)
 		return;
 
+	vec3_t forward, right, up;
+	((vec3_t)setup->angles).GetVectors(forward, right, up, true);
+
 	if (Settings::thirdPerson) {
-		vec3_t forward, right, up, origin;
-		((vec3_t)setup->angles).GetVectors(forward, right, up, true);
+		vec3_t origin;
 
 		//TODO: Clean this up
 #ifdef _WIN32
@@ -39,6 +42,10 @@ void CameraModes::OverrideView(CViewSetup* setup)
 	}
 #ifdef TESTING_FEATURES
 	else if (Settings::headCam) {
+
+		vec3_t forward2, right2, up2;
+		((vec3_t)setup->angles * vec3_t(0, 1, 1)).GetVectors(forward2, right2, up2, true);
+
 		studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 
 		if (!hdr)
@@ -51,9 +58,13 @@ void CameraModes::OverrideView(CViewSetup* setup)
 
 		mstudiobbox_t* headBox = set->GetHitbox(Hitboxes::HITBOX_HEAD);
 		matrix3x4_t headMatrix = Engine::GetDirectBone(ent, &hdr, headBox->bone);
-		vec3_t mid = headMatrix.Vector3Transform((headBox->bbmax + headBox->bbmin) * 0.5f);
+		vec3_t mins = headMatrix.Vector3Transform(headBox->bbmin);
+		vec3_t maxs = headMatrix.Vector3Transform(headBox->bbmax);
+		vec3_t mid = (mins + maxs) * 0.5f;
+		mid += forward2 * headBox->radius;
 		setup->origin = mid;
 		input->cameraOffset[2] = 0;
+		setup->zNear *= 0.5f;
 	}
 #endif
 }

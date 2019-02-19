@@ -52,6 +52,7 @@ CStaticPropMgr* staticPropMgrClient = nullptr;
 IModelLoader* modelLoader = nullptr;
 IPhysicsSurfaceProps* physProp = nullptr;
 CInput* input = nullptr;
+CSGameMovement* gameMovement = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
@@ -432,12 +433,4 @@ InterfaceReg** GetInterfaceRegs(MHandle library)
 	uintptr_t jmp = (uintptr_t)GetProcAddress(library, StackString("CreateInterface")) + 4;
     return *(InterfaceReg***)(GetAbsoluteAddress(jmp, 1, 5) + 6);
 #endif
-}
-
-extern "C" char* strdup(const char* str)
-{
-	int len = strlen(str);
-	char* ret = (char*)malloc(len + 1);
-	memcpy(ret, str, len + 1);
-	return ret;
 }

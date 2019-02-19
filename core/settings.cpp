@@ -205,3 +205,12 @@ namespace Settings
 #define HANDLE_OPTION(type, defaultVal, name, description, ...) OPTIONDEF(name)(defaultVal);
 #include "../bits/option_list.h"
 }
+
+//TODO FIXME!!! We seriously have to put this somewhere proper
+extern "C" char* strdup(const char* str)
+{
+	int len = strlen(str);
+	char* ret = (char*)malloc(len + 1);
+	memcpy(ret, str, len + 1);
+	return ret;
+}

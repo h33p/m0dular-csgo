@@ -301,6 +301,38 @@ bool Engine::IsEnemy(C_BasePlayer* ent)
 	return ent->teamNum() ^ FwBridge::localPlayer->teamNum();
 }
 
+vec3_t prevAimPunchAngles = vec3_t(0);
+
+vec3_t Engine::PredictAimPunchAngle()
+{
+	if (!FwBridge::activeWeapon)
+		return FwBridge::localPlayer->aimPunchAngle();
+
+	float timeTillFire = FwBridge::activeWeapon->nextPrimaryAttack() - globalVars->curtime;
+	int ticksTillFire = TimeToTicks(timeTillFire);
+
+	vec3_t punchBackup = FwBridge::localPlayer->aimPunchAngle();
+
+	if (ticksTillFire <= 0)
+		prevAimPunchAngles = punchBackup;
+	else
+		for (int i = 0; i < ticksTillFire; i++)
+			gameMovement->DecayAimPunchAngle();
+
+	vec3_t ret = FwBridge::localPlayer->aimPunchAngle();
+
+	FwBridge::localPlayer->aimPunchAngle() = punchBackup;
+
+	if (FwBridge::weaponInfo) {
+	    float fireRate = FwBridge::weaponInfo->flCycleTime();
+		float lerpTime = 1.f - (timeTillFire / fireRate);
+		//cvar->ConsoleDPrintf("LT: %f\n", lerpTime);
+	    ret = prevAimPunchAngles.LerpClamped(ret, lerpTime);
+	}
+
+	return ret;
+}
+
 float Engine::LerpTime()
 {
 

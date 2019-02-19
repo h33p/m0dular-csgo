@@ -30,6 +30,7 @@ C_BasePlayer* FwBridge::playerList[MAX_PLAYERS];
 int FwBridge::playerCount = 0;
 uint64_t FwBridge::playersFl = 0;
 C_BaseCombatWeapon* FwBridge::activeWeapon = nullptr;
+CCSWeaponInfo* FwBridge::weaponInfo = nullptr;
 float FwBridge::backtrackCurtime = 0;
 int FwBridge::hitboxIDs[Hitboxes::HITBOX_MAX];
 int FwBridge::reHitboxIDs[MAX_HITBOXES];
@@ -113,11 +114,15 @@ void FwBridge::UpdateLocalPlayer()
 {
 	localPlayer = (C_BasePlayer*)entityList->GetClientEntity(engine->GetLocalPlayer());
 	activeWeapon = nullptr;
+	weaponInfo = nullptr;
 
 	if (!localPlayer)
 		return;
 
 	activeWeapon = localPlayer->activeWeapon();
+
+	if (activeWeapon)
+		weaponInfo = GetWeaponInfo(weaponDatabase, activeWeapon->itemDefinitionIndex());
 }
 
 void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
@@ -134,7 +139,6 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 
 	if (activeWeapon) {
 		lpData.weaponAmmo = activeWeapon->clip1();
-		CCSWeaponInfo* weaponInfo = GetWeaponInfo(weaponDatabase, activeWeapon->itemDefinitionIndex());
 		if (weaponInfo) {
 			lpData.weaponArmorPenetration = weaponInfo->flArmorRatio();
 			lpData.weaponRange = weaponInfo->flRange();
@@ -176,7 +180,7 @@ void FwBridge::UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp)
 	if (weapon_recoil_scale)
 		recoilScale = weapon_recoil_scale->GetFloat();
 
-	lpData.aimOffset = localPlayer->aimPunchAngle() * recoilScale;
+	lpData.aimOffset = Engine::PredictAimPunchAngle() * recoilScale;
 
 	int flags = localPlayer->flags();
 	int cflags = 0;
@@ -498,6 +502,8 @@ int FwBridge::traceTimeAvg = 0;
 
 bool prevPressed = true;
 
+static vec3_t prevAimOffset(0);
+
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
 {
 	MTR_SCOPED_TRACE("FwBridge", "ExecuteAimbot");
@@ -602,7 +608,8 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
 				target.id = -1;
 				lpData.keys &= ~Keys::ATTACK1;
-			}
+			} else if (target.id >= 0)
+			    lpData.angles = (target.targetVec - lpData.eyePos).GetAngles(true);
 
 			if (target.id >= 0) {
 				btTick = target.backTick;
@@ -612,8 +619,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 				if (btTick >= 0)
 					Visuals::RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
 #endif
-			} else
-				lpData.angles -= lpData.aimOffset;
+			}
 		}
 
 		if (btTick > BACKTRACK_TICKS)
@@ -621,7 +627,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 		if (target.id >= 0) {
 			vec3_t dir, up, down;
-			(lpData.angles + lpData.aimOffset).GetVectors(dir, up, down, true);
+			lpData.angles.GetVectors(dir, up, down, true);
 			vec3_t endPoint = dir * lpData.weaponRange + lpData.eyePos;
 
 			CapsuleColliderSOA<SIMD_COUNT>* colliders = track->GetLastItem(target.backTick).colliders[target.id];
@@ -648,6 +654,14 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 	//Disable the actual aimbot for now
 	if (!Settings::aimbotSetAngles)
 		lpData.angles = cmd->viewangles;
+	else if (Settings::aimbotSetViewAngles) {
+		lpData.angles -= lpData.aimOffset - prevAimOffset;
+	    engine->SetViewAngles(lpData.angles);
+	} else {
+		lpData.angles -= lpData.aimOffset;
+	}
+
+	prevAimOffset = lpData.aimOffset;
 
 	aimbotTargets.Push(target);
 }

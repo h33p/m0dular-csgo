@@ -19,6 +19,7 @@ namespace Engine
 	void Shutdown();
 	void FrameUpdate();
 	bool IsEnemy(C_BasePlayer* ent);
+	vec3_t PredictAimPunchAngle();
 }
 
 #endif
