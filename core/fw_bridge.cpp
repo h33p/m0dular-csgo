@@ -20,6 +20,8 @@
 #include "../features/lagcompensation.h"
 #include "../features/awall.h"
 
+#include "../impl/aimbot.h"
+
 #include <algorithm>
 #include <chrono>
 
@@ -567,8 +569,8 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 				}
 			}
 
-			extern int minDamage;
-			minDamage = Settings::aimbotMinDamage;
+			AimbotImpl::minDamage = Settings::aimbotMinDamage;
+			AimbotImpl::maxFOV = Settings::aimbotFOV;
 //#ifdef DEBUG
 
 			auto t1 = Clock::now();
@@ -608,15 +610,17 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
 				target.id = -1;
 				lpData.keys &= ~Keys::ATTACK1;
-			} else if (target.id >= 0)
+			} else if (target.id >= 0) {
 			    lpData.angles = (target.targetVec - lpData.eyePos).GetAngles(true);
+				prevAimOffset = vec3_t(0);
+			}
 
 			if (target.id >= 0) {
 				btTick = target.backTick;
 				cmd->tick_count = TimeToTicks(track->GetLastItem(target.backTick).time[target.id] + Engine::LerpTime());
 
 #ifdef PT_VISUALS
-				if (btTick >= 0)
+				if (false && btTick >= 0)
 					Visuals::RenderPlayerCapsules(track->GetLastItem(btTick), Color(0.f, 1.f, 0.f, 1.f), target.id);
 #endif
 			}
