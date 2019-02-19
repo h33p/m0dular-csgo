@@ -293,6 +293,12 @@ static int Save(const char** cmds, int n)
 	printf("Writing %zu bytes to %s\n", res.size(), filename);
 
 	FILE* fp = fopen(filename, "w");
+
+	if (!fp) {
+		STPRINT("Unable to open file!\n");
+		return 1;
+	}
+
 	fwrite(res.data(), 1, res.size(), fp);
 	fclose(fp);
 
@@ -314,6 +320,12 @@ static int Load(const char** cmds, int n)
 	}
 
 	FILE* fp = fopen(filename, "r");
+
+	if (!fp) {
+		STPRINT("File not found!\n");
+		return 1;
+	}
+
 	fseek(fp, 0, SEEK_END);
 	size_t sz = ftell(fp);
 	rewind(fp);
