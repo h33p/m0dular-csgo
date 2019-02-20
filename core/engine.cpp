@@ -579,12 +579,49 @@ static void FrameUpdateLocalPlayer(C_BasePlayer* ent)
 	ValidateBoneCache(ent);
 }
 
+static void FrameUpdateOtherEnts(void*)
+{
+	if (FwBridge::localPlayer)
+		localPlayer->skybox3dFogEnable() = !Settings::noFog;
+
+	int entCnt = entityList->GetMaxEntities();
+
+	C_FogController* fogController = nullptr;
+
+	for (int i = 63; i < entCnt; i++) {
+		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
+
+		if (!ent)
+			continue;
+
+		ClientClass* clientClass = ent->GetClientClass();
+
+		if (!clientClass)
+			continue;
+
+	    switch (clientClass->classID) {
+		  case ClassId_CCascadeLight:
+			  break;
+		  case ClassId_CFogController:
+			  fogController = (C_FogController*)ent;
+			  break;
+		  default:
+			  break;
+		}
+	}
+
+	if (fogController)
+		fogController->fogEnable() = !Settings::noFog;
+}
+
 //Players could have changed in this state, let's just loop the engine entity list
 void Engine::FrameUpdate()
 {
 	MTR_SCOPED_TRACE("Engine", "FrameUpdate");
 
 	memset(bonesSetup, 0, sizeof(bonesSetup));
+
+	Threading::QueueJobRef(FrameUpdateOtherEnts, (void*)nullptr);
 
 	for (int i = 1; i < 64; i++) {
 		C_BasePlayer* ent = (C_BasePlayer*)entityList->GetClientEntity(i);
