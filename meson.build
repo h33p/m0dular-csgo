@@ -23,7 +23,7 @@ endif
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
-core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'impl/aimbot.cpp']
+core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'features/aimlog.cpp', 'features/legitbot.cpp', 'features/ragebot.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'impl/aimbot.cpp']
 
 framework_thread_utils = ['core_unity/framework_threads.cpp']
 framework_other_utils = ['core_unity/framework_other_utils.cpp']

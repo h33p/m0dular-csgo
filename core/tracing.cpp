@@ -291,6 +291,9 @@ void Tracing2::ResetTraceCount()
 	//TODO: Add active weapon check to see if autowall cache invalidation is needed
 	bool invalidate = (pos - cache[0].pos).LengthSqr<3>() > 1.f;
 
+	//TODO: Fix cache
+	invalidate = true;
+
 	cache[0].Reset(invalidate, nullptr);
 
 	for (int i = 1; i < NUM_THREADS + 1; i++)

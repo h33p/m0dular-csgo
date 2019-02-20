@@ -1,5 +1,6 @@
 #include "aimbot.h"
 #include "../sdk/framework/features/aimbot.h"
+#include "../core/fw_bridge.h"
 
 int AimbotImpl::minDamage = 10;
 float AimbotImpl::maxFOV = 360.f;

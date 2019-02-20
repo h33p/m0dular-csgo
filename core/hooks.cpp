@@ -24,7 +24,7 @@ void Unload();
 extern bool shuttingDown;
 
 //This one is used when unloading
-AtomicLock CSGOHooks::createMoveLock;
+AtomicLock CSGOHooks::hookLock;
 
 #ifdef __posix__
 uintptr_t origPollEvent = 0;
@@ -79,7 +79,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	if (!cmd->command_number || !cmd->tick_count)
 		return ret;
 
-	if (shuttingDown || !CSGOHooks::createMoveLock.trylock())
+	if (shuttingDown || !CSGOHooks::hookLock.trylock())
 		return ret;
 
 	bool* bSendPacket = nullptr;
@@ -121,7 +121,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	if (cmd->buttons & IN_ATTACK2 && cmd->buttons & IN_JUMP && cmd->viewangles[0] > 85)
 		Unload();
 
-	CSGOHooks::createMoveLock.unlock();
+	CSGOHooks::hookLock.unlock();
 
 	return false;
 }
@@ -130,22 +130,34 @@ void __fastcall CSGOHooks::OnRenderStart(FASTARGS)
 {
 	static auto origFn = hookViewRender->GetOriginal(CSGOHooks::OnRenderStart);
 	origFn(CFASTARGS);
+
+	if (!CSGOHooks::hookLock.trylock())
+		return;
+
 	MTR_SCOPED_TRACE("Hooks", "OnRenderStart");
 	FwBridge::enableBoneSetup = true;
 	FwBridge::UpdateLocalPlayer();
 	Engine::FrameUpdate();
 	FwBridge::enableBoneSetup = false;
+
+	CSGOHooks::hookLock.unlock();
 }
 
 void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
 {
 	static auto origFn = hookClientMode->GetOriginal(CSGOHooks::OverrideView);
 	origFn(CFASTARGS, setup);
+
+	if (!CSGOHooks::hookLock.trylock())
+		return;
+
 	MTR_SCOPED_TRACE("Hooks", "OverrideView");
 	FwBridge::UpdateLocalPlayer();
 	CameraModes::OverrideView(setup);
 	NoSmoke::OnRenderStart();
 	*postProcessDisable = Settings::disablePostProcessing;
+
+	CSGOHooks::hookLock.unlock();
 }
 
 #ifdef PT_VISUALS

@@ -115,7 +115,7 @@ void Spread::CompensateSpread(CUserCmd* cmd)
 	spread[0] = randomFlCos1[randomSeed] * randInaccuracy + randomFlCos2[randomSeed] * randSpread;
 	spread[1] = randomFlSin1[randomSeed] * randInaccuracy + randomFlSin2[randomSeed] * randSpread;
 
-	//Apply pitch-roll spread correction
+	//Apply pitch-roll spread correction. TODO: it would be better not to modify global variables and simply return the angles
 	FwBridge::lpData.angles.x += atanf(spread.Length()) * RAD2DEG;
 	FwBridge::lpData.angles.z = atan2f(-spread[0], spread[1]) * RAD2DEG;
 }

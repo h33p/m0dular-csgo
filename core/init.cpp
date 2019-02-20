@@ -357,9 +357,9 @@ void Shutdown(bool delayAfterUnhook)
 #endif
 		}
 
-		//Lock createmove before shutting down the cheat, since there is a high chance it is running at this exact moment
-		CSGOHooks::createMoveLock.lock();
-		CSGOHooks::createMoveLock.unlock();
+		//Lock hooks before shutting down the cheat, since there is a high chance a hook is running at this exact moment
+		CSGOHooks::hookLock.lock();
+		CSGOHooks::hookLock.unlock();
 
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();

@@ -19,6 +19,9 @@
 #include "../features/antiaim.h"
 #include "../features/lagcompensation.h"
 #include "../features/awall.h"
+#include "../features/aimlog.h"
+#include "../features/legitbot.h"
+#include "../features/ragebot.h"
 
 #include "../impl/aimbot.h"
 
@@ -504,8 +507,6 @@ int FwBridge::traceTimeAvg = 0;
 
 bool prevPressed = true;
 
-static vec3_t prevAimOffset(0);
-
 static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state)
 {
 	MTR_SCOPED_TRACE("FwBridge", "ExecuteAimbot");
@@ -514,9 +515,12 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 	AimbotTarget target;
 	target.id = -1;
 
+	auto* track = &FwBridge::playerTrack;
+
 	auto& targetIntersects = aimbotTargetIntersects.Push();
 	targetIntersects = 0;
 
+	//Autowall debug code. TODO: Move somewhere else
 	if (lpData.keys & Keys::ATTACK2){
 		vec3_t dir(0), r, u;
 		lpData.angles.GetVectors(dir, r, u, true);
@@ -555,9 +559,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 		btTick = -1;
 
-		auto* track = &FwBridge::playerTrack;
-
-		if (allowShoot && activeWeapon->nextPrimaryAttack() <= globalVars->curtime && (Settings::aimbotAutoShoot || lpData.keys & Keys::ATTACK1)) {
+		if (allowShoot && Settings::rageMode ? RageBot::PreRun(&lpData) : LegitBot::PreRun(&lpData)) {
 			unsigned char hitboxList[MAX_HITBOXES];
 		    float pointScale[MAX_HITBOXES];
 			memset(hitboxList, 0, sizeof(hitboxList));
@@ -571,16 +573,14 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 			AimbotImpl::minDamage = Settings::aimbotMinDamage;
 			AimbotImpl::maxFOV = Settings::aimbotFOV;
-//#ifdef DEBUG
 
+			//TODO: Remove these time measurements or implement a custom tracer
 			auto t1 = Clock::now();
-//#endif
 			target = Aimbot::RunAimbot(track,
 #ifdef TESTING_FEATURES
 									   Settings::aimbotLagCompensation ? LagCompensation::futureTrack :
 #endif
 									   nullptr, &lpData, hitboxList, &immuneFlags, pointScale);
-//#ifdef DEBUG
 			auto t2 = Clock::now();
 
 			traceCountHistory.Push(Tracing2::RetreiveTraceCount());
@@ -600,19 +600,14 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 				traceCountAvg /= u;
 				traceTimeAvg /= u;
 			}
-//#endif
+//END OF TIME MEASUREMENTS
 
 			if (target.future)
 				track = LagCompensation::futureTrack;
 
-			//cvar->ConsoleDPrintf(ST("T: %d (%d)\n"), target.id, target.dmg);
-
 			if (target.id >= 0 && !Spread::HitChance(&track->GetLastItem(target.backTick), target.id, target.targetVec, target.boneID, Settings::aimbotHitChance)) {
 				target.id = -1;
 				lpData.keys &= ~Keys::ATTACK1;
-			} else if (target.id >= 0) {
-			    lpData.angles = (target.targetVec - lpData.eyePos).GetAngles(true);
-				prevAimOffset = vec3_t(0);
 			}
 
 			if (target.id >= 0) {
@@ -638,34 +633,19 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 			unsigned int flags = 0;
 
-			if (1 || track->GetLastItem(target.backTick).flags[target.id] & Flags::ONGROUND)//lpData.keys & Keys::ATTACK1)
-				for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
-					flags |= colliders[i].Intersect(lpData.eyePos, endPoint) << (16u * i);
-
-			if (false && !flags)
-				target.id = -1;
-
-			else if (Settings::aimbotAutoShoot)
-				lpData.keys |= Keys::ATTACK1;
+			for (int i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
+				flags |= colliders[i].Intersect(lpData.eyePos, endPoint) << (16u * i);
 
 			targetIntersects = flags;
 		}
-
-		if (lpData.keys & Keys::ATTACK1)
-			Spread::CompensateSpread(cmd);
 	}
 
-	//Disable the actual aimbot for now
-	if (!Settings::aimbotSetAngles)
-		lpData.angles = cmd->viewangles;
-	else if (Settings::aimbotSetViewAngles) {
-		lpData.angles -= lpData.aimOffset - prevAimOffset;
-	    engine->SetViewAngles(lpData.angles);
-	} else {
-		lpData.angles -= lpData.aimOffset;
-	}
+	if (Settings::rageMode)
+		RageBot::RunPostTarget(&lpData, cmd, &target, track);
+	else
+		LegitBot::RunPostTarget(&lpData, cmd, &target, track);
 
-	prevAimOffset = lpData.aimOffset;
+	//AimLog::LogCreateMove(lpData, target);
 
 	aimbotTargets.Push(target);
 }

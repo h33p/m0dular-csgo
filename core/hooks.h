@@ -35,7 +35,7 @@ namespace CSGOHooks
 	void __stdcall PaintTraverse(STDARGS PC vgui::VPANEL vpanel, bool forceRepaint, bool allowForce);
 #endif
 
-	extern AtomicLock createMoveLock;
+	extern AtomicLock hookLock;
 	extern std::unordered_map<C_BasePlayer*, VFuncHook*> entityHooks;
 	void __fastcall EntityDestruct(FASTARGS);
 	bool __fastcall SetupBones(FASTARGS, matrix3x4_t*, int, int, float);
