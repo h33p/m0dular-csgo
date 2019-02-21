@@ -26,7 +26,8 @@ BindManagerInstance::~BindManagerInstance()
 void BindManagerInstance::InitializeLocalData()
 {
 	int cnt = 0;
-#define HANDLE_OPTION(type, defaultValue, name, ...) ((BindImpl<type>*)&*bindList[cnt++])->InitializeVTable();
+	BindHandlerIFaceVtable* vtbl = Settings::settingsLocalAlloc.allocate<BindHandlerIFaceVtable>(Settings::optionCount);
+#define HANDLE_OPTION(type, defaultValue, name, ...) ((BindImpl<type>*)&*bindList[cnt])->InitializeVTable(vtbl + cnt); cnt++;
 #include "../bits/option_list.h"
 }
 

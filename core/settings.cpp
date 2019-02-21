@@ -21,14 +21,15 @@ static_assert(std::atomic<int>::is_always_lock_free);
 static_assert(std::atomic<bool>::is_always_lock_free);
 
 constexpr unsigned int ALLOC_SIZE = 1 << 24;
+constexpr unsigned int LOCAL_ALLOC_SIZE = 1 << 25;
 
 std::atomic_int* ipcCounter = nullptr;
 
 uintptr_t Settings::allocBase = 0;
 generic_free_list_allocator<Settings::allocBase>* Settings::settingsAlloc = nullptr;
 
-uintptr_t Settings::localAllocBase = (uintptr_t)malloc(ALLOC_SIZE);
-generic_free_list_allocator<Settings::localAllocBase> Settings::settingsLocalAlloc(1 << 25, PlacementPolicy::FIND_FIRST, (void**)localAllocBase);
+uintptr_t Settings::localAllocBase = (uintptr_t)malloc(LOCAL_ALLOC_SIZE);
+generic_free_list_allocator<Settings::localAllocBase> Settings::settingsLocalAlloc(LOCAL_ALLOC_SIZE, PlacementPolicy::FIND_FIRST, (void**)localAllocBase);
 
 decltype(Settings::globalSettingsPtr) Settings::globalSettingsPtr = nullptr;
 decltype(Settings::globalSettings) Settings::globalSettings;

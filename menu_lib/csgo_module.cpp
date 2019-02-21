@@ -7,18 +7,16 @@ static generic_free_list_allocator<clAllocBase, true> clAlloc(10000, PlacementPo
 
 static int slid = 0;
 
-static ConsoleSetting csgoSettingList[] =
+static ConsoleSetting csgoSettingList[Settings::optionCount] =
 {
 #define HANDLE_OPTION(type, defaultVal, name, description, ...) {slid++, CCRC32(#name), STALLOC(#name), STALLOC(description), CCRC32(#type), &Settings::name, &GetPrintSetting<type, decltype(Settings::name)::Get> },
 #include "../bits/option_list.h"
 };
 
-size_t csgoSettingsCount = sizeof(csgoSettingList) / sizeof(csgoSettingList[0]);
-
 void OnLoad(ConsoleSetting** sets, size_t* size)
 {
 	*sets = csgoSettingList;
-	*size = csgoSettingsCount;
+	*size = Settings::optionCount;
 }
 
 extern "C"
