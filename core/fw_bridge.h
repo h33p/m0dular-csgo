@@ -188,7 +188,7 @@ namespace FwBridge
 	void FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
 	void UpdateLocalPlayer();
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
-	void RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp);
+	void RunFeatures(CUserCmd* cmd, float inputSampleTime, bool* bSendPacket, void* hostRunFrameFp);
 	void HandleLBYProxy(C_BasePlayer* ent, float ang);
 	C_BasePlayer* GetPlayer(const Players& players, int entID);
 

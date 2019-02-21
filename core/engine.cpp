@@ -404,6 +404,30 @@ void Engine::Shutdown()
 	}
 }
 
+static ConVar* sensitivity = nullptr;
+static ConVar* pitch = nullptr;
+static ConVar* yaw = nullptr;
+static ConVar* zoomSensitivityRatioMouse = nullptr;
+
+vec2 Engine::GetMouseSensitivity()
+{
+	if (!sensitivity)
+		sensitivity = cvar->FindVar(ST("sensitivity"));
+	if (!pitch)
+		pitch = cvar->FindVar(ST("m_pitch"));
+	if (!yaw)
+	    yaw = cvar->FindVar(ST("m_yaw"));
+	if (!zoomSensitivityRatioMouse)
+	    zoomSensitivityRatioMouse = cvar->FindVar(ST("zoom_sensitivity_ratio_mouse"));
+
+	float sensVal = sensitivity ? sensitivity->GetFloat() : 1;
+	float pitchVal = pitch ? pitch->GetFloat() : 1;
+	float yawVal = yaw ? yaw->GetFloat() : 1;
+	float zoomSensVal = zoomSensitivityRatioMouse ? zoomSensitivityRatioMouse->GetFloat() : 1;
+
+	return vec2(yawVal * sensVal * zoomSensVal, pitchVal * sensVal * zoomSensVal);
+}
+
 static void ValidateBoneCache(C_BasePlayer* ent)
 {
 	ent->lastBoneTime() = globalVars->curtime;

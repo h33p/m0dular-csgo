@@ -443,7 +443,7 @@ void FwBridge::FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
 static float prevBacktrackCurtime = 0;
 static int prevtc = 0;
 
-void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameFp)
+void FwBridge::RunFeatures(CUserCmd* cmd, float inputSampleTime, bool* bSendPacket, void* hostRunFrameFp)
 {
 	MTR_SCOPED_TRACE("FwBridge", "RunFeatures");
 
@@ -476,7 +476,7 @@ void FwBridge::RunFeatures(CUserCmd* cmd, bool* bSendPacket, void* hostRunFrameF
 		Antiaim::Run(cmd, state);
 #endif
 
-	SourceEssentials::UpdateCMD(cmd, &lpData);
+	SourceEssentials::UpdateCMD(cmd, &lpData, Engine::GetMouseSensitivity(), inputSampleTime);
 	SourceEnginePred::Finish(cmd, localPlayer);
 
 	if (curPushed)

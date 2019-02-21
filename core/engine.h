@@ -20,6 +20,7 @@ namespace Engine
 	void FrameUpdate();
 	bool IsEnemy(C_BasePlayer* ent);
 	vec3_t PredictAimPunchAngle();
+	vec2 GetMouseSensitivity();
 }
 
 #endif

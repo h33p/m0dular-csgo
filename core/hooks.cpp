@@ -113,7 +113,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 	Tracing2::ResetTraceCount();
 	FwBridge::UpdateLocalData(cmd, runFrameFp);
 	FwBridge::UpdatePlayers(cmd);
-	FwBridge::RunFeatures(cmd, bSendPacket, runFrameFp);
+	FwBridge::RunFeatures(cmd, inputSampleTime, bSendPacket, runFrameFp);
 	FwBridge::enableBoneSetup = false;
 	//Settings::ipcLock->runlock();
 	MTR_END("Hooks", "CreateMove");
