@@ -184,8 +184,7 @@ namespace FwBridge
 
 	void UpdatePlayers(CUserCmd* cmd);
 	void FinishUpdating(UpdateData* data);
-	void StartUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
-	void FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX);
+	void UpdateSinglePlayer(Players* players, Players* prevPlayers, bool updateAnimations, int unsortedID);
 	void UpdateLocalPlayer();
 	void UpdateLocalData(CUserCmd* cmd, void* hostRunFrameFp);
 	void RunFeatures(CUserCmd* cmd, float inputSampleTime, bool* bSendPacket, void* hostRunFrameFp);

@@ -265,31 +265,6 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 	FwBridge::playerList[pID]->flags() = fl;
 }
 
-struct SimulateUntilData
-{
-	Players* p;
-	int id;
-	TemporaryAnimations* anim;
-	float* curtime;
-	Circle* path;
-	float targetTime;
-	bool updateAnims;
-
-	SimulateUntilData(Players* pl, int i, TemporaryAnimations* anims, float* ct, Circle* p, float tt, bool updAnims = false)
-		: p(pl), id(i), anim(anims), curtime(ct), path(p), targetTime(tt), updateAnims(updAnims) {}
-
-	SimulateUntilData()
-		: updateAnims(false) {}
-};
-
-static std::atomic_int simedCount = 0;
-
-static void SimulateUntilThreaded(SimulateUntilData* data)
-{
-	SimulateUntil(data->p, data->id, data->anim, data->curtime, data->path, data->targetTime, data->updateAnims);
-	simedCount++;
-}
-
 static std::vector<int> updatedPlayersLC;
 static std::vector<int> nonUpdatedPlayersLC;
 
@@ -310,21 +285,51 @@ static void ThreadedPlayerReset(void* idx)
 static MultiUpdateData queuedUpdateDataLC;
 static std::vector<int> toQueueIDs;
 
+static int lcQuality = 0;
+
+bool dirtyBones[MAX_PLAYERS];
+
+static void SimulatePlayer(void* idxVoid)
+{
+	MTR_SCOPED_TRACE("LagCompensation", "SimulatePlayer");
+	int uID = (int)(uintptr_t)idxVoid;
+
+	auto& track = *LagCompensation::futureTrack;
+	Players* prevTrack = &FwBridge::playerTrack[0];
+	C_BasePlayer* ent = FwBridge::playerList[uID];
+
+	originalOriginsLC[uID] = FwBridge::playerList[uID]->GetClientRenderable()->GetRenderOrigin();
+
+	float csimtime = simtimes[uID][0];
+	TemporaryAnimations anims(FwBridge::playerList[uID]);
+	Circle circle = Circle(originsLC[uID][0], originsLC[uID][1], originsLC[uID][2]);
+	FwBridge::playerList[uID]->velocity() = prevTrack->velocity[prevTrack->sortIDs[uID]];
+	vec3_t origin = originsLC[uID][0];
+	vec3_t velocity = ent->velocity();
+
+	for (int i = track.Count() - 1; i >= 0; i--) {
+		Players& p = track[i];
+
+		int sID = p.sortIDs[uID];
+
+		if (sID >= 0 && sID < MAX_PLAYERS && ~p.flags[sID] & Flags::FRIENDLY) {
+			SimulateUntil(&p, sID, &anims, &csimtime, &circle, p.time[sID], true);
+			p.flags[sID] |= Flags::UPDATED;
+			dirtyBones[uID] = true;
+		}
+
+		FwBridge::UpdateSinglePlayer(&p, prevTrack, false, uID);
+		prevTrack = &p;
+	}
+
+	ent->origin() = origin;
+	ent->velocity() = velocity;
+}
+
 static void UpdatePart2()
 {
-	auto& track = *LagCompensation::futureTrack;
-	float csimtimes[MAX_PLAYERS];
-	TemporaryAnimations anims[MAX_PLAYERS];
-	Circle circles[MAX_PLAYERS];
-	vec3_t origin[MAX_PLAYERS];
-	vec3_t velocity[MAX_PLAYERS];
-	int tcSim[MAX_PLAYERS];
-	float tmSim[MAX_PLAYERS];
-	uint64_t playersDirty = 0;
-	size_t updatePlayersStartIDX = 1;
-
-	int lcQuality = Settings::aimbotLagCompensation;
-
+	memset(dirtyBones, 0, sizeof(dirtyBones));
+	lcQuality = Settings::aimbotLagCompensation;
 	Players* prevTrack = &FwBridge::playerTrack[0];
 
 	for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -334,106 +339,18 @@ static void UpdatePart2()
 
 			int pID = prevTrack->sortIDs[i];
 
-			originalOriginsLC[i] = FwBridge::playerList[i]->GetClientRenderable()->GetRenderOrigin();
-			csimtimes[i] = simtimes[i][0];
-			anims[i].Init(FwBridge::playerList[i]);
-			circles[i] = Circle(originsLC[i][0], originsLC[i][1], originsLC[i][2]);
-			origin[i] = originsLC[i][0];
-			velocity[i] = FwBridge::playerList[i]->velocity();
-			FwBridge::playerList[i]->velocity() = prevTrack->velocity[pID];
-			tcSim[i] = 0;
-			tmSim[i] = 0;
+			if (prevTrack->flags[pID] & Flags::FRIENDLY)
+				continue;
+
+			Threading::QueueJobRef(SimulatePlayer, (void*)(uintptr_t)i);
 		}
 	}
 
-	queuedUpdateDataLC.worldList.clear();
-	queuedUpdateDataLC.updatedIndices.clear();
+	Threading::FinishQueue(true);
 
-	queuedUpdateDataLC.worldList.push_back(prevTrack);
-	for (int i = track.Count() - 1; i >= 0; i--) {
-		Players& p = track[i];
-		UpdateData data(p, *prevTrack, &updatedPlayersLC, &nonUpdatedPlayersLC, true);
-
-		MTR_SCOPED_TRACE("LagCompensation", "SimulateTick");
-
-		updatedPlayersLC.clear();
-		nonUpdatedPlayersLC.clear();
-		toQueueIDs.clear();
-
-		int pushedCount = 0;
-		simedCount = 0;
-
-		SimulateUntilData mainThreadSimData;
-
-		for (int o = 0; o < p.count; o++) {
-			int pID = p.unsortIDs[o];
-			if (!FwBridge::playerList[pID] || p.flags[o] & Flags::FRIENDLY)
-				continue;
-
-			playersDirty |= 1ull << pID;
-
-			if (queuedUpdateDataLC.updatedIndices.find(pID) != queuedUpdateDataLC.updatedIndices.end() && lcQuality > 1) {
-				FwBridge::FinishUpdatingMultiWorld(&queuedUpdateDataLC, updatePlayersStartIDX);
-				queuedUpdateDataLC.worldList.clear();
-				queuedUpdateDataLC.updatedIndices.clear();
-				queuedUpdateDataLC.worldList.push_back(prevTrack);
-				updatePlayersStartIDX = 1;
-			}
-
-			tmSim[pID] += p.time[o] - csimtimes[pID];
-			tcSim[pID]++;
-			//p.instance[o] = FwBridge::playerList[pID];
-
-			auto simData = SimulateUntilData(&p, o, anims + pID, csimtimes + pID, circles + pID, p.time[o], true);
-
-			if (pushedCount)
-				Threading::QueueJob(SimulateUntilThreaded, simData, true);
-			else
-				mainThreadSimData = simData;
-
-			p.flags[o] |= Flags::UPDATED;
-			updatedPlayersLC.push_back(o);
-		    toQueueIDs.push_back(pID);
-			pushedCount++;
-		}
-
-		for (int i : toQueueIDs)
-			queuedUpdateDataLC.updatedIndices[i] = queuedUpdateDataLC.worldList.size();
-
-		if (pushedCount)
-			SimulateUntilThreaded(&mainThreadSimData);
-
-		MTR_BEGIN("LagCompensation", "WaitForSimEnd");
-		while (simedCount < pushedCount)
-			;
-		MTR_END("LagCompensation", "WaitForSimEnd");
-
-		queuedUpdateDataLC.worldList.push_back(&p);
-		if (lcQuality > 1) {
-			FwBridge::StartUpdatingMultiWorld(&queuedUpdateDataLC, updatePlayersStartIDX);
-			updatePlayersStartIDX = queuedUpdateDataLC.worldList.size();
-		}
-		prevTrack = &p;
-	}
-
-	if (lcQuality <= 1)
-		FwBridge::StartUpdatingMultiWorld(&queuedUpdateDataLC, 1);
-
-	FwBridge::FinishUpdatingMultiWorld(&queuedUpdateDataLC, updatePlayersStartIDX);
-	queuedUpdateDataLC.worldList.clear();
-	queuedUpdateDataLC.updatedIndices.clear();
-
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		if (FwBridge::playersFl & playersDirty & (1ull << i)) {
-			if (!FwBridge::playerList[i])
-				continue;
-
-			FwBridge::playerList[i]->origin() = origin[i];
-			FwBridge::playerList[i]->velocity() = velocity[i];
-
+	for (int i = 0; i < MAX_PLAYERS; i++)
+		if (dirtyBones[i])
 			Threading::QueueJobRef(ThreadedPlayerReset, (void*)(uintptr_t)i);
-		}
-	}
 
 	Threading::FinishQueue(true);
 }

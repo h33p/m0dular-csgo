@@ -376,7 +376,8 @@ float Engine::CalculateBacktrackTime()
 
 	float correct = nci ? nci->GetLatency(FLOW_OUTGOING) + nci->GetLatency(FLOW_INCOMING) : 0.f;
 
-	float lerpTime = LerpTime();
+	//TODO: figure out why we do not hit the last tick
+	float lerpTime = LerpTime() + globalVars->interval_per_tick;
 	float maxunlag = 1.f;
 
 	if (!sv_maxunlag)

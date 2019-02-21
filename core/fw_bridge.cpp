@@ -362,81 +362,64 @@ void FwBridge::FinishUpdating(UpdateData* data)
 	hitboxUpdatedList.clear();
 
 	Threading::QueueJobRef(ThreadedUpdate, data);
-	UpdateHitboxesPart1(data->players, data->updatedPlayers);
+	UpdateHitboxesPart1(data->players, data->updatedPlayers, true);
 	Threading::FinishQueue(true);
 	UpdateHitboxesPart2(data->players, data->updatedPlayers, &hitboxUpdatedList);
 	UpdateColliders(data->players, &hitboxUpdatedList);
 	SwitchFlags(data->players, data->prevPlayers);
 }
 
-//This is used to update each hitboxes at multiple time stamps (used in LagCompensation) in an effective and lockless way
-static std::vector<int> updatedPlayersTemp;
-static std::vector<int> nonUpdatedPlayersTemp;
-static std::vector<int> hitboxUpdatedListTemp;
+//We could do this better, manually fill in the data, but using thread local std::vector results in shorter code
+static thread_local std::vector<int> updatedPlayersSinglePlayer;
+static thread_local std::vector<int> nonUpdatedPlayersSinglePlayer;
+static thread_local std::vector<int> hitboxUpdatedListSinglePlayer;
 
-void FwBridge::StartUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
+//This is to be used inside LagCompensation when simulating each player separately across the same set of worlds
+void FwBridge::UpdateSinglePlayer(Players* players, Players* prevPlayers, bool updateAnimations, int unsortedID)
 {
-	MTR_SCOPED_TRACE("FwBridge", "StartUpdatingMultiWorld");
+	MTR_SCOPED_TRACE("FwBridge", "StartSinglePlayer");
 
-	for (size_t i = startIDX; i < data->worldList.size(); i++) {
-		updatedPlayersTemp.clear();
+	updatedPlayersSinglePlayer.clear();
+	nonUpdatedPlayersSinglePlayer.clear();
+	hitboxUpdatedListSinglePlayer.clear();
 
-		for (const auto& o : data->updatedIndices) {
-			int u = data->worldList[i]->sortIDs[o.first];
+	UpdateData data(*players, *prevPlayers, &updatedPlayersSinglePlayer, &nonUpdatedPlayersSinglePlayer, true);
 
-			if (u < 0 || u >= MAX_PLAYERS)
-				continue;
+	int pID = players->sortIDs[unsortedID];
+	int ppID = prevPlayers->sortIDs[unsortedID];
 
-			if (o.second == i)
-				updatedPlayersTemp.push_back(u);
-		}
+	//The player has been updated in this simulation world
+	if (pID >= 0 && pID < MAX_PLAYERS && players->flags[pID] & Flags::UPDATED) {
+		updatedPlayersSinglePlayer.push_back(pID);
 
-		UpdateHitboxesPart1(*data->worldList[i], &updatedPlayersTemp, true);
+		C_BasePlayer* ent = FwBridge::GetPlayerFast(*players, pID);
+		players->origin[pID] = ent->origin();
+		float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
+		players->eyePos[pID] = players->origin[pID];
+		players->eyePos[pID][2] += eyeOffset;
+
+		//TODO: Figure out curtime concurrency
+		if (updateAnimations)
+			Engine::StartAnimationFix(players, prevPlayers);
+
+		UpdateHitboxesPart1(*players, &updatedPlayersSinglePlayer, false);
+		UpdateHitboxesPart2(*players, &updatedPlayersSinglePlayer, &hitboxUpdatedListSinglePlayer);
+		UpdateColliders(*players, &hitboxUpdatedListSinglePlayer);
+
+	} else if (pID >= 0 && pID < MAX_PLAYERS && ppID >= 0 && ppID < MAX_PLAYERS) {
+		nonUpdatedPlayersSinglePlayer.push_back(pID);
+
+		MoveOrigin(*players, *prevPlayers, &nonUpdatedPlayersSinglePlayer);
+		MoveEyePos(*players, *prevPlayers, &nonUpdatedPlayersSinglePlayer);
 	}
-}
 
-void FwBridge::FinishUpdatingMultiWorld(MultiUpdateData* data, size_t startIDX)
-{
-	MTR_SCOPED_TRACE("FwBridge", "FinishUpdatingMultiWorld");
+	ThreadedUpdate(&data);
 
-	Threading::FinishQueue(true);
-
-	for (size_t i = 1; i < data->worldList.size(); i++) {
-		updatedPlayersTemp.clear();
-		nonUpdatedPlayersTemp.clear();
-
-		for (const auto& o : data->updatedIndices) {
-			int u = data->worldList[i]->sortIDs[o.first];
-
-			if (u < 0 || u >= MAX_PLAYERS)
-				continue;
-
-			if (o.second == i)
-				updatedPlayersTemp.push_back(u);
-			else if (data->worldList[i]->Resort(*data->worldList[i - 1], u) < MAX_PLAYERS)
-				nonUpdatedPlayersTemp.push_back(u);
-		}
-
-		UpdateData tempData(*data->worldList[i], *data->worldList[i - 1], &updatedPlayersTemp, &nonUpdatedPlayersTemp, true);
-
-		MoveOrigin(*data->worldList[i], *data->worldList[i - 1], &nonUpdatedPlayersTemp);
-		MoveEyePos(*data->worldList[i], *data->worldList[i - 1], &nonUpdatedPlayersTemp);
-
-		for (int o : *tempData.updatedPlayers) {
-			C_BasePlayer* ent = GetPlayerFast(tempData.players, o);
-		    tempData.players.origin[o] = ent->origin();
-			float eyeOffset = (1.f - ent->duckAmount()) * 18.f + 46;
-		    tempData.players.eyePos[o] = tempData.players.origin[o];
-		    tempData.players.eyePos[o][2] += eyeOffset;
-		}
-
-		//Do not thread this because it we do not have anything concurrent at the moment
-		ThreadedUpdate(&tempData);
-
-		hitboxUpdatedListTemp.clear();
-		UpdateHitboxesPart2(*data->worldList[i], &updatedPlayersTemp, &hitboxUpdatedListTemp);
-		UpdateColliders(*data->worldList[i], &hitboxUpdatedListTemp);
-		SwitchFlags(*data->worldList[i], *data->worldList[i - 1]);
+	int rsID = players->Resort(*prevPlayers, pID);
+	if (rsID < prevPlayers->count && players->flags[pID] & Flags::EXISTS && (~players->flags[pID]) & Flags::UPDATED && prevPlayers->flags[rsID] & Flags::UPDATED && FwBridge::GetPlayerFast(*players, pID) == FwBridge::GetPlayer(*prevPlayers, rsID)) {
+		int fl = players->flags[pID];
+		players->flags[pID] = prevPlayers->flags[rsID];
+		prevPlayers->flags[rsID] = fl;
 	}
 }
 
@@ -905,7 +888,10 @@ static void UpdateHitboxesPart1(Players& __restrict players, const std::vector<i
 
 		boneSetupData[players.unsortIDs[i]] = BoneSetupData(&players, i, false);
 
-		Threading::QueueJobRef(ThreadedBoneSetup, (void*)(uintptr_t)players.unsortIDs[i]);
+		if (async)
+			Threading::QueueJobRef(ThreadedBoneSetup, (void*)(uintptr_t)players.unsortIDs[i]);
+		else
+			ThreadedBoneSetup((void*)(uintptr_t)players.unsortIDs[i]);
 	}
 }
 
