@@ -160,9 +160,9 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 	{
 	}
 
-	inline void InitializeVTable()
+	inline void InitializeVTable(BindHandlerIFaceVtable* vtbl)
 	{
-		Base::vtbl = Settings::settingsLocalAlloc.allocate<BindHandlerIFaceVtable>(1);
+		Base::vtbl = vtbl;
 #ifdef DEBUG
 		printf("%lx %lx %p\n", (uintptr_t)((Ptr)(uintptr_t)this).ptr, sizeof(BindHandlerIFaceVtable), Base::vtbl.ptr);
 #endif
