@@ -276,10 +276,10 @@ float Tracing2::TracePart2(vec3_t eyePos, float weaponDamage, float weaponRangeM
 	return (int)(damage * players->hitboxes[eID].damageMul[hbID]);
 }
 
-int Tracing2::TracePlayers(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, vec3_t point, int eID, int depth, C_BasePlayer* skient)
+int Tracing2::TracePlayers(vec3_t eyePos, float weaponDamage, float weaponRangeModifier, Players* players, vec3_t point, int eID, int depth, C_BasePlayer* skipent)
 {
 	trace_t tr;
-	TracePart1(eyePos, point, &tr, skient);
+	TracePart1(eyePos, point, &tr, skipent);
 	return TracePart2(eyePos, weaponDamage, weaponRangeModifier, players, &tr, eID);
 }
 
@@ -290,9 +290,6 @@ void Tracing2::ResetTraceCount()
 	vec3_t pos = FwBridge::lpData.origin;
 	//TODO: Add active weapon check to see if autowall cache invalidation is needed
 	bool invalidate = (pos - cache[0].pos).LengthSqr<3>() > 1.f;
-
-	//TODO: Fix cache
-	invalidate = true;
 
 	cache[0].Reset(invalidate, nullptr);
 
