@@ -446,7 +446,7 @@ static void FrameUpdatePlayer(C_BasePlayer* ent)
 {
 	MTR_SCOPED_TRACE("Engine", "FrameUpdatePlayer");
 
-	ent->mostRecentBoneCounter() = *modelBoneCounter - 1;
+	//ent->mostRecentBoneCounter() = *modelBoneCounter - 1;
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
 
@@ -510,8 +510,9 @@ static void FrameUpdatePlayer(C_BasePlayer* ent)
 
 	bonesSetup[entID] = true;
 	//lerpedOrigin[entID] = players1->origin[pID1];
-	ent->effects() = flags;
-	ValidateBoneCache(ent);
+	//Let's be real here, in under no circumstance does the player have this effect
+	ent->effects() = flags & ~EF_NOINTERP;
+	//ValidateBoneCache(ent);
 }
 
 static matrix3x4_t lastLPMatrix[128];
