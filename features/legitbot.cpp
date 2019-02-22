@@ -147,8 +147,10 @@ void LegitBot::RunPostTarget(LocalPlayer* lpData, CUserCmd* cmd, AimbotTarget* t
 
 	bool smoothRun = false;
 
+#ifdef TESTING_FEATURES
 	if (Settings::aimbotSetAngles)
 		smoothRun = RunSmooth(*lpData, *target, target->id >= 0 ? (*track)[target->backTick].unsortIDs[target->id] : target->id);
+#endif
 
 	RCS(lpData, smoothRun);
 

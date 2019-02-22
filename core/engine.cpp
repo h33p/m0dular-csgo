@@ -21,6 +21,10 @@ static void InvalidateBoneCache(C_BasePlayer* ent)
 	ent->prevBoneMask() = BONE_USED_BY_ANYTHING & ~BONE_USED_BY_HITBOX;
 }
 
+static matrix<3,4> matrices[MAX_PLAYERS][128];
+static bool bonesSetup[128];
+static vec3 origins[MAX_PLAYERS];
+
 bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 {
 	MTR_SCOPED_TRACE("Engine", "UpdatePlayer");
@@ -31,7 +35,9 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 	int flags = ent->effects();
 	ent->effects() |= EF_NOINTERP;
 	//TODO: Figure out a way not to mess up the hitboxes when not using BONE_USED_BY_ANYTHING
-	bool ret = ent->SetupBones(matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX | BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
+	bool ret = ent->SetupBones(matrix ? matrix : matrices[ent->EntIndex()], MAXSTUDIOBONES, BONE_USED_BY_HITBOX | BONE_USED_BY_ANYTHING, globalVars->curtime + 10);
+	if (matrix)
+		memcpy(matrices[ent->EntIndex()], matrix, sizeof(matrix3x4_t) * MAXSTUDIOBONES);
 
 	/*ent->lastBoneTime() = globalVars->curtime - fmaxf(ent->simulationTime() - ent->prevSimulationTime(), globalVars->interval_per_tick);
 	ent->mostRecentBoneCounter() = 0;
@@ -45,10 +51,6 @@ bool Engine::UpdatePlayer(C_BasePlayer* ent, matrix<3,4> matrix[128])
 
 	return ret;
 }
-
-static matrix<3,4> matrices[MAX_PLAYERS][128];
-static bool bonesSetup[128];
-static vec3 origins[MAX_PLAYERS];
 
 void Engine::StartLagCompensation()
 {
@@ -498,9 +500,9 @@ static void FrameUpdatePlayer(C_BasePlayer* ent)
 
 		vec3_t originDelta = lerpedOrigin[entID] - players1->origin[pID1];*/
 
-	//FIXME: We need to call SetupBones or else the rendered matrix will mess up
+	//CreateMove hook updates the player bones properly. In here, we just have to force the engine to validate everything once again
 	if (dirtyVisualBonesMask & (1u << entID)) {
-		InvalidateBoneCache(ent);
+		ValidateBoneCache(ent);
 		ent->SetupBones(matrices[entID], MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, globalVars->curtime);
 	}
 	//memcpy(matrices[entID], players1->bones[pID1], MAXSTUDIOBONES);
