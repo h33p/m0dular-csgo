@@ -17,6 +17,7 @@
 extern VFuncHook* hookClientMode;
 extern VFuncHook* hookPanel;
 extern VFuncHook* hookViewRender;
+extern VFuncHook* hookSurface;
 
 #ifdef __posix__
 union SDL_Event;
@@ -41,15 +42,10 @@ namespace CSGOHooks
 	bool __fastcall SetupBones(FASTARGS, matrix3x4_t*, int, int, float);
 	void __fastcall OnRenderStart(FASTARGS);
 	void __fastcall OverrideView(FASTARGS, CViewSetup*);
+	void __fastcall LockCursor(FASTARGS);
 	void ImpactsEffect(const CEffectData& effectData);
 	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);
 	void DidSmokeEffectProxy(const CRecvProxyData* data, void* ent, void* out);
-
-#ifdef __posix__
-	int PollEvent(SDL_Event* event);
-#else
-	LRESULT __stdcall WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-#endif
 }
 
 #endif

@@ -26,41 +26,6 @@ extern bool shuttingDown;
 //This one is used when unloading
 AtomicLock CSGOHooks::hookLock;
 
-#ifdef __posix__
-uintptr_t origPollEvent = 0;
-uintptr_t* pollEventJump = nullptr;
-
-int CSGOHooks::PollEvent(SDL_Event* event)
-{
-    auto OrigSDL_PollEvent = reinterpret_cast<decltype(CSGOHooks::PollEvent)*>(origPollEvent);
-
-	if (event->type == SDL_KEYUP)
-		BindManager::sharedInstance->binds[event->key.keysym.scancode].HandleKeyPress(false);
-	else if (event->type == SDL_KEYDOWN)
-		BindManager::sharedInstance->binds[event->key.keysym.scancode].HandleKeyPress(true);
-
-	return OrigSDL_PollEvent(event);
-}
-#else
-HWND dxTargetWindow;
-LONG_PTR oldWndProc = 0;
-IDirect3DDevice9* d3dDevice = nullptr;
-
-LRESULT __stdcall CSGOHooks::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-
-	if (wParam >= 0 && wParam < 256) {
-		if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
-			BindManager::sharedInstance->binds[WIN_NATIVE_TO_HID[wParam]].HandleKeyPress(false);
-		else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
-			BindManager::sharedInstance->binds[WIN_NATIVE_TO_HID[wParam]].HandleKeyPress(true);
-	}
-
-	return CallWindowProcW((WNDPROC)oldWndProc, hWnd, msg, wParam, lParam);
-}
-
-#endif
-
 #ifdef MTR_ENABLED
 static bool prevTraced = false;
 #endif
@@ -81,6 +46,9 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 	if (shuttingDown || !CSGOHooks::hookLock.trylock())
 		return ret;
+
+	if (Settings::showMenu)
+		cmd->buttons &= ~(IN_ATTACK | IN_ATTACK2);
 
 	bool* bSendPacket = nullptr;
 	void* runFrameFp = ****(void*****)FRAME_POINTER();
@@ -158,6 +126,18 @@ void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
 	*postProcessDisable = Settings::disablePostProcessing;
 
 	CSGOHooks::hookLock.unlock();
+}
+
+void __fastcall CSGOHooks::LockCursor(FASTARGS)
+{
+	static auto origFn = hookSurface->GetOriginal(CSGOHooks::LockCursor);
+
+	if (Settings::showMenu) {
+		surface->UnlockCursor();
+		return;
+	}
+
+	origFn(CFASTARGS);
 }
 
 #ifdef PT_VISUALS

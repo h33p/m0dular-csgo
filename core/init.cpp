@@ -1,4 +1,5 @@
 #include "hooks.h"
+#include "platform_hooks.h"
 #include "fw_bridge.h"
 #include "../sdk/framework/utils/threading.h"
 #include "../sdk/framework/utils/shared_mutex.h"
@@ -21,11 +22,24 @@
 
 #ifdef _WIN32
 #include <d3d9.h>
+#include "../gui/menu/dx9menu.h"
+
+namespace PSMenu = DX9Menu;
+
+#else
+#include "../gui/menu/sdlmenu.h"
+
+namespace PSMenu = SDLMenu;
+
 #endif
 
 VFuncHook* hookClientMode = nullptr;
 VFuncHook* hookPanel = nullptr;
 VFuncHook* hookViewRender = nullptr;
+VFuncHook* hookSurface = nullptr;
+#ifdef _WIN32
+VFuncHook* hookD3D = nullptr;
+#endif
 
 CBaseClient* cl = nullptr;
 CServerGame* server = nullptr;
@@ -286,24 +300,27 @@ static void InitializeHooks()
 	//We have to specify the minSize since vtables on MacOS act strangely with one or two functions being a null pointer
 	hookClientMode = new VFuncHook(clientMode, false, 25);
 	hookViewRender = new VFuncHook(viewRender, false, 10);
+	hookSurface = new VFuncHook(surface, false, 68);
 #ifdef PT_VISUALS
 	hookPanel = new VFuncHook(panel, false, 5);
 #endif
 
-	for (size_t i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
-		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
-
 	//Iniitalize input
 #ifdef __posix__
-	*pollEventJump = (uintptr_t)&CSGOHooks::PollEvent;
+	*pollEventJump = (uintptr_t)&PlatformHooks::PollEvent;
 #else
 	D3DDEVICE_CREATION_PARAMETERS params;
 
+	hookD3D = new VFuncHook(d3dDevice, false, 18);
+
 	if (d3dDevice && d3dDevice->GetCreationParameters(&params) == D3D_OK) {
 		dxTargetWindow = params.hFocusWindow;
-		oldWndProc = SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, (LONG_PTR)CSGOHooks::WndProc);
+		oldWndProc = SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, (LONG_PTR)PlatformHooks::WndProc);
 	}
 #endif
+
+	for (size_t i = 0; i < sizeof(hookIds) / sizeof((hookIds)[0]); i++)
+		hookIds[i].hook->Hook(hookIds[i].index, hookIds[i].function);
 }
 
 static void InitializeDynamicHooks()
@@ -349,6 +366,14 @@ void Shutdown(bool delayAfterUnhook)
 		EffectsHook::UnhookAll(effectHooks, effectsCount, *effectsHead);
 		SourceNetvars::UnhookAll(netvarHooks, netvarCount);
 
+		cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
+		for (HookDefine& i : hookIds) {
+			if (i.hook) {
+				delete i.hook;
+				i.hook = nullptr;
+			}
+		}
+
 		if (delayAfterUnhook) {
 #ifdef _WIN32
 			Sleep(50);
@@ -360,18 +385,14 @@ void Shutdown(bool delayAfterUnhook)
 		//Lock hooks before shutting down the cheat, since there is a high chance a hook is running at this exact moment
 		CSGOHooks::hookLock.lock();
 		CSGOHooks::hookLock.unlock();
+		PlatformHooks::hookLock.lock();
+		PlatformHooks::hookLock.unlock();
 
+		cvar->ConsoleDPrintf(ST("Shutting down gui...\n"));
+		PSMenu::ShutdownContext();
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();
 		cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
-
-		cvar->ConsoleDPrintf(ST("Removing static hooks...\n"));
-		for (HookDefine& i : hookIds) {
-			if (i.hook) {
-				delete i.hook;
-				i.hook = nullptr;
-			}
-		}
 
 		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
 		DispatchToAllThreads<ThreadIDFn, FreeThreadID>(nullptr);
