@@ -19,17 +19,6 @@ extern VFuncHook* hookPanel;
 extern VFuncHook* hookViewRender;
 extern VFuncHook* hookSurface;
 
-#ifdef __posix__
-union SDL_Event;
-extern uintptr_t origPollEvent;
-extern uintptr_t* pollEventJump;
-#else
-struct IDirect3DDevice9;
-extern HWND dxTargetWindow;
-extern LONG_PTR oldWndProc;
-extern IDirect3DDevice9* d3dDevice;
-#endif
-
 namespace CSGOHooks
 {
 #ifdef PT_VISUALS

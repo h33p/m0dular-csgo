@@ -217,6 +217,10 @@ static void PlatformSpecificOffsets()
 	pollEventJump = (uintptr_t*)GetAbsoluteAddress(polleventFn, 3, 7);
 	origPollEvent = *pollEventJump;
 
+	uintptr_t swapwindowFn = (uintptr_t)(dlsym(handle, ST("SDL_GL_SwapWindow"))) OMac(+ 12);
+	swapWindowJump = (uintptr_t*)GetAbsoluteAddress(swapwindowFn, 3, 7);
+	origSwapWindow = *swapWindowJump;
+
 #else
 	globalVars = **(CGlobalVarsBase***)((*(uintptr_t**)(cl))[0] + 0x1B);
 #endif
@@ -308,6 +312,7 @@ static void InitializeHooks()
 	//Iniitalize input
 #ifdef __posix__
 	*pollEventJump = (uintptr_t)&PlatformHooks::PollEvent;
+	*swapWindowJump = (uintptr_t)&PlatformHooks::SwapWindow;
 #else
 	D3DDEVICE_CREATION_PARAMETERS params;
 
@@ -351,6 +356,9 @@ void Shutdown(bool delayAfterUnhook)
 #ifdef __posix__
 		if (pollEventJump)
 			*pollEventJump = origPollEvent;
+
+		if (swapWindowJump)
+			*swapWindowJump = origSwapWindow;
 #else
 		if (oldWndProc)
 		    SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, oldWndProc);
