@@ -4,6 +4,9 @@
 #include "../core/settings.h"
 #include "../core/binds.h"
 
+//Defined in init.cpp
+void Unload();
+
 void RageBotTab();
 void VisualsTab();
 void AntiaimTab();
@@ -46,5 +49,6 @@ void MiscTab()
 
 void OtherTab()
 {
-
+	if (ImGui::Button("Unload"))
+		Unload();
 }

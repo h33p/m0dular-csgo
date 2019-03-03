@@ -24,7 +24,7 @@ endif
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
-core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'features/aimlog.cpp', 'features/legitbot.cpp', 'features/ragebot.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'impl/aimbot.cpp']
+core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'features/aimlog.cpp', 'features/legitbot.cpp', 'features/ragebot.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'impl/aimbot.cpp']
 gui_files = ['gui/gamemenu.cpp', 'gui/menu/menu.cpp', 'gui/menu/imgui/imgui.cpp', 'gui/menu/imgui/imgui_widgets.cpp', 'gui/menu/imgui/imgui_draw.cpp']
 
 framework_thread_utils = ['core_unity/framework_threads.cpp']
@@ -35,7 +35,7 @@ keycode_files = ['modules/keycode/keyid.c']
 #core/init.cpp has to be the last one to have proper initialization
 file_list = core_files + framework_other_files
 
-menulib_files = ['core/settings.cpp', 'core/binds.cpp', 'menu_lib/csgo_module.cpp', 'menu_lib/settings.cpp']
+menulib_files = ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'menu_lib/csgo_module.cpp', 'menu_lib/settings.cpp']
 client_file_list = ['client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp']
 
 if get_option('buildtype').startswith('debug')
@@ -227,6 +227,6 @@ endif
 
 menulib = shared_library('mlm0dular', files(menulib_files), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
-bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
 test('keybinds', bind_test)

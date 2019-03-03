@@ -2,6 +2,7 @@
 #include "fw_bridge.h"
 #include "settings.h"
 #include "binds.h"
+#include "shmfs.h"
 
 #include "../sdk/framework/utils/atomic_lock.h"
 
@@ -54,7 +55,7 @@ static void SetupMenu()
 	Menu::InitializeStyle();
 
 	ImGuiIO& io = ImGui::GetIO();
-	ImFont* font = io.Fonts->AddFontFromFileTTF("OpenSans-Regular.ttf", 40.0f);
+	ImFont* font = io.Fonts->AddFontFromMemoryCompressedBase85TTF((const char*)SHMFS::sharedInstance->FindEntry("MenuFont"_crc32)->buffer, 40.f);
 	IM_ASSERT(font != NULL);
 	font->Scale *= 0.5f;
 
@@ -69,20 +70,48 @@ uintptr_t origSwapWindow = 0;
 uintptr_t* swapWindowJump = nullptr;
 
 SDL_GLContext imguiContext = nullptr;
+SDL_Window* lastWindow = nullptr;
+
+static constexpr uint32_t filteredMessages[] = {
+	SDL_KEYDOWN,
+	SDL_FINGERDOWN,
+	SDL_MOUSEBUTTONDOWN,
+	SDL_MOUSEMOTION,
+	SDL_MOUSEWHEEL,
+	SDL_TEXTINPUT,
+	SDL_TEXTEDITING
+};
+
+static bool IsEventUnfiltered(uint32_t event)
+{
+	for (uint32_t i : filteredMessages)
+		if (i == event)
+			return false;
+
+    return true;
+}
 
 int PlatformHooks::PollEvent(SDL_Event* event)
 {
     auto OrigSDL_PollEvent = (decltype(PlatformHooks::PollEvent)*)origPollEvent;
+
+	int ret = OrigSDL_PollEvent(event);
+
+	if (!ret)
+		return 0;
 
 	if (event->type == SDL_KEYUP)
 		BindManager::sharedInstance->binds[event->key.keysym.scancode].HandleKeyPress(false);
 	else if (event->type == SDL_KEYDOWN)
 		BindManager::sharedInstance->binds[event->key.keysym.scancode].HandleKeyPress(true);
 
-	if (imguiContext && Settings::showMenu)
+	if (imguiContext && Settings::showMenu) {
 		SDLMenu::PollEvent(event);
+		if (!IsEventUnfiltered(event->type))
+			return PollEvent(event);
+	}
 
-	return OrigSDL_PollEvent(event);
+	return ret;
 }
 
 static void InitializeMenu(SDL_Window* window)
@@ -102,6 +131,8 @@ void PlatformHooks::SwapWindow(SDL_Window* window)
 {
 	auto origFn = (decltype(PlatformHooks::SwapWindow)*)origSwapWindow;
     SDL_GLContext originalContext = SDL_GL_GetCurrentContext();
+
+	lastWindow = window;
 
 	if (PlatformHooks::hookLock.trylock()) {
 		if (!shuttingDown) {
@@ -152,24 +183,24 @@ static void InitializeMenu(IDirect3DDevice9* device)
 	menuInitialized = true;
 }
 
-static constexpr UINT acceptedMessages[] = {
-	WM_KEYUP,
-	WM_SYSKEYUP,
-	WM_NCLBUTTONUP,
-	WM_NCRBUTTONUP,
-	WM_NCMBUTTONUP,
-	WM_LBUTTONUP,
-	WM_RBUTTONUP,
-	WM_MBUTTONUP
+static constexpr UINT filteredMessages[] = {
+	WM_KEYDOWN,
+	WM_SYSKEYDOWN,
+	WM_NCLBUTTONDOWN,
+	WM_NCRBUTTONDOWN,
+	WM_NCMBUTTONDOWN,
+	WM_LBUTTONDOWN,
+	WM_RBUTTONDOWN,
+	WM_MBUTTONDOWN
 };
 
 static bool IsEventUnfiltered(UINT msg)
 {
-	for (UINT i : acceptedMessages)
+	for (UINT i : filteredMessages)
 		if (i == msg)
-			return true;
+			return false;
 
-	return false;
+	return true;
 }
 
 LRESULT __stdcall PlatformHooks::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)

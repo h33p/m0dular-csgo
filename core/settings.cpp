@@ -2,6 +2,7 @@
 #include "../sdk/framework/features/aimbot_types.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "binds.h"
+#include "shmfs.h"
 
 //We will use atomic flags and atomic ints to implement a interprocess rwlock
 #include <atomic>
@@ -70,6 +71,7 @@ static IPCInit initializedPointers[] = {
 	IPCInit(Settings::globalSettingsPtr),
 	IPCInit(Settings::bindSettingsPtr),
 	IPCInit(BindManager::sharedInstance),
+	IPCInit(SHMFS::sharedInstance),
 };
 
 bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
@@ -170,6 +172,7 @@ SettingsInstance::SettingsInstance()
 		ConstructClass(Settings::globalSettingsPtr);
 		ConstructClass(Settings::bindSettingsPtr);
 		ConstructClass(BindManager::sharedInstance);
+		ConstructClass(SHMFS::sharedInstance);
 		initialized = true;
 #endif
 	} else

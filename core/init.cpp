@@ -28,9 +28,13 @@ namespace PSMenu = DX9Menu;
 
 #else
 #include "../gui/menu/sdlmenu.h"
+#include <SDL2/SDL.h>
 
 namespace PSMenu = SDLMenu;
 
+//TODO: Move these out to separate file
+extern SDL_Window* lastWindow;
+extern SDL_GLContext imguiContext;
 #endif
 
 VFuncHook* hookClientMode = nullptr;
@@ -397,7 +401,20 @@ void Shutdown(bool delayAfterUnhook)
 		PlatformHooks::hookLock.unlock();
 
 		cvar->ConsoleDPrintf(ST("Shutting down gui...\n"));
+#ifdef __posix__
+		SDL_GLContext originalContext = SDL_GL_GetCurrentContext();
+
+		if (lastWindow)
+			SDL_GL_MakeCurrent(lastWindow, imguiContext);
+#endif
+
 		PSMenu::ShutdownContext();
+
+#ifdef __posix__
+		if (lastWindow)
+			SDL_GL_MakeCurrent(lastWindow, originalContext);
+#endif
+
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();
 		cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
