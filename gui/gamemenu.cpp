@@ -37,7 +37,7 @@ void MenuImpl::Render()
 	size_t tabsSize = sizeof(tabsRage) / sizeof(MenuTab);
 
 	if (!Settings::rageMode) {
-	    tabs = tabsLegit;
+		tabs = tabsLegit;
 		tabsSize = sizeof(tabsLegit) / sizeof(tabsLegit[0]);
 	}
 
@@ -112,8 +112,8 @@ void AntiaimTab()
 
 #ifdef TESTING_FEATURES
 	CheckBox::Run(Settings::antiaim, "AntiAim");
-    Slider<int>::Run(Settings::fakelag, 0, 14, "FakeLag");
-    CheckBox::Run(Settings::fakelagBreakLC, "FakeLag");
+	Slider<int>::Run(Settings::fakelag, 0, 14, "FakeLag");
+	CheckBox::Run(Settings::fakelagBreakLC, "FakeLag");
 #endif
 }
 
@@ -123,7 +123,7 @@ void MiscTab()
 
 	CheckBox::Run(Settings::bunnyhopping, "Bunnyhopping");
 	CheckBox::Run(Settings::autostrafer, "Autostrafer");
-    Slider<float>::Run(Settings::autostraferControl, 0, 2, "Strafe control");
+	Slider<float>::Run(Settings::autostraferControl, 0, 2, "Strafe control");
 }
 
 void OtherTab()

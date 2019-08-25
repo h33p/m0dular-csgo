@@ -88,12 +88,12 @@ static bool IsEventUnfiltered(uint32_t event)
 		if (i == event)
 			return false;
 
-    return true;
+	return true;
 }
 
 int PlatformHooks::PollEvent(SDL_Event* event)
 {
-    auto OrigSDL_PollEvent = (decltype(PlatformHooks::PollEvent)*)origPollEvent;
+	auto OrigSDL_PollEvent = (decltype(PlatformHooks::PollEvent)*)origPollEvent;
 
 	int ret = OrigSDL_PollEvent(event);
 
@@ -130,7 +130,7 @@ static void InitializeMenu(SDL_Window* window)
 void PlatformHooks::SwapWindow(SDL_Window* window)
 {
 	auto origFn = (decltype(PlatformHooks::SwapWindow)*)origSwapWindow;
-    SDL_GLContext originalContext = SDL_GL_GetCurrentContext();
+	SDL_GLContext originalContext = SDL_GL_GetCurrentContext();
 
 	lastWindow = window;
 
@@ -260,7 +260,7 @@ LRESULT __stdcall PlatformHooks::Reset(IDirect3DDevice9* device, D3DPRESENT_PARA
 {
 	static auto origFn = hookD3D->GetOriginal(PlatformHooks::Reset);
 
-    PlatformHooks::hookLock.lock();
+	PlatformHooks::hookLock.lock();
 
 	if (shuttingDown) {
 		PlatformHooks::hookLock.unlock();

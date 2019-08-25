@@ -58,7 +58,7 @@ AimbotHitbox Settings::aimbotHitboxes[MAX_HITBOXES] = {
 
 struct IPCInit
 {
-    uintptr_t* target;
+	uintptr_t* target;
 	size_t size;
 
 	template<typename T>
@@ -92,7 +92,7 @@ bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
 	}
 
 #else
-    fd = shm_open(name, O_RDWR, S_IRUSR | S_IWUSR);
+	fd = shm_open(name, O_RDWR, S_IRUSR | S_IWUSR);
 	if (fd == -1) {
 		firstTime = true;
 		fd = shm_open(name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);

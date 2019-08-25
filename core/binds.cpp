@@ -131,7 +131,7 @@ void BindManager::SerializeBinds(std::vector<unsigned char>& vec)
 
 size_t BindManager::LoadBinds(const std::vector<unsigned char>& vec, size_t idx)
 {
-    if (vec[idx++] != BINDS_MAGIC)
+	if (vec[idx++] != BINDS_MAGIC)
 		return --idx;
 
 	for (int i = 0; i < 255; i++)

@@ -32,7 +32,7 @@ class BindAllocator : public Alloc
 	struct real_value_type
 	{
 		bool bindActive;
-	    value_type value;
+		value_type value;
 	};
 
 	static constexpr size_t bindOffset = offset_of(real_value_type, value);
@@ -43,9 +43,9 @@ class BindAllocator : public Alloc
 
   public:
 
-    pointer allocate(size_type sz)
+	pointer allocate(size_type sz)
 	{
-	    byte_pointer ret = ByteAlloc::allocate(sizeof(value_type) * sz + bindOffset);
+		byte_pointer ret = ByteAlloc::allocate(sizeof(value_type) * sz + bindOffset);
 		((real_pointer)ret)->bindActive = false;
 		return (pointer)(ret + bindOffset);
 	}
@@ -83,14 +83,14 @@ class BindSettingsGroup : public SettingsGroupBase<BindAllocator<Alloc, false>>
 	template<typename T>
 	inline bool IsBlocked(T ptr)
 	{
-	    auto rptr = (typename bind_alloc::real_pointer)((uintptr_t)ptr - bind_alloc::bindOffset);
+		auto rptr = (typename bind_alloc::real_pointer)((uintptr_t)ptr - bind_alloc::bindOffset);
 		return !rptr->bindActive;
 	}
 
 	template<typename T, template<typename F> typename U>
 	inline void ActivateBind(U<T> ptr, bool active)
 	{
-	    auto rptr = (typename bind_alloc::real_pointer)((uintptr_t)ptr - bind_alloc::bindOffset);
+		auto rptr = (typename bind_alloc::real_pointer)((uintptr_t)ptr - bind_alloc::bindOffset);
 		rptr->bindActive = active;
 	}
 };

@@ -37,7 +37,7 @@ void RageBot::RunPostTarget(LocalPlayer* lpData, CUserCmd* cmd, AimbotTarget* ta
 	if (!Settings::aimbotSetAngles)
 		lpData->angles = cmd->viewangles;
 	else if (Settings::aimbotSetViewAngles)
-	    engine->SetViewAngles(lpData->angles);
+		engine->SetViewAngles(lpData->angles);
 
 	prevAimOffset = lpData->aimOffset;
 }

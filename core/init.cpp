@@ -148,14 +148,14 @@ void* __stdcall EntryPoint(void*)
 	InitializeOffsets();
 #endif
 	moduleIdentifyDependency = (volatile char*)GetModuleName((void*)RandomFloatExp, (void*)RandomFloatExp);
-    DispatchToAllThreads<ThreadIDFn, AllocateThreadID>(nullptr);
+	DispatchToAllThreads<ThreadIDFn, AllocateThreadID>(nullptr);
 #ifndef LOADER_INITIALIZATION
 	if (Settings::sharedInstance.initialized)
 		InitializeHooks();
 #endif
 	cvar->ConsoleColorPrintf(Color(1.f, 1.f, 0.f, 1.f), ST("Initializing tracer as tracer...\n"));
 	moduleIdentifyDependency2 = (volatile char*)moduleName;
-    delete (char*)moduleIdentifyDependency;
+	delete (char*)moduleIdentifyDependency;
 	InitializeDynamicHooks();
 	cvar->ConsoleColorPrintf(Color(1.f, 0.f, 0.f, 1.f), ST("ERROR: I'm already tracer!\n"));
 #ifdef MTR_ENABLED
@@ -295,7 +295,7 @@ static void DispatchToAllThreads(void* data)
 		Threading::QueueJobRef(AllThreadsStub<T, Fn>, data);
 
 	for (size_t i = 0; i < Threading::numThreads; i++)
-	    dispatchSem.Wait();
+		dispatchSem.Wait();
 
 	smtx.wunlock();
 
@@ -344,7 +344,7 @@ static void InitializeDynamicHooks()
 #ifdef DEBUG
 	cvar->ConsoleDPrintf(ST("Effect list:\n"));
 	Color col = Color(0, 255, 0, 255);
-    for (auto head = *effectsHead; head; head = head->next)
+	for (auto head = *effectsHead; head; head = head->next)
 		cvar->ConsoleColorPrintf(col, ST("%s\n"), head->effectName);
 #endif
 }
@@ -365,7 +365,7 @@ void Shutdown(bool delayAfterUnhook)
 			*swapWindowJump = origSwapWindow;
 #else
 		if (oldWndProc)
-		    SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, oldWndProc);
+			SetWindowLongPtr(dxTargetWindow, GWLP_WNDPROC, oldWndProc);
 #endif
 
 
@@ -474,9 +474,9 @@ void Unload()
 InterfaceReg** GetInterfaceRegs(MHandle library)
 {
 #if defined(__linux__) || defined(__APPLE__)
-    return (InterfaceReg**)dlsym(library, StackString("s_pInterfaceRegs"));
+	return (InterfaceReg**)dlsym(library, StackString("s_pInterfaceRegs"));
 #elif defined(_WIN32)
 	uintptr_t jmp = (uintptr_t)GetProcAddress(library, StackString("CreateInterface")) + 4;
-    return *(InterfaceReg***)(GetAbsoluteAddress(jmp, 1, 5) + 6);
+	return *(InterfaceReg***)(GetAbsoluteAddress(jmp, 1, 5) + 6);
 #endif
 }

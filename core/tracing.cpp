@@ -31,7 +31,7 @@ void Tracing2::TraceRayTargetOptimized(size_t n, trace_t* __restrict traces, Ray
 	if (!n)
 		return;
 
-    MTR_SCOPED_TRACE("Tracing2", "TraceRayTargetOptimized");
+	MTR_SCOPED_TRACE("Tracing2", "TraceRayTargetOptimized");
 
 	CTraceFilterWorldOnly worldFilter;
 	int threadIDX = Threading::threadID + 1;
@@ -170,7 +170,7 @@ void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOut
 	if (!n)
 		return;
 
-    MTR_SCOPED_TRACE("Tracing2", "PenetrateRayTargetOptimized");
+	MTR_SCOPED_TRACE("Tracing2", "PenetrateRayTargetOptimized");
 
 	int threadIDX = Threading::threadID + 1;
 
@@ -219,13 +219,13 @@ void Tracing2::PenetrateRayTargetOptimized(size_t n, float* __restrict damageOut
 
 void Tracing2::GameTraceRay(const Ray_t& ray, unsigned int mask, ITraceFilter* filter, trace_t* tr)
 {
-    cache[Threading::threadID + 1].traceCountTick++;
+	cache[Threading::threadID + 1].traceCountTick++;
 	GameTrace::TraceRay(ray, mask, filter, tr, Threading::threadID);
 }
 
 int Tracing2::GetPointContents(const vec3& pos, int mask, IHandleEntity** ent)
 {
-    cache[Threading::threadID + 1].traceCountTick++;
+	cache[Threading::threadID + 1].traceCountTick++;
 	return engineTrace->GetPointContents(pos, mask, ent);
 }
 
@@ -308,7 +308,7 @@ int Tracing2::RetreiveTraceCount()
 		sz += i.tree.size();
 	}
 
-    //cvar->ConsoleDPrintf(ST("CACHE SIZE: %u\n"), sz);
+	//cvar->ConsoleDPrintf(ST("CACHE SIZE: %u\n"), sz);
 
 	return tc;
 }
@@ -362,10 +362,10 @@ float Tracing2::ScaleDamage(Players* players, int id, float in, float armorPenet
 		if ((out - out * armorRatio) * (bonusValue * armorBonusRatio) > players->armor[id])
 			out -= players->armor[id] / armorBonusRatio;
 		else {
-		    out *= armorRatio;
+			out *= armorRatio;
 
 			if (ent->hasHeavyArmor())
-			    out *= 0.85f;
+				out *= 0.85f;
 		}
 	}
 
@@ -430,7 +430,7 @@ int Tracing2::ClipTraceToPlayers(trace_t* tr, Players* players, uint64_t ignoreF
 						end = start + dir * len;
 
 						mstudiobbox_t* box = set->GetHitbox(FwBridge::reHitboxIDs[o]);
-					    mstudiobone_t* bone = hdr->GetBone(box->bone);
+						mstudiobone_t* bone = hdr->GetBone(box->bone);
 
 						tr->hitgroup = (HitGroups)box->group;
 						tr->hitbox = FwBridge::reHitboxIDs[o];

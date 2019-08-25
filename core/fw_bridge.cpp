@@ -247,7 +247,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 
 		if (CSGOHooks::entityHooks.find(hookEnt) == CSGOHooks::entityHooks.end()) {
 #ifdef DEBUG
-			cvar->ConsoleDPrintf("Hooking %p\n", hookEnt);
+			cvar->ConsoleDPrintf("Hooking %p (%p)\n", hookEnt, (*(void***)hookEnt)[13]);
 #endif
 			VFuncHook* hook = new VFuncHook((void*)hookEnt);
 			CSGOHooks::entityHooks[hookEnt] = hook;
@@ -280,7 +280,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 	MTR_END("FwBridge", "PreSortLoop");
 
 	for (auto& i : entitiesToUnhook)
-	    if (i.second) {
+		if (i.second) {
 #ifdef DEBUG
 			cvar->ConsoleDPrintf("Unhooking %p\n", i.first);
 #endif
@@ -307,7 +307,7 @@ void FwBridge::UpdatePlayers(CUserCmd* cmd)
 		int cflags;
 		UpdateFlags(flags, cflags, ent);
 
-	    if (ent->health() <= 0 || ent->gunGameImmunity())
+		if (ent->health() <= 0 || ent->gunGameImmunity())
 			FwBridge::immuneFlags |= 1ull << players[i].id;
 
 		int pID = data.players.Resort(data.prevPlayers, i);
@@ -341,7 +341,7 @@ static std::vector<int> hitboxUpdatedList;
 
 void FwBridge::FinishUpdating(UpdateData* data)
 {
-    MTR_SCOPED_TRACE("FwBridge", "FinishUpdating");
+	MTR_SCOPED_TRACE("FwBridge", "FinishUpdating");
 	MoveOrigin(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 	MoveEyePos(data->players, data->prevPlayers, data->nonUpdatedPlayers);
 
@@ -544,7 +544,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 
 		if (allowShoot && Settings::rageMode ? RageBot::PreRun(&lpData) : LegitBot::PreRun(&lpData)) {
 			unsigned char hitboxList[MAX_HITBOXES];
-		    float pointScale[MAX_HITBOXES];
+			float pointScale[MAX_HITBOXES];
 			memset(hitboxList, 0, sizeof(hitboxList));
 
 			for (auto& i : Settings::aimbotHitboxes) {
@@ -561,9 +561,9 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			auto t1 = Clock::now();
 			target = Aimbot::RunAimbot(track,
 #ifdef TESTING_FEATURES
-									   Settings::aimbotLagCompensation ? LagCompensation::futureTrack :
+										Settings::aimbotLagCompensation ? LagCompensation::futureTrack :
 #endif
-									   nullptr, &lpData, hitboxList, &immuneFlags, pointScale);
+										nullptr, &lpData, hitboxList, &immuneFlags, pointScale);
 			auto t2 = Clock::now();
 
 			traceCountHistory.Push(Tracing2::RetreiveTraceCount());
@@ -572,7 +572,7 @@ static void ExecuteAimbot(CUserCmd* cmd, bool* bSendPacket, FakelagState_t state
 			traceTimeAvg = 0;
 			traceCountAvg = 0;
 
-		    size_t u = 0;
+			 size_t u = 0;
 
 			for (; u < traceCountHistory.Count(); u++) {
 				traceCountAvg += traceCountHistory[u];
@@ -662,7 +662,7 @@ static void ThreadedUpdate(UpdateData* data)
 //Sort the players for better data layout, in this case - by FOV
 static bool PlayerSort(SortData& a, SortData& b)
 {
-    return a.fov < b.fov;
+	return a.fov < b.fov;
 }
 
 static void MoveBoundsStart(Players& __restrict players, Players& __restrict prevPlayers, const std::vector<int>* nonUpdatedList)

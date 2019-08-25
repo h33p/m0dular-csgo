@@ -174,7 +174,7 @@ static void RunHitChance(HitChanceInput* inp)
 
 
 	for (int i = 0; i < HITCHANCE_PER_JOB; i++) {
-	    vec3_t dir = forward;
+		vec3_t dir = forward;
 
 		vec3_t r, p;
 

@@ -87,8 +87,8 @@ bool RunSmooth(LocalPlayer& lpData, AimbotTarget& target, int unsortID)
 
 		//TODO: Implement a check for camera move velocity to detect what kind of delay is needed
 		if (aimedAt > 1) {
-		    startAimTime += Settings::legitBotAimDelay + (float)Settings::legitBotAimDelay * (float)Settings::legitBotRandomization * CurtimeRandom(43.3f, -1.f, 1.f);
-		    targetTimeDelta = 1.f / aimTime + (float)Settings::legitBotShootDelay + (float)Settings::legitBotShootDelay * Settings::legitBotRandomization * CurtimeRandom(23.23f, -1.f, 1.f);
+			startAimTime += Settings::legitBotAimDelay + (float)Settings::legitBotAimDelay * (float)Settings::legitBotRandomization * CurtimeRandom(43.3f, -1.f, 1.f);
+			targetTimeDelta = 1.f / aimTime + (float)Settings::legitBotShootDelay + (float)Settings::legitBotShootDelay * Settings::legitBotRandomization * CurtimeRandom(23.23f, -1.f, 1.f);
 		}
 	}
 
@@ -157,5 +157,5 @@ void LegitBot::RunPostTarget(LocalPlayer* lpData, CUserCmd* cmd, AimbotTarget* t
 	if (!Settings::aimbotSetAngles)
 		lpData->angles = cmd->viewangles;
 	else if (Settings::aimbotSetViewAngles)
-	    engine->SetViewAngles(lpData->angles);
+		engine->SetViewAngles(lpData->angles);
 }

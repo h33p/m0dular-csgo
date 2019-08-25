@@ -126,7 +126,7 @@ struct TraceCache
 
 	traceang_t* Find(const Ray_t& ray)
 	{
-	    traceang_t entry;
+		traceang_t entry;
 
 		vec3_t angles = ray.delta.GetAngles(true);
 		entry.ang[0] = angles[0];

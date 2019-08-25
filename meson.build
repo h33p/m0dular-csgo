@@ -95,6 +95,8 @@ endif
 #Global compile time and link-time arguments
 if cc.get_id() == 'msvc'
   compile_args += ['-FIglobal_defines.h', '-std:c++17', '-GR-']
+
+  linker_args += '-MACHINE:X86'
 else
   compile_args += ['-include', 'global_defines.h']
   compile_args += ['-fno-rtti', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing']

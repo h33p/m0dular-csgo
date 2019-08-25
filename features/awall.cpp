@@ -30,7 +30,7 @@ bool IsBreakableEntity(C_BasePlayer* ent)
 	bool breakable = IsBreakableEntityNative(ent);
 
 	if (locked) {
-	    ent->takeDamage() = oldTakeDamage;
+		ent->takeDamage() = oldTakeDamage;
 		beLock.unlock();
 	}
 
@@ -77,7 +77,7 @@ bool AutoWall::TraceToExitWorld(const trace_t& __restrict inTrace, trace_t* __re
 				if ((*inBreakable && *outBreakable) || inTrace.surface.flags & SURF_NODRAW || (~outTrace->surface.flags & SURF_NODRAW && outTrace->plane.normal.Dot(dir) <= 1.f))
 					return true;
 			} else if (false && inTrace.ent != GameTrace::worldEnt && *inBreakable) { //TODO: look into this
-			    *outTrace = inTrace;
+				*outTrace = inTrace;
 				outTrace->endpos = start + dir;
 				return true;
 			}

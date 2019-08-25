@@ -269,11 +269,11 @@ static void ProcessHitEntity(BulletData data)
 
 	studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 	if (!hdr)
-	    return;
+		return;
 
 	mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
 	if (!set)
-	    return;
+		return;
 
 	mstudiobbox_t* hitbox = set->GetHitbox(data.hitbox);
 	if (!hitbox)
@@ -367,7 +367,7 @@ static void ProcessHitEntity(BulletData data)
 	ent->clientSideAnimation() = false;
 	if (closestDist < 80.f) {
 		cvar->ConsoleDPrintf(ST("Resolved from shot: %f %d\n"), NormalizeFloat(bestAngle, -180.f, 180.f), data.hitbox);
-	    hitFlags |= (1ull << data.hitEnt);
+		hitFlags |= (1ull << data.hitEnt);
 		if (data.onGround > 0)
 			onGround |= (1ull << data.hitEnt);
 		resolvedAngle[data.hitEnt] = NormalizeFloat(bestAngle, 0.f, 360.f);
@@ -429,7 +429,7 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 	vec3_t endPointPlus = endPoint + (endPoint - startPoint).Normalized() * 50.f;
 
 	for (size_t i = 0; i < NumOfSIMD(MAX_HITBOXES); i++)
-	    flags |= (colliders[i].Intersect(startPoint, endPointPlus) << (i * SIMD_COUNT));
+		flags |= (colliders[i].Intersect(startPoint, endPointPlus) << (i * SIMD_COUNT));
 
 	Color colorOK = Color(0, 255, 0, 255);
 	Color colorMiss = Color(255, 0, 0, 255);
@@ -453,7 +453,7 @@ static void ProcessLocalImpacts(bool hitShot, int hitbox)
 
 		if (hitFlags & (1ull << unsortID)) {
 			Resolver::HitPlayer(unsortID, players.flags[aimbotTarget->id] & Flags::ONGROUND, resolvedAngle[unsortID]);
-		    hitFlags &= ~(1ull << unsortID);
+			hitFlags &= ~(1ull << unsortID);
 		} else if (instance)
 			Resolver::HitPlayer(unsortID, players.flags[aimbotTarget->id] & Flags::ONGROUND, instance->eyeAngles()[1]);
 

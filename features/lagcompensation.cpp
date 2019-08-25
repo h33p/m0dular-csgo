@@ -30,7 +30,7 @@ static void UpdatePart2();
 void LagCompensation::PreRun()
 {
 #ifdef TESTING_FEATURES
-    MTR_SCOPED_TRACE("LagCompensation", "PreRun");
+	MTR_SCOPED_TRACE("LagCompensation", "PreRun");
 	CheckDynamic();
 
 	//Loop through the players and find which players do not have to be updated (will be copied over)
@@ -225,9 +225,9 @@ static void SimulateUntil(Players* p, int id, TemporaryAnimations* anim, float* 
 
 	while ((ct += interval) <= targetTime && maxTicks-- >= 0) {
 		if (onGround)
-		    ent->flags() |= FL_ONGROUND;
+			ent->flags() |= FL_ONGROUND;
 		else
-		    ent->flags() &= ~FL_ONGROUND;
+			ent->flags() &= ~FL_ONGROUND;
 
 		float omega = velocity.Length<2>() * fminf(path->invRadius, 1000);
 		float predAngle = path->direction * omega * interval;

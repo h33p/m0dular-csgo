@@ -36,7 +36,7 @@ void Tracing::TracePointList(LocalPlayer* localPlayer, Players* players, size_t 
 	if (!n)
 		return;
 
-    MTR_SCOPED_TRACE("Tracing", "TracePointList");
+	MTR_SCOPED_TRACE("Tracing", "TracePointList");
 	traces.resize(n);
 	rays.resize(n);
 

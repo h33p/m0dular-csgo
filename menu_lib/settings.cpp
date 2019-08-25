@@ -132,8 +132,8 @@ static void Handle(const char* command, const char* name, const char** cmds, int
 	for (auto& i : unnamedCommandList) {
 		if (commandCrc == i.crc) {
 			i.handler(cmds - 1, n + 1);
-		    usage = i.usage;
-		    return;
+			usage = i.usage;
+			return;
 		}
 	}
 
@@ -165,7 +165,7 @@ static void Handle(const char* command, const char* name, const char** cmds, int
 			int ret = cmd(i, cmds, n);
 
 			if (ret == 1)
-			    PrintUsageError(usage);
+				PrintUsageError(usage);
 
 			found = true;
 			break;
@@ -173,7 +173,7 @@ static void Handle(const char* command, const char* name, const char** cmds, int
 	}
 
 	if (!found)
-	    STPRINT("not found!");
+		STPRINT("not found!");
 
 	STPRINT("\n");
 }

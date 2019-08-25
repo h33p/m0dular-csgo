@@ -24,7 +24,7 @@ class SHMFSInstance
 	~SHMFSInstance();
 
 	const SHMFSEntry& SetEntry(crcs_t crc, const char* buffer, size_t szIn);
-    const SHMFSEntry* FindEntry(crcs_t crc);
+	const SHMFSEntry* FindEntry(crcs_t crc);
 	void RemoveEntry(crcs_t crc);
 };
 

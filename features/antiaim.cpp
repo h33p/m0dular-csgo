@@ -104,11 +104,11 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 	//Get the index of the head bone
 	studiohdr_t* hdr = mdlInfo->GetStudiomodel(ent->GetModel());
 	if (!hdr)
-	    return bestAngle;
+		return bestAngle;
 
 	mstudiohitboxset_t* set = hdr->GetHitboxSet(0);
 	if (!set)
-	    return bestAngle;
+		return bestAngle;
 
 	mstudiobbox_t* hitbox = set->GetHitbox(Hitboxes::HITBOX_HEAD);
 	if (!hitbox)
@@ -149,7 +149,7 @@ float Antiaim::CalculateFreestanding(int id, bool outAngles[FREESTAND_ANGLES])
 		int maxDMG = 0;
 
 		for (size_t o = 0; o < MULTIPOINT_COUNT; o++)
-		    maxDMG += out[o];
+			maxDMG += out[o];
 
 		float damage = maxDMG / MULTIPOINT_COUNT;
 
@@ -274,7 +274,7 @@ static void LBYTimer(LocalPlayer& lp)
 
 		if (lp.time > nextCurtime) {
 			nextCurtime = lp.time + 1.1f;
-		    shouldBreak = true;
+			shouldBreak = true;
 		}
 	}
 }

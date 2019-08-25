@@ -166,7 +166,7 @@ static uint64_t dirtyVisualBonesMask = ~0u;
 
 void Engine::StartAnimationFix(Players* players, Players* prevPlayers)
 {
-    MTR_SCOPED_TRACE("Engine", "StartAnimationFix");
+	MTR_SCOPED_TRACE("Engine", "StartAnimationFix");
 	size_t count = players->count;
 
 	for (size_t i = 0; i < count; i++) {
@@ -326,10 +326,10 @@ vec3_t Engine::PredictAimPunchAngle()
 	FwBridge::localPlayer->aimPunchAngle() = punchBackup;
 
 	if (FwBridge::weaponInfo) {
-	    float fireRate = FwBridge::weaponInfo->flCycleTime();
+		float fireRate = FwBridge::weaponInfo->flCycleTime();
 		float lerpTime = 1.f - (timeTillFire / fireRate);
 		//cvar->ConsoleDPrintf("LT: %f\n", lerpTime);
-	    ret = prevAimPunchAngles.LerpClamped(ret, lerpTime);
+		ret = prevAimPunchAngles.LerpClamped(ret, lerpTime);
 	}
 
 	return ret;
@@ -419,9 +419,9 @@ vec2 Engine::GetMouseSensitivity()
 	if (!pitch)
 		pitch = cvar->FindVar(ST("m_pitch"));
 	if (!yaw)
-	    yaw = cvar->FindVar(ST("m_yaw"));
+		yaw = cvar->FindVar(ST("m_yaw"));
 	if (!zoomSensitivityRatioMouse)
-	    zoomSensitivityRatioMouse = cvar->FindVar(ST("zoom_sensitivity_ratio_mouse"));
+		zoomSensitivityRatioMouse = cvar->FindVar(ST("zoom_sensitivity_ratio_mouse"));
 
 	float sensVal = sensitivity ? sensitivity->GetFloat() : 1;
 	float pitchVal = pitch ? pitch->GetFloat() : 1;
@@ -627,7 +627,7 @@ static void FrameUpdateOtherEnts(void*)
 		if (!clientClass)
 			continue;
 
-	    switch (clientClass->classID) {
+		switch (clientClass->classID) {
 		  case ClassId_CCascadeLight:
 			  break;
 		  case ClassId_CFogController:
@@ -676,7 +676,7 @@ void Engine::FrameUpdate()
 
 	if ((Settings::thirdPerson
 #ifdef TESTING_FEATURES
-		 || Settings::headCam
+		|| Settings::headCam
 #endif
 			) && !input->CAM_IsThirdPerson(-1))
 		input->CAM_ToThirdPerson();

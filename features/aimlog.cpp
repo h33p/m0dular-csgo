@@ -19,7 +19,7 @@ void AimLog::LogCreateMove(const LocalPlayer& lpData, const AimbotTarget& target
 	angleHistory.push_back(lpData.angles);
 	if (target.id >= 0 && lpData.keys & Keys::ATTACK1) {
 		if ((angleHistory[angleHistory.size() - 1] - targetAngles).NormalizeAngles<3>(-180.f, 180.f).Length<2>() <= 1.f) {
-			aimHistory.push_back((AimData){targetAngles, angleHistory});
+			aimHistory.push_back({targetAngles, angleHistory});
 
 			if (angleHistory.size() > 2) {
 				cvar->ConsoleDPrintf("Aim point history:\n");

@@ -63,7 +63,7 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 
 #ifdef MTR_ENABLED
 	if (prevTraced != Settings::perfTrace) {
-	    prevTraced = Settings::perfTrace;
+		prevTraced = Settings::perfTrace;
 
 		if (prevTraced) {
 			mtr_start();
@@ -207,7 +207,7 @@ void CSGOHooks::ImpactsEffect(const CEffectData& effectData)
 
 void CSGOHooks::LBYProxy(const CRecvProxyData* data, void* ent, void* out)
 {
-    FwBridge::HandleLBYProxy((C_BasePlayer*)ent, data->value.Float);
+	FwBridge::HandleLBYProxy((C_BasePlayer*)ent, data->value.Float);
 }
 
 void CSGOHooks::DidSmokeEffectProxy(const CRecvProxyData* data, void* ent, void* out)

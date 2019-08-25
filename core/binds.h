@@ -12,7 +12,7 @@
 
 enum BindMode : unsigned char
 {
-    HOLD = 0,
+	HOLD = 0,
 	TOGGLE
 };
 
@@ -195,7 +195,7 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 
 	static inline void ReleaseKeyBindST(BindHandlerIFace* iface, BindDataIFace* keyBindIFace)
 	{
-	    ((ThisType*)iface)->ReleaseKeyBind(keyBindIFace);
+		((ThisType*)iface)->ReleaseKeyBind(keyBindIFace);
 	}
 
 	void HandleEnable(BindDataIFace* keyBindIFace)
@@ -208,12 +208,12 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 		activeBinds.push_back(keyBind);
 
 		*(TypePointer)Base::pointer = keyBind->value;
-	    SettingsGroup->ActivateBind(Base::pointer, true);
+		SettingsGroup->ActivateBind(Base::pointer, true);
 	}
 
 	static inline void HandleEnableST(BindHandlerIFace* iface, BindDataIFace* keyBindIFace)
 	{
-	    ((ThisType*)iface)->HandleEnable(keyBindIFace);
+		((ThisType*)iface)->HandleEnable(keyBindIFace);
 	}
 
 	void HandleDisable(BindDataIFace* keyBindIFace)
@@ -237,7 +237,7 @@ struct BindHandlerImpl : BindHandlerBase<Ptr>
 
 	static inline void HandleDisableST(BindHandlerIFace* iface, BindDataIFace* keyBindIFace)
 	{
-	    ((ThisType*)iface)->HandleDisable(keyBindIFace);
+		((ThisType*)iface)->HandleDisable(keyBindIFace);
 	}
 
 	//We could have definitely provided these functions inside the bind data class, but that one does not have virtual methods needed for type spetialization and we do not want to introduce unnecessary virtual tables
@@ -281,7 +281,7 @@ struct BindKey
 	inline void BindPointer(BindHandlerIFace* handler, const T& value)
 	{
 		if (pointer)
-		    pointer->~BindDataIFace();
+			 pointer->~BindDataIFace();
 		pointer = handler->AllocKeyBind();
 		((BindDataImpl<T>*)&*pointer)->value = value;
 	}
