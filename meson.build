@@ -142,7 +142,7 @@ if not get_option('buildtype').startswith('debug')
   endif
 else #Debug type compile time and link time arguments
   if host_machine.system() != 'windows'
-    compile_args += ['-g', '-O0']
+    compile_args += ['-g', '-O0']#, '-fsanitize=address']
     #external_link += ['asan']
   else
     external_link += ['msvcrtd']

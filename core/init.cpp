@@ -270,6 +270,22 @@ static void InitializeOffsets()
 	SourceNetvars::Initialize(cl);
 	MTR_END("Netvars", "Initialize");
 	Threading::FinishQueue(true);
+
+#ifdef DEBUG
+	for (const Signature& sig : offsetSignatures)
+		cvar->ConsoleDPrintf("%s:\t%lx (%s)\n", sig.result, PatternScan::FindPattern(sig.pattern, sig.module), sig.pattern);
+
+	for (const NetvarOffsetSignature& sig : netvarOffsetSignatures) {
+		int off = (int)PatternScan::FindPattern(sig.pattern, sig.module);
+		uintptr_t var = SourceNetvars::GetNearestNetvar(sig.dataTable, off);
+		int varOff = SourceNetvars::GetOffset(sig.dataTable, var);
+		int x = off - varOff;
+		cvar->ConsoleDPrintf("%s:\t%x = %x %c %x (%s)\n", sig.result, off, varOff, x < 0 ? '-' : '+', x < 0 ? -x : x, sig.pattern);
+	}
+
+	for (const Signature& sig : indexSignatures)
+		cvar->ConsoleDPrintf("%s:\t%ld (%s)\n", sig.result, PatternScan::FindPattern(sig.pattern, sig.module) / sizeof(uintptr_t), sig.pattern);
+#endif
 }
 
 static Semaphore dispatchSem;
