@@ -61,12 +61,6 @@ void LegitBotTab()
 	Slider<int>::Run(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
 	Slider<float>::Run(Settings::aimbotFOV, 0, 360, "Aim FOV");
 	Slider<int>::Run(Settings::aimbotHitChance, 0, 100, "HitChance");
-
-	Slider<float>::Run(Settings::legitBotSpeed, 1, 50, "Aim speed");
-	Slider<float>::Run(Settings::legitBotAimDelay, 0, 0.2f, "Aim delay on consequitive targets");
-	Slider<float>::Run(Settings::legitBotShootDelay, 0, 0.2f, "Shoot delay on consequitive targets");
-	Slider<float>::Run(Settings::legitBotAimResetTime, 0, 1.f, "Time to reset delay counters");
-	Slider<float>::Run(Settings::legitBotRandomization, 0, 1.f, "Randomization");
 }
 
 void RageBotTab()

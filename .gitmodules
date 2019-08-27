@@ -4,9 +4,6 @@
 [submodule "modules/keycode"]
 	path = modules/keycode
 	url = https://github.com/depp/keycode.git
-[submodule "bits"]
-	path = bits
-	url = ../m0dular-csgo-bits.git
 [submodule "client"]
 	path = client
 	url = ../m0dular-client.git
