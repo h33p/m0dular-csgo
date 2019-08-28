@@ -70,9 +70,9 @@ class BindAllocator : public Alloc
 };
 
 template<typename Alloc>
-class BindSettingsGroup : public SettingsGroupBase<BindAllocator<Alloc, false>>
+class BindSettingsGroup : public SettingsGroup_t<BindAllocator<Alloc, false>>
 {
-	using base_type = SettingsGroupBase<BindAllocator<Alloc, false>>;
+	using base_type = SettingsGroup_t<BindAllocator<Alloc, false>>;
 	using bind_alloc = BindAllocator<Alloc, false>;
   public:
 	using pointer = typename base_type::pointer;
@@ -126,7 +126,7 @@ namespace Settings
 	template<typename T>
 	using LocalOffPtr = typename std::decay<decltype(Settings::settingsLocalAlloc)>::type::pointer_t<T>;
 
-	extern SettingsGroupBase<stateful_allocator<unsigned char, settingsAlloc>>* globalSettingsPtr;
+	extern SettingsGroup_t<stateful_allocator<unsigned char, settingsAlloc>>* globalSettingsPtr;
 	extern pointer_proxy<globalSettingsPtr> globalSettings;
 	extern BindSettingsGroup<stateful_allocator<unsigned char, settingsAlloc>>* bindSettingsPtr;
 	extern pointer_proxy<bindSettingsPtr> bindSettings;

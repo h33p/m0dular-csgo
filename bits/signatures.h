@@ -113,13 +113,15 @@ const Signature signatures[] = {
 
 const NetvarOffsetSignature netvarOffsetSignatures[] = {
 #if defined(__linux__)
-	NOSIGNATURE("prevBoneMask", "DT_BaseAnimating", clientLib, "0F 2F C1 [73 $+12^64]"), //Inside SetupBones, the first of the 2 fields that are being set to zero, followed by a third one that gets set to predictedTime
-	NOSIGNATURE("accumulatedBoneMask", "DT_BaseAnimating", clientLib, "0F 2F C1 [73 $+24^64]"), //The second of the 2 fields
+	NOSIGNATURE("accumulatedBoneMask", "DT_BaseAnimating", clientLib, "77 5B 41 8B 84 24 ^? ? ? ?"), //Inside SetupBones, there are 2 fields that are being set to zero, followed by a third one that gets set to predictedTime. Then are a few lines setting prevBoneMask to accumulatedBoneMask and then clearing the accumulatecBoneMask
+	NOSIGNATURE("prevBoneMask", "DT_BaseAnimating", clientLib, "24 ^? ? ? ? E9 71 F5 FF FF"), //This is a shorter sig a bit up in the SetupBones function
+	NOSIGNATURE("boneMatrix", "DT_BaseAnimating", clientLib, "48 03 BB ^? ? ? ? EB A3"), //search for ankle_L, and a function that goes below has a read from the bone matrix
 	NOSIGNATURE("animState", "DT_CSPlayer", clientLib, "48 89 83 ^? ? ? ? 74 07 C6 83"), //Inside C_CSPlayer::Spawn. Xref weapon_fire string, there should be player_spawn string above. 3 ifs deeper should be CCSGOPlayerAnimState::Reset function. Walk backwards from it 2-3 levels (depends on inlining).
 #elif defined(__APPLE__)
 #else
-	NOSIGNATURE("prevBoneMask", "DT_BaseAnimating", clientLib, "76 1C C7 87 *? ? ? ? 00 00 00 00 C7 87"),
-	NOSIGNATURE("accumulatedBoneMask", "DT_BaseAnimating", clientLib, "76 1C C7 87 ? ? ? ? 00 00 00 00 C7 87 *? ? ? ?"),
+	NOSIGNATURE("accumulatedBoneMask", "DT_BaseAnimating", clientLib, "05 0F 2F C8 [76 $+2^1C]"),
+	NOSIGNATURE("prevBoneMask", "DT_BaseAnimating", clientLib, "05 0F 2F C8 [76 $+8^1C]"),
+	NOSIGNATURE("boneMatrix", "DT_BaseAnimating", clientLib, "8B 8E *? ? ? ? 8D 04 7F C1 E0 04"),
 	NOSIGNATURE("animState", "DT_CSPlayer", clientLib, "89 87 *? ? ? ? 80 BF ? ? ? ? 00 74 07"),
 #endif
 };

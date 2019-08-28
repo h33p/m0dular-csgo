@@ -31,10 +31,67 @@ static constexpr MenuTab tabsLegit[] = {
 	{"Other", OtherTab}
 };
 
+static std::unique_ptr<SettingsGroupAccessorBase> activeGroup;
+
+template<typename T, crcs_t CRC>
+struct OptionWrap
+{
+	bool exists;
+	bool modified;
+	T val;
+
+	OptionWrap()
+		: exists(activeGroup->IsAlloced(CRC)), modified(false)
+	{
+		if (exists)
+			val = activeGroup->Get<T>(CRC);
+		else
+			val = T();
+	}
+
+	~OptionWrap()
+	{
+		if (modified)
+			activeGroup->Set(CRC, val);
+	}
+
+	constexpr operator T()
+	{
+		return val;
+	}
+
+	constexpr auto& operator = (const T& v)
+	{
+		if (val != v)
+			modified = true;
+		val = v;
+		return *this;
+	}
+};
+
+template<typename T>
+static void SettingsCheckBox(const T& val, const char* str)
+{
+	constexpr crcs_t CRC = T::CRCVAL;
+	OptionWrap<T::value_type, CRC> wrapper;
+	CheckBox::Run(wrapper, str);
+}
+
+template<typename T>
+static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str)
+{
+	constexpr crcs_t CRC = T::CRCVAL;
+	OptionWrap<T::value_type, CRC> wrapper;
+	Slider<T::value_type>::Run(wrapper, start, end, str);
+}
+
 void MenuImpl::Render()
 {
 	const MenuTab* tabs = tabsRage;
 	size_t tabsSize = sizeof(tabsRage) / sizeof(MenuTab);
+
+	if (!activeGroup)
+		activeGroup.reset(Settings::globalSettings->GenerateNewAccessor());
 
 	if (!Settings::rageMode) {
 		tabs = tabsLegit;
@@ -47,90 +104,108 @@ void MenuImpl::Render()
 void LegitBotTab()
 {
 	TabPad pad;
+	IdPush id(tabsLegit);
 
-	CheckBox::Run(Settings::aimbot, "Aimbot");
+	ImGui::Columns(2, nullptr, false);
 
-	CheckBox::Run(Settings::aimbotSetAngles, "Aim (silent)");
-	CheckBox::Run(Settings::aimbotSetViewAngles, "Aim (non-silent)");
-	CheckBox::Run(Settings::aimbotBacktrack, "Backtrack");
+	SettingsCheckBox(Settings::aimbot, "Aimbot");
+
+	SettingsCheckBox(Settings::aimbotSetAngles, "Aim (silent)");
+	SettingsCheckBox(Settings::aimbotSetViewAngles, "Aim (non-silent)");
+	SettingsCheckBox(Settings::aimbotBacktrack, "Backtrack");
 
 #ifdef TESTING_FEATURES
-	CheckBox::Run(Settings::aimbotBacktrack, "Safe backtrack");
+	SettingsCheckBox(Settings::aimbotSafeBacktrack, "Safe backtrack");
 #endif
 
-	Slider<int>::Run(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
-	Slider<float>::Run(Settings::aimbotFOV, 0, 360, "Aim FOV");
-	Slider<int>::Run(Settings::aimbotHitChance, 0, 100, "HitChance");
+	SettingsSlider(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
+	SettingsSlider(Settings::aimbotFOV, 0, 360, "Aim FOV");
+	SettingsSlider(Settings::aimbotHitChance, 0, 100, "HitChance");
 }
 
 void RageBotTab()
 {
 	TabPad pad;
+	IdPush id(tabsRage);
 
-	CheckBox::Run(Settings::aimbot, "Aimbot");
+	ImGui::Columns(2, nullptr, false);
 
-	CheckBox::Run(Settings::aimbotSetAngles, "Aim (silent)");
-	CheckBox::Run(Settings::aimbotSetViewAngles, "Aim (non-silent)");
-	CheckBox::Run(Settings::aimbotBacktrack, "Backtrack");
+	SettingsCheckBox(Settings::aimbot, "Aimbot");
 
-	Slider<int>::Run(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
-	Slider<float>::Run(Settings::aimbotFOV, 0, 360, "Aim FOV");
-	Slider<int>::Run(Settings::aimbotHitChance, 0, 100, "HitChance");
+	SettingsCheckBox(Settings::aimbotSetAngles, "Aim (silent)");
+	SettingsCheckBox(Settings::aimbotSetViewAngles, "Aim (non-silent)");
+	SettingsCheckBox(Settings::aimbotBacktrack, "Backtrack");
 
-	CheckBox::Run(Settings::aimbotNospread, "Compensate spread");
+	SettingsSlider(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
+	SettingsSlider(Settings::aimbotFOV, 0, 360, "Aim FOV");
+	SettingsSlider(Settings::aimbotHitChance, 0, 100, "HitChance");
+
+	SettingsCheckBox(Settings::aimbotNospread, "Compensate spread");
 #ifdef TESTING_FEATURES
-	CheckBox::Run(Settings::resolver, "Enable resolver");
+	SettingsCheckBox(Settings::resolver, "Enable resolver");
 #endif
 }
 
 void VisualsTab()
 {
 	TabPad pad;
+	IdPush id(tabsLegit);
 
-	CheckBox::Run(Settings::noFlash, "NoFlash");
-	CheckBox::Run(Settings::noSmoke, "NoSmoke");
-	CheckBox::Run(Settings::noFog, "NoFog");
-	CheckBox::Run(Settings::disablePostProcessing, "NoPostProcess");
+	ImGui::Columns(2, nullptr, false);
 
-	CheckBox::Run(Settings::thirdPerson, "Third Person");
+	SettingsCheckBox(Settings::noFlash, "NoFlash");
+	SettingsCheckBox(Settings::noSmoke, "NoSmoke");
+	SettingsCheckBox(Settings::noFog, "NoFog");
+	SettingsCheckBox(Settings::disablePostProcessing, "NoPostProcess");
+
+	SettingsCheckBox(Settings::thirdPerson, "Third Person");
 #ifdef TESTING_FEATURES
-	CheckBox::Run(Settings::headCam, "Head Camera");
+	SettingsCheckBox(Settings::headCam, "Head Camera");
 
-	CheckBox::Run(Settings::debugVisuals, "Debug visuals");
+	SettingsCheckBox(Settings::debugVisuals, "Debug visuals");
 #endif
 }
 
 void AntiaimTab()
 {
 	TabPad pad;
+	IdPush id(tabsLegit);
+
+	ImGui::Columns(2, nullptr, false);
 
 #ifdef TESTING_FEATURES
-	CheckBox::Run(Settings::antiaim, "AntiAim");
-	Slider<int>::Run(Settings::fakelag, 0, 14, "FakeLag");
-	CheckBox::Run(Settings::fakelagBreakLC, "FakeLag");
+	SettingsCheckBox(Settings::antiaim, "AntiAim");
+	SettingsSlider(Settings::fakelag, 0, 14, "FakeLag");
+	SettingsCheckBox(Settings::fakelagBreakLC, "FakeLag");
 #endif
 }
 
 void MiscTab()
 {
 	TabPad pad;
+	IdPush id(tabsLegit);
 
-	CheckBox::Run(Settings::bunnyhopping, "Bunnyhopping");
-	CheckBox::Run(Settings::autostrafer, "Autostrafer");
-	Slider<float>::Run(Settings::autostraferControl, 0, 2, "Strafe control");
+	ImGui::Columns(2, nullptr, false);
+
+	SettingsCheckBox(Settings::bunnyhopping, "Bunnyhopping");
+	SettingsCheckBox(Settings::autostrafer, "Autostrafer");
+	SettingsSlider(Settings::autostraferControl, 0, 2, "Strafe control");
 }
 
 void OtherTab()
 {
 	TabPad pad;
+	IdPush id(tabsLegit);
+
+	ImGui::Columns(2, nullptr, false);
 
 	if (ImGui::Button("Unload"))
 		Unload();
 
-	CheckBox::Run(Settings::rageMode, "Rage Mode");
-	Slider<int>::Run(Settings::traceBudget, 10, 1000, "Trace Budget");
+	SettingsCheckBox(Settings::rageMode, "Rage Mode");
+	SettingsSlider(Settings::traceBudget, 10, 1000, "Trace Budget");
 
 #ifdef TESTING_FEATURES
-	CheckBox::Run(Settings::perfTrace, "Performance Profiling");
+	SettingsCheckBox(Settings::perfTrace, "Performance Profiling");
 #endif
 }

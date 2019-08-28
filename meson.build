@@ -78,8 +78,8 @@ if meson.is_cross_build()
         libraries += join_paths(bf_dir, 'lib', p, cpu_family)
       endforeach
 
+      linker_args += '-Wl,-lldmap'
     endif
-    linker_args += '-Wl,-lldmap'
   elif host_machine.system() == 'linux'
     linker_args += '-fuse-ld=lld'
     combined_args += ['-target', 'x86_64-linux']
@@ -115,7 +115,9 @@ if host_machine.system() == 'linux' or host_machine.system() == 'darwin'
 else
   gui_files += ['gui/menu/dx9menu.cpp', 'gui/menu/imgui/examples/imgui_impl_dx9.cpp', 'gui/menu/imgui/examples/imgui_impl_win32.cpp']
   external_link += ['kernel32', 'd3d9', 'user32']
-  linker_args += ['-Wl,-debugtype:all', '-Wl,-debug:full']
+  if build_machine.system() != 'windows'
+    linker_args += ['-Wl,-debugtype:all', '-Wl,-debug:full']
+  endif
   network_links += ['-lcrypt32']
 endif
 
@@ -137,7 +139,9 @@ if not get_option('buildtype').startswith('debug')
     #compile_args += ['-fsanitize=address']
     #external_link += ['asan']
   else
-    linker_args += ['-Wl,-safeseh:no', '-Wl,-opt:REF', '-O2', '-Wl,-pdbaltpath:/home/buildslave/csgo/libm0dular.pdb']
+    if build_machine.system() != 'windows'
+      linker_args += ['-Wl,-safeseh:no', '-Wl,-opt:REF', '-O2', '-Wl,-pdbaltpath:/home/buildslave/csgo/libm0dular.pdb']
+    endif
     external_link += ['msvcrt']
   endif
 else #Debug type compile time and link time arguments
@@ -164,7 +168,10 @@ if cc.get_id() != 'msvc'
   endforeach
 endif
 
-linker_args += '-Bdynamic'
+if build_machine.system() != 'windows'
+  linker_args += '-Bdynamic'
+endif
+
 foreach p : external_link
   linker_args += '-l' + p
 endforeach

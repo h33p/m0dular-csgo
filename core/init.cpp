@@ -273,18 +273,19 @@ static void InitializeOffsets()
 
 #ifdef DEBUG
 	for (const Signature& sig : offsetSignatures)
-		cvar->ConsoleDPrintf("%s:\t%lx (%s)\n", sig.result, PatternScan::FindPattern(sig.pattern, sig.module), sig.pattern);
+		cvar->ConsoleDPrintf("%s:\t%lx\n", sig.result, PatternScan::FindPattern(sig.pattern, sig.module));
 
 	for (const NetvarOffsetSignature& sig : netvarOffsetSignatures) {
 		int off = (int)PatternScan::FindPattern(sig.pattern, sig.module);
 		uintptr_t var = SourceNetvars::GetNearestNetvar(sig.dataTable, off);
 		int varOff = SourceNetvars::GetOffset(sig.dataTable, var);
 		int x = off - varOff;
-		cvar->ConsoleDPrintf("%s:\t%x = %x %c %x (%s)\n", sig.result, off, varOff, x < 0 ? '-' : '+', x < 0 ? -x : x, sig.pattern);
+		const char* varName = SourceNetvars::GetName(sig.dataTable, var);
+		cvar->ConsoleDPrintf("%s:\t%x = %s %c %x\n", sig.result, off, varName, x < 0 ? '-' : '+', x < 0 ? -x : x);
 	}
 
 	for (const Signature& sig : indexSignatures)
-		cvar->ConsoleDPrintf("%s:\t%ld (%s)\n", sig.result, PatternScan::FindPattern(sig.pattern, sig.module) / sizeof(uintptr_t), sig.pattern);
+		cvar->ConsoleDPrintf("%s:\t%ld\n", sig.result, PatternScan::FindPattern(sig.pattern, sig.module) / sizeof(uintptr_t));
 #endif
 }
 
