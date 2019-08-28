@@ -194,7 +194,7 @@ template<typename T>
 static void SettingsCheckBox(const T& val, const char* str)
 {
 	constexpr crcs_t CRC = T::CRCVAL;
-	OptionWrap<T::value_type, CRC> wrapper;
+	OptionWrap<typename T::value_type, CRC> wrapper;
 	CheckBox::Run(wrapper, str);
 }
 
@@ -202,8 +202,8 @@ template<typename T>
 static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str)
 {
 	constexpr crcs_t CRC = T::CRCVAL;
-	OptionWrap<T::value_type, CRC> wrapper;
-	Slider<T::value_type>::Run(wrapper, start, end, str);
+	OptionWrap<typename T::value_type, CRC> wrapper;
+	Slider<typename T::value_type>::Run(wrapper, start, end, str);
 }
 
 static void RenderUnusedElements()
