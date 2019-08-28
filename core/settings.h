@@ -140,7 +140,7 @@ namespace Settings
 #include "../bits/option_list.h"
 		0;
 
-#define HANDLE_OPTION(type, defaultVal, name, description, ...) extern OPTION(type, name, __VA_ARGS__);
+#define HANDLE_OPTION(type, defaultVal, minVal, maxVal, name, uiName, description, ...) extern OPTION(type, name, __VA_ARGS__);
 #include "../bits/option_list.h"
 }
 

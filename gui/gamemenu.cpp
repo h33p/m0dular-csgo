@@ -2,36 +2,157 @@
 #include "menu/menu.h"
 #include "menu/menuimpl.h"
 #include "menu/widgets.h"
+#include "menu/uielements.h"
 #include "../core/settings.h"
 #include "../core/binds.h"
 
 //Defined in init.cpp
 void Unload();
 
-void LegitBotTab();
-void RageBotTab();
-void VisualsTab();
-void AntiaimTab();
-void MiscTab();
-void OtherTab();
+void RenderTab(void*);
+
+static void RenderUnusedElements();
+template<typename T>
+static void SettingsCheckBox(const T& val, const char* str);
+template<typename T>
+static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str);
+
+template<typename T, crcs_t CRC>
+struct OptionWrap;
+
+UIElement allElements[] = {
+#define HANDLE_OPTION(type, defaultVal, minVal, maxVal, name, uiName, description, ...) { CCRC32(#name), 0, [](UIElement*) {if constexpr (std::is_same<type, bool>::value) SettingsCheckBox(Settings:: name, ST(uiName)); else SettingsSlider(Settings:: name, minVal, maxVal, ST(uiName)); }},
+#include "../bits/option_list.h"
+	{ 0, 0, [](UIElement*) { RenderUnusedElements(); } },
+	{ 1, 0, [](UIElement*) { if (ImGui::Button(ST("Unload"))) Unload(); } },
+};
+
+std::vector<UIColumn> legitBotColumns = {
+	UIColumn(Settings::aimbot
+		, Settings::aimbotSetAngles
+		, Settings::aimbotSetViewAngles
+		, Settings::aimbotBacktrack
+#ifdef TESTING_FEATURES
+		, Settings::aimbotSafeBacktrack
+#endif
+		, Settings::aimbotMinDamage
+		, Settings::aimbotFOV
+		, Settings::aimbotHitChance
+		),
+	UIColumn()
+};
+
+std::vector<UIColumn> rageBotColumns = {
+	UIColumn(Settings::aimbot
+		, Settings::aimbotSetAngles
+		, Settings::aimbotSetViewAngles
+		, Settings::aimbotBacktrack
+		, Settings::aimbotAutoShoot
+		, Settings::aimbotMinDamage
+		, Settings::aimbotFOV
+		, Settings::aimbotHitChance
+		, Settings::aimbotNospread
+#ifdef TESTING_FEATURES
+		, Settings::aimbotLagCompensation
+		, Settings::resolver
+#endif
+		),
+	UIColumn()
+};
+
+std::vector<UIColumn> visualsColumns = {
+	UIColumn(Settings::noFlash
+		, Settings::noSmoke
+		, Settings::noFog
+		, Settings::disablePostProcessing
+		, Settings::thirdPerson
+#ifdef TESTING_FEATURES
+		, Settings::headCam
+		, Settings::debugVisuals
+#endif
+		),
+	UIColumn()
+};
+
+std::vector<UIColumn> antiaimColumns = {
+	UIColumn(
+#ifdef TESTING_FEATURES
+		Settings::antiaim
+		, Settings::fakelag
+		, Settings::fakelagBreakLC
+#endif
+		),
+	UIColumn()
+};
+
+std::vector<UIColumn> miscColumns = {
+	UIColumn(Settings::bunnyhopping
+		, Settings::autostrafer
+		, Settings::autostraferControl
+		),
+	UIColumn()
+};
+
+std::vector<UIColumn> otherColumns = {
+	UIColumn(crcs_t(1)
+		, Settings::rageMode
+		, Settings::traceBudget
+#ifdef TESTING_FEATURES
+		, Settings::perfTrace
+#endif
+		),
+	UIColumn(crcs_t(0))
+};
 
 static constexpr MenuTab tabsRage[] = {
-	{"Aimbot", RageBotTab},
-	{"Visuals", VisualsTab},
-	{"Antiaim", AntiaimTab},
-	{"Misc", MiscTab},
-	{"Other", OtherTab}
+	{"Aimbot", RenderTab, &rageBotColumns},
+	{"Visuals", RenderTab, &visualsColumns},
+	{"Antiaim", RenderTab, &antiaimColumns},
+	{"Misc", RenderTab, &miscColumns},
+	{"Other", RenderTab, &otherColumns}
 };
 
 static constexpr MenuTab tabsLegit[] = {
-	{"Aimbot", LegitBotTab},
-	{"Visuals", VisualsTab},
-	{"Antiaim", AntiaimTab},
-	{"Misc", MiscTab},
-	{"Other", OtherTab}
+	{"Aimbot", RenderTab, &legitBotColumns},
+	{"Visuals", RenderTab, &visualsColumns},
+	{"Antiaim", RenderTab, &antiaimColumns},
+	{"Misc", RenderTab, &miscColumns},
+	{"Other", RenderTab, &otherColumns}
 };
 
 static std::unique_ptr<SettingsGroupAccessorBase> activeGroup;
+
+void MenuImpl::Render()
+{
+	const MenuTab* tabs = tabsRage;
+	size_t tabsSize = sizeof(tabsRage) / sizeof(MenuTab);
+
+	UIElements::InitializeColumns(std::begin(legitBotColumns), std::end(legitBotColumns), std::begin(allElements), std::end(allElements));
+	UIElements::InitializeColumns(std::begin(rageBotColumns), std::end(rageBotColumns), std::begin(allElements), std::end(allElements));
+	UIElements::InitializeColumns(std::begin(visualsColumns), std::end(visualsColumns), std::begin(allElements), std::end(allElements));
+	UIElements::InitializeColumns(std::begin(antiaimColumns), std::end(antiaimColumns), std::begin(allElements), std::end(allElements));
+	UIElements::InitializeColumns(std::begin(miscColumns), std::end(miscColumns), std::begin(allElements), std::end(allElements));
+	UIElements::InitializeColumns(std::begin(otherColumns), std::end(otherColumns), std::begin(allElements), std::end(allElements));
+
+	if (!activeGroup)
+		activeGroup.reset(Settings::globalSettings->GenerateNewAccessor());
+
+	if (!Settings::rageMode) {
+		tabs = tabsLegit;
+		tabsSize = sizeof(tabsLegit) / sizeof(tabsLegit[0]);
+	}
+
+	Menu::Render(tabs, tabsSize);
+}
+
+void RenderTab(void* passData)
+{
+	TabPad pad;
+	IdPush id(passData);
+	std::vector<UIColumn>* columns = (std::vector<UIColumn>*)passData;
+	UIElements::RenderColumns(columns->begin(), columns->end());
+}
+
 
 template<typename T, crcs_t CRC>
 struct OptionWrap
@@ -85,127 +206,16 @@ static void SettingsSlider(const T& val, typename T::value_type start, typename 
 	Slider<T::value_type>::Run(wrapper, start, end, str);
 }
 
-void MenuImpl::Render()
+static void RenderUnusedElements()
 {
-	const MenuTab* tabs = tabsRage;
-	size_t tabsSize = sizeof(tabsRage) / sizeof(MenuTab);
+	bool firstTime = true;
 
-	if (!activeGroup)
-		activeGroup.reset(Settings::globalSettings->GenerateNewAccessor());
-
-	if (!Settings::rageMode) {
-		tabs = tabsLegit;
-		tabsSize = sizeof(tabsLegit) / sizeof(tabsLegit[0]);
+	for (UIElement& el : allElements) {
+		if (el.hash > 10 && !el.refCount) {
+			if (firstTime)
+				ImGui::LabelText(ST("Unassigned options:"), "");
+			firstTime = false;
+			el.Render();
+		}
 	}
-
-	Menu::Render(tabs, tabsSize);
-}
-
-void LegitBotTab()
-{
-	TabPad pad;
-	IdPush id(tabsLegit);
-
-	ImGui::Columns(2, nullptr, false);
-
-	SettingsCheckBox(Settings::aimbot, "Aimbot");
-
-	SettingsCheckBox(Settings::aimbotSetAngles, "Aim (silent)");
-	SettingsCheckBox(Settings::aimbotSetViewAngles, "Aim (non-silent)");
-	SettingsCheckBox(Settings::aimbotBacktrack, "Backtrack");
-
-#ifdef TESTING_FEATURES
-	SettingsCheckBox(Settings::aimbotSafeBacktrack, "Safe backtrack");
-#endif
-
-	SettingsSlider(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
-	SettingsSlider(Settings::aimbotFOV, 0, 360, "Aim FOV");
-	SettingsSlider(Settings::aimbotHitChance, 0, 100, "HitChance");
-}
-
-void RageBotTab()
-{
-	TabPad pad;
-	IdPush id(tabsRage);
-
-	ImGui::Columns(2, nullptr, false);
-
-	SettingsCheckBox(Settings::aimbot, "Aimbot");
-
-	SettingsCheckBox(Settings::aimbotSetAngles, "Aim (silent)");
-	SettingsCheckBox(Settings::aimbotSetViewAngles, "Aim (non-silent)");
-	SettingsCheckBox(Settings::aimbotBacktrack, "Backtrack");
-
-	SettingsSlider(Settings::aimbotMinDamage, 0, 100, "Minimum damage");
-	SettingsSlider(Settings::aimbotFOV, 0, 360, "Aim FOV");
-	SettingsSlider(Settings::aimbotHitChance, 0, 100, "HitChance");
-
-	SettingsCheckBox(Settings::aimbotNospread, "Compensate spread");
-#ifdef TESTING_FEATURES
-	SettingsCheckBox(Settings::resolver, "Enable resolver");
-#endif
-}
-
-void VisualsTab()
-{
-	TabPad pad;
-	IdPush id(tabsLegit);
-
-	ImGui::Columns(2, nullptr, false);
-
-	SettingsCheckBox(Settings::noFlash, "NoFlash");
-	SettingsCheckBox(Settings::noSmoke, "NoSmoke");
-	SettingsCheckBox(Settings::noFog, "NoFog");
-	SettingsCheckBox(Settings::disablePostProcessing, "NoPostProcess");
-
-	SettingsCheckBox(Settings::thirdPerson, "Third Person");
-#ifdef TESTING_FEATURES
-	SettingsCheckBox(Settings::headCam, "Head Camera");
-
-	SettingsCheckBox(Settings::debugVisuals, "Debug visuals");
-#endif
-}
-
-void AntiaimTab()
-{
-	TabPad pad;
-	IdPush id(tabsLegit);
-
-	ImGui::Columns(2, nullptr, false);
-
-#ifdef TESTING_FEATURES
-	SettingsCheckBox(Settings::antiaim, "AntiAim");
-	SettingsSlider(Settings::fakelag, 0, 14, "FakeLag");
-	SettingsCheckBox(Settings::fakelagBreakLC, "FakeLag");
-#endif
-}
-
-void MiscTab()
-{
-	TabPad pad;
-	IdPush id(tabsLegit);
-
-	ImGui::Columns(2, nullptr, false);
-
-	SettingsCheckBox(Settings::bunnyhopping, "Bunnyhopping");
-	SettingsCheckBox(Settings::autostrafer, "Autostrafer");
-	SettingsSlider(Settings::autostraferControl, 0, 2, "Strafe control");
-}
-
-void OtherTab()
-{
-	TabPad pad;
-	IdPush id(tabsLegit);
-
-	ImGui::Columns(2, nullptr, false);
-
-	if (ImGui::Button("Unload"))
-		Unload();
-
-	SettingsCheckBox(Settings::rageMode, "Rage Mode");
-	SettingsSlider(Settings::traceBudget, 10, 1000, "Trace Budget");
-
-#ifdef TESTING_FEATURES
-	SettingsCheckBox(Settings::perfTrace, "Performance Profiling");
-#endif
 }
