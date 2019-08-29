@@ -12,6 +12,7 @@ typedef struct
 HookDefine hookIds[] = {
 	{hookClientMode, (uintptr_t*)&SourceHooks::CreateMove, 25},
 	{hookClientMode, (uintptr_t*)&CSGOHooks::OverrideView, 19},
+	{hookClientMode, (uintptr_t*)&CSGOHooks::DoPostScreenSpaceEffects, 45},
 	{hookViewRender, (uintptr_t*)&CSGOHooks::OnRenderStart, 4},
 	{hookSurface, (uintptr_t*)&CSGOHooks::LockCursor, 68},
 #ifdef PT_VISUALS
@@ -22,6 +23,7 @@ HookDefine hookIds[] = {
 HookDefine hookIds[] = {
 	{hookClientMode, (uintptr_t*)&SourceHooks::CreateMove, 25},
 	{hookClientMode, (uintptr_t*)&CSGOHooks::OverrideView, 19},
+	{hookClientMode, (uintptr_t*)&CSGOHooks::DoPostScreenSpaceEffects, 45},
 	{hookViewRender, (uintptr_t*)&CSGOHooks::OnRenderStart, 4},
 	{hookSurface, (uintptr_t*)&CSGOHooks::LockCursor, 68},
 #ifdef PT_VISUALS
@@ -32,6 +34,7 @@ HookDefine hookIds[] = {
 HookDefine hookIds[] = {
 	{hookClientMode, (uintptr_t*)&SourceHooks::CreateMove, 24},
 	{hookClientMode, (uintptr_t*)&CSGOHooks::OverrideView, 18},
+	{hookClientMode, (uintptr_t*)&CSGOHooks::DoPostScreenSpaceEffects, 44},
 	{hookViewRender, (uintptr_t*)&CSGOHooks::OnRenderStart, 4},
 	{hookSurface, (uintptr_t*)&CSGOHooks::LockCursor, 67},
 	{hookD3D, (uintptr_t*)&PlatformHooks::Present, 17},

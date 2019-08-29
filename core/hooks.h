@@ -31,6 +31,7 @@ namespace CSGOHooks
 	bool __fastcall SetupBones(FASTARGS, matrix3x4_t*, int, int, float);
 	void __fastcall OnRenderStart(FASTARGS);
 	void __fastcall OverrideView(FASTARGS, CViewSetup*);
+	int __fastcall DoPostScreenSpaceEffects(FASTARGS, CViewSetup*);
 	void __fastcall LockCursor(FASTARGS);
 	void ImpactsEffect(const CEffectData& effectData);
 	void LBYProxy(const CRecvProxyData* data, void* ent, void* out);

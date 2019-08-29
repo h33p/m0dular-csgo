@@ -51,6 +51,7 @@ extern IModelLoader* modelLoader;
 extern IPhysicsSurfaceProps* physProp;
 extern CInput* input;
 extern CSGameMovement* gameMovement;
+extern CGlowObjectManager* glowObjectManager;
 
 typedef void (*CL_RunPredictionFn)(void);
 #ifdef _WIN32

@@ -10,6 +10,7 @@
 #include "../features/impacts.h"
 #include "../features/cameramodes.h"
 #include "../features/nosmoke.h"
+#include "../features/glow.h"
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
@@ -126,6 +127,20 @@ void __fastcall CSGOHooks::OverrideView(FASTARGS, CViewSetup* setup)
 	*postProcessDisable = Settings::disablePostProcessing;
 
 	CSGOHooks::hookLock.unlock();
+}
+
+int __fastcall CSGOHooks::DoPostScreenSpaceEffects(FASTARGS, CViewSetup* setup)
+{
+	static auto origFn = hookClientMode->GetOriginal(CSGOHooks::DoPostScreenSpaceEffects);
+
+	if (!CSGOHooks::hookLock.trylock())
+		return origFn(CFASTARGS, setup);
+
+	FwBridge::UpdateLocalPlayer();
+	Glow::Run();
+
+	CSGOHooks::hookLock.unlock();
+	return origFn(CFASTARGS, setup);
 }
 
 void __fastcall CSGOHooks::LockCursor(FASTARGS)

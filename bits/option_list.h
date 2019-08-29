@@ -44,6 +44,16 @@
 	HANDLE_OPTION(bool, false, false, true, noFlash, "NoFlash", "Disable flashbang effect", bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, false, true, noSmoke, "NoSmoke", "Disable smoke effect", bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, false, true, noFog, "NoFog", "Disable in-game fog", bindSettings, globalSettings)
+	HANDLE_OPTION(bool, false, false, true, glow, "Glow", "Render a glowing outline around entities", bindSettings, globalSettings)
+	HANDLE_OPTION(bool, false, false, true, glowOutline, "Glow Inside", "Make the glow go inside (also not visible behind walls)", bindSettings, globalSettings)
+	HANDLE_OPTION(bool, false, false, true, glowEnemy, "Glow Enemies", "Should glow on enemies", bindSettings, globalSettings)
+	HANDLE_OPTION(vec4_t, vec4_t(1, 0.3, 0, 1), 0, 1, glowEnemyColor, "Enemy Glow Color", "The color of enemy team glow", bindSettings, globalSettings)
+	HANDLE_OPTION(bool, false, false, true, glowTeam, "Glow Team", "Should glow on team", bindSettings, globalSettings)
+	HANDLE_OPTION(vec4_t, vec4_t(0, 0.3, 1, 1), 0, 1, glowTeamColor, "Team Glow Color", "The color of player team glow", bindSettings, globalSettings)
+	HANDLE_OPTION(bool, false, false, true, glowWeapons, "Glow Weapons", "Should glow on weapons", bindSettings, globalSettings)
+	HANDLE_OPTION(vec4_t, vec4_t(0.2, 0.5, 1, 1), 0, 1, glowWeaponsColor, "Weapon Glow Color", "The color of weapons glow", bindSettings, globalSettings)
+	HANDLE_OPTION(bool, false, false, true, glowC4, "Glow C4", "Should glow on C4", bindSettings, globalSettings)
+	HANDLE_OPTION(vec4_t, vec4_t(1, 0.7, 0, 1), 0, 1, glowC4Color, "C4 Glow Color", "The color of C4 glow", bindSettings, globalSettings)
 #undef HANDLE_OPTION
 #else
 static_assert(false, "HANDLE_OPTION not defined!");

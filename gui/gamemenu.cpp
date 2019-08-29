@@ -13,15 +13,17 @@ void RenderTab(void*);
 
 static void RenderUnusedElements();
 template<typename T>
-static void SettingsCheckBox(const T& val, const char* str);
+static void SettingsCheckBox(const T& val, const char* str, const char* tooltip = nullptr);
 template<typename T>
-static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str);
+static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str, const char* tooltip = nullptr);
+template<typename T, typename F>
+static void SettingsVecSlider(const T& val, F start, F end, const char* str, const char* tooltip = nullptr);
 
 template<typename T, crcs_t CRC>
 struct OptionWrap;
 
 UIElement allElements[] = {
-#define HANDLE_OPTION(type, defaultVal, minVal, maxVal, name, uiName, description, ...) { CCRC32(#name), 0, [](UIElement*) {if constexpr (std::is_same<type, bool>::value) SettingsCheckBox(Settings:: name, ST(uiName)); else SettingsSlider(Settings:: name, minVal, maxVal, ST(uiName)); }},
+#define HANDLE_OPTION(type, defaultVal, minVal, maxVal, name, uiName, description, ...) { CCRC32(#name), 0, [](UIElement*) {if constexpr (std::is_same<type, bool>::value) SettingsCheckBox(Settings:: name, ST(uiName), ST(description)); else if constexpr (std::is_arithmetic<type>::value) SettingsSlider(Settings:: name, minVal, maxVal, ST(uiName), ST(description)); else SettingsVecSlider(Settings::name, minVal, maxVal, ST(uiName), ST(description)); }},
 #include "../bits/option_list.h"
 	{ 0, 0, [](UIElement*) { RenderUnusedElements(); } },
 	{ 1, 0, [](UIElement*) { if (ImGui::Button(ST("Unload"))) Unload(); } },
@@ -71,7 +73,17 @@ std::vector<UIColumn> visualsColumns = {
 		, Settings::debugVisuals
 #endif
 		),
-	UIColumn()
+	UIColumn(Settings::glow
+		, Settings::glowOutline
+		, Settings::glowEnemy
+		, Settings::glowEnemyColor
+		, Settings::glowTeam
+		, Settings::glowTeamColor
+		, Settings::glowWeapons
+		, Settings::glowWeaponsColor
+		, Settings::glowC4
+		, Settings::glowC4Color
+		)
 };
 
 std::vector<UIColumn> antiaimColumns = {
@@ -158,21 +170,23 @@ template<typename T, crcs_t CRC>
 struct OptionWrap
 {
 	bool exists;
-	bool modified;
 	T val;
+	T initVal;
 
 	OptionWrap()
-		: exists(activeGroup->IsAlloced(CRC)), modified(false)
+		: exists(activeGroup->IsAlloced(CRC))
 	{
 		if (exists)
 			val = activeGroup->Get<T>(CRC);
 		else
 			val = T();
+
+		initVal = val;
 	}
 
 	~OptionWrap()
 	{
-		if (modified)
+		if (val != initVal)
 			activeGroup->Set(CRC, val);
 	}
 
@@ -183,27 +197,38 @@ struct OptionWrap
 
 	constexpr auto& operator = (const T& v)
 	{
-		if (val != v)
-			modified = true;
 		val = v;
 		return *this;
+	}
+
+	constexpr auto& operator[] (size_t i)
+	{
+		return val[i];
 	}
 };
 
 template<typename T>
-static void SettingsCheckBox(const T& val, const char* str)
+static void SettingsCheckBox(const T& val, const char* str, const char* tooltip)
 {
 	constexpr crcs_t CRC = T::CRCVAL;
 	OptionWrap<typename T::value_type, CRC> wrapper;
-	CheckBox::Run(wrapper, str);
+	CheckBox::Run(wrapper, str, tooltip);
 }
 
 template<typename T>
-static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str)
+static void SettingsSlider(const T& val, typename T::value_type start, typename T::value_type end, const char* str, const char* tooltip)
 {
 	constexpr crcs_t CRC = T::CRCVAL;
 	OptionWrap<typename T::value_type, CRC> wrapper;
-	Slider<typename T::value_type>::Run(wrapper, start, end, str);
+	Slider<typename T::value_type>::Run(wrapper, start, end, str, tooltip);
+}
+
+template<typename T, typename F>
+static void SettingsVecSlider(const T& val, F start, typename F end, const char* str, const char* tooltip)
+{
+	constexpr crcs_t CRC = T::CRCVAL;
+	OptionWrap<typename T::value_type, CRC> wrapper;
+	SliderVec<typename T::value_type::value_type, T::value_type::Yt>::Run(wrapper, start, end, str, tooltip);
 }
 
 static void RenderUnusedElements()

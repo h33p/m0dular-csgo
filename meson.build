@@ -24,7 +24,7 @@ endif
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
-core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'features/aimlog.cpp', 'features/legitbot.cpp', 'features/ragebot.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'impl/aimbot.cpp']
+core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'features/aimlog.cpp', 'features/legitbot.cpp', 'features/ragebot.cpp', 'features/glow.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'impl/aimbot.cpp']
 gui_files = ['gui/gamemenu.cpp', 'gui/menu/menu.cpp', 'gui/menu/imgui/imgui.cpp', 'gui/menu/imgui/imgui_widgets.cpp', 'gui/menu/imgui/imgui_draw.cpp']
 
 framework_thread_utils = ['core_unity/framework_threads.cpp']

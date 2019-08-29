@@ -30,11 +30,22 @@ T GetSetting(crcs_t crc)
 }
 
 template<typename T, auto& Fn>
-void GetPrintSetting(void* in)
+typename std::enable_if_t<std::is_arithmetic_v<T>, void> GetPrintSetting(void* in)
 {
 	void* Fn2 = (void*)&Fn;
 	typedef T(*FnVFn)(void*);
 	std::cout << ((FnVFn)Fn2)(in);
+}
+
+template<typename T, auto& Fn>
+typename std::enable_if_t<!std::is_arithmetic_v<T>, void> GetPrintSetting(void* in)
+{
+	void* Fn2 = (void*)& Fn;
+	typedef T(*FnVFn)(void*);
+	auto val = ((FnVFn)Fn2)(in);
+	std::cout << val[0];
+	for (size_t i = 1; i < decltype(val)::Yt; i++)
+		std::cout << " " << val[i];
 }
 
 template<typename T, auto& Fn>

@@ -71,6 +71,7 @@ IModelLoader* modelLoader = nullptr;
 IPhysicsSurfaceProps* physProp = nullptr;
 CInput* input = nullptr;
 CSGameMovement* gameMovement = nullptr;
+CGlowObjectManager* glowObjectManager = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;

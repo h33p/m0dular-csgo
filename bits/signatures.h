@@ -60,6 +60,7 @@ const Signature signatures[] = {
 	SIGNATURE(input, clientLib, "75 85 [48 8B 05 ***? ? ? ?]"),
 	SIGNATURE(postProcessDisable, clientLib, "[80 3D *? ? ? ? 00] 89 B5 14 FF"),
 	SIGNATURE(smokeCount, clientLib, "FF E9 54 FD FF FF [E8 *+1:2,10 ? ? ? ?]"),
+	SIGNATURE(glowObjectManager, clientLib, "85 C0 [0F 84 *:3,7 98 00 00 00] 48 8D 3D"),
 #elif defined(__APPLE__)
 	SIGNATURE(clientMode, clientLib, "[48 8B 3D **? ? ? ?] 48 8B 07 5D FF A0 D8"),
 	SIGNATURE(CL_RunPrediction, engineLib, "55 48 89 E5 53 50 E8 ? ? ? ? 48 89 C3 83 BB ? ? ? 00 06 75 1D"),
@@ -83,6 +84,7 @@ const Signature signatures[] = {
 	SIGNATURE(input, clientLib, "84 C0 75 34 [48 8D 05 **? ? ? ?]"),
 	SIGNATURE(postProcessDisable, clientLib, ""),
 	SIGNATURE(smokeCount, clientLib, ""),
+	SIGNATURE(glowObjectManager, clientLib, ""),
 #elif defined(_WIN32)
 	SIGNATURE(clientMode, clientLib, "B9 *? ? ? ? E8 ? ? ? ? 84 C0 0F 85 ? ? ? ? 53"),
 	SIGNATURE(clientState, engineLib, "A1 *? ? ? ? 8B 80 ? ? ? ? C3"),
@@ -108,9 +110,11 @@ const Signature signatures[] = {
 	SIGNATURE(input, clientLib, "80 7F 59 00 74 17 A1 *"),
 	SIGNATURE(postProcessDisable, clientLib, "80 3D *? ? ? ? ? 53 56 57 0F 85"),
 	SIGNATURE(smokeCount, clientLib, "A3 *? ? ? ? 57 8B CB"),
+	SIGNATURE(glowObjectManager, clientLib, "0F 11 05 *? ? ? ? 83 C8 01"),
 #endif
 };
 
+#ifdef DEBUG
 const NetvarOffsetSignature netvarOffsetSignatures[] = {
 #if defined(__linux__)
 	NOSIGNATURE("accumulatedBoneMask", "DT_BaseAnimating", clientLib, "77 5B 41 8B 84 24 ^? ? ? ?"), //Inside SetupBones, there are 2 fields that are being set to zero, followed by a third one that gets set to predictedTime. Then are a few lines setting prevBoneMask to accumulatedBoneMask and then clearing the accumulatecBoneMask
@@ -152,5 +156,6 @@ const Signature indexSignatures[] = {
 	SIGNATURE("GetCSWeaponData", clientLib, "C4 ? 8B CE E8 ? ? ? ? 8B 06 8B CE 8B 80 *? ? ? ?"),
 #endif
 };
+#endif
 
 #endif
