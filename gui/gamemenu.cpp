@@ -224,7 +224,7 @@ static void SettingsSlider(const T& val, typename T::value_type start, typename 
 }
 
 template<typename T, typename F>
-static void SettingsVecSlider(const T& val, F start, typename F end, const char* str, const char* tooltip)
+static void SettingsVecSlider(const T& val, F start, F end, const char* str, const char* tooltip)
 {
 	constexpr crcs_t CRC = T::CRCVAL;
 	OptionWrap<typename T::value_type, CRC> wrapper;
