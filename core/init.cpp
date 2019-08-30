@@ -19,6 +19,7 @@
 #include "mtr_scoped.h"
 
 #include "../features/impacts.h"
+#include "../features/glow.h"
 
 #ifdef _WIN32
 #include <d3d9.h>
@@ -435,9 +436,10 @@ void Shutdown(bool delayAfterUnhook)
 
 		cvar->ConsoleDPrintf(ST("Shutting down engine...\n"));
 		Engine::Shutdown();
+		cvar->ConsoleDPrintf(ST("Shutting down glow...\n"));
+		Glow::Shutdown();
 		cvar->ConsoleDPrintf(ST("Shutting down tracer...\n"));
 
-		cvar->ConsoleDPrintf(ST("Ending threads...\n"));
 		DispatchToAllThreads<ThreadIDFn, FreeThreadID>(nullptr);
 		int ret = Threading::EndThreads();
 

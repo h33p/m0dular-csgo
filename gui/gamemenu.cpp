@@ -111,6 +111,7 @@ std::vector<UIColumn> otherColumns = {
 		, Settings::traceBudget
 #ifdef TESTING_FEATURES
 		, Settings::perfTrace
+		, Settings::uiScale
 #endif
 		),
 	UIColumn(crcs_t(0))
@@ -153,6 +154,8 @@ void MenuImpl::Render()
 		tabs = tabsLegit;
 		tabsSize = sizeof(tabsLegit) / sizeof(tabsLegit[0]);
 	}
+
+	ImGui::GetIO().FontGlobalScale = Settings::uiScale;
 
 	Menu::Render(tabs, tabsSize);
 }

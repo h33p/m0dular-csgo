@@ -1,6 +1,7 @@
 #ifdef HANDLE_OPTION
 //Syntax: HANDLE_OPTION(type, defaultValue, minValue, maxValue, name, UI name, description, settings group chain...)
 	HANDLE_OPTION(bool, false, false, true, showMenu, "Show Menu", "Show Menu", bindSettings, globalSettings)
+	HANDLE_OPTION(float, 1, 1, 2, uiScale, "UI Scale", "Scale of the user interface", bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, false, true, bunnyhopping, "Bunnyhopping", "Bunny Hopping", bindSettings, globalSettings)
 	HANDLE_OPTION(bool, false, false, true, autostrafer, "Autostrafer", "Automatically strafe and achieve high velocity", bindSettings, globalSettings)
 	HANDLE_OPTION(float, 1.3f, 0.f, 2.f, autostraferControl, "Autostrafer Control", "The control camera movement has to the strafer. Higher values allow for sharper turns, but result higher loss of velocity", bindSettings, globalSettings)

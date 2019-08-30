@@ -74,6 +74,14 @@ static void DoEntityLoop()
 	}
 }
 
+static void CleanUp()
+{
+	for (int i : indexesToRemove)
+		if (glowObjectManager->IsSlotInUse(i))
+			glowObjectManager->UnregisterGlowObject(i);
+
+}
+
 void Glow::Run()
 {
 	indexesToRemove.clear();
@@ -85,15 +93,10 @@ void Glow::Run()
 
 	if (Settings::glow && FwBridge::localPlayer && engine->IsInGame())
 		DoEntityLoop();
-
-	for (int i : indexesToRemove)
-		if (glowObjectManager->IsSlotInUse(i)) {
-			cvar->ConsoleDPrintf("Erasing %d\n", i);
-			glowObjectManager->UnregisterGlowObject(i);
-		}
 }
 
 void Glow::Shutdown()
 {
-
+	CleanUp();
 }
+
