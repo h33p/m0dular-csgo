@@ -5,4 +5,4 @@ option('build_all_instruction_variants', type: 'boolean', value : false, descrip
 option('randomize_link_order', type: 'boolean', value : false, description : 'Randomize the link order of files. Results in functions binaries having vastly different code layout (only works on posix build environment).')
 option('module_identification', type: 'string', value : 'x52', description : 'Identification string to be embedded inside the module.')
 option('performance_profiling', type: 'boolean', value: false, description : 'Record a performance trace and save it to file')
-option('testing_features', type: 'boolean', value: false, description : 'Enable experimental/unfinished features')
+option('testing_features', type: 'boolean', value: true, description : 'Enable experimental/unfinished features')

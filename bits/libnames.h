@@ -26,5 +26,6 @@ LIBNAME(physicsLib, "vphysics");
 LIBNAME(tierLib, OPosix("lib")"tier0");
 LIBNAME(shaderapiLib, "shaderapidx9");
 LIBNAME(serverLib, "server");
+LIBNAME(studioLib, "studiorender");
 
 #endif

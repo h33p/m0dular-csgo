@@ -3,6 +3,23 @@ project('m0dular-csgo', 'cpp', 'c', default_options : ['c_std=c11', 'cpp_std=c++
 pymod = import('python')
 py_installation = pymod.find_installation()
 
+#Compount files with headers
+gfiles = {
+  'core_files': ['features/spread', 'features/visuals', 'features/impacts', 'features/resolver', 'features/antiaim', 'features/cameramodes', 'features/nosmoke', 'features/aimlog', 'features/legitbot', 'features/ragebot', 'features/glow', 'core/temporary_animations', 'core/settings', 'core/binds', 'core/shmfs', 'impl/aimbot'],
+  'gui_files': ['gui/gamemenu', 'gui/menu/menu', 'gui/menu/imgui/imgui'],
+  'framework_other_files': ['sdk/source_shared/netvars', 'sdk/framework/features/aimbot', 'sdk/features/resolver'],
+  'menulib_files': ['core/settings', 'core/binds', 'core/shmfs', 'menu_lib/settings']
+}
+
+#Final files
+core_files = ['core_unity/unity_main_stub.cpp', 'core_unity/unity_tracing_all.cpp', 'sdk/source_csgo/sdk.h', 'sdk/source_shared/sdk.h', 'sdk/source_2007/sdk.h']
+gui_files = ['gui/menu/imgui/imgui_widgets.cpp', 'gui/menu/imgui/imgui_draw.cpp']
+framework_thread_utils = ['core_unity/unity_framework_threads.cpp']
+framework_other_utils = ['core_unity/unity_framework_other_utils.cpp']
+framework_other_files = ['sdk/source_csgo/baseentity.cpp']
+keycode_files = ['modules/keycode/keyid.c']
+menulib_files = ['menu_lib/csgo_module.cpp']
+
 randomize_link_order = get_option('randomize_link_order')
 
 #TODO: Enable warnings for as many things as possible
@@ -23,20 +40,6 @@ endif
 
 
 network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
-
-core_files = ['core_unity/main_stub.cpp', 'core_unity/tracing_all.cpp', 'features/spread.cpp', 'features/visuals.cpp', 'features/impacts.cpp', 'features/resolver.cpp', 'features/antiaim.cpp', 'features/cameramodes.cpp', 'features/nosmoke.cpp', 'features/aimlog.cpp', 'features/legitbot.cpp', 'features/ragebot.cpp', 'features/glow.cpp', 'core/temporary_animations.cpp', 'core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'impl/aimbot.cpp']
-gui_files = ['gui/gamemenu.cpp', 'gui/menu/menu.cpp', 'gui/menu/imgui/imgui.cpp', 'gui/menu/imgui/imgui_widgets.cpp', 'gui/menu/imgui/imgui_draw.cpp']
-
-framework_thread_utils = ['core_unity/framework_threads.cpp']
-framework_other_utils = ['core_unity/framework_other_utils.cpp']
-framework_other_files = ['sdk/source_csgo/baseentity.cpp', 'sdk/source_shared/netvars.cpp',  'sdk/framework/features/aimbot.cpp', 'sdk/features/resolver.cpp']
-keycode_files = ['modules/keycode/keyid.c']
-
-#core/init.cpp has to be the last one to have proper initialization
-file_list = core_files + framework_other_files
-
-menulib_files = ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'menu_lib/csgo_module.cpp', 'menu_lib/settings.cpp']
-client_file_list = ['client/main.cpp', 'client/loader.cpp', 'client/windows_loader.cpp', 'client/server_comm.cpp', 'client/server_comm_handlers.cpp']
 
 if get_option('buildtype').startswith('debug')
   global_defines += 'DEBUG'
@@ -191,6 +194,41 @@ use_static_libs = get_option('use_static_libs')
 lib_link_with = []
 menulib_link_with = []
 
+#Finalize the source files to a final list
+add_ops = []
+foreach name, sources: gfiles
+  foreach i : sources
+   add_ops += {'id': name, 'val': [i+'.cpp', i+'.h']}
+  endforeach
+endforeach
+
+foreach o : add_ops
+  id = o['id']
+  val = o['val']
+
+  if id == 'core_files'
+    core_files += val
+  elif id == 'gui_files'
+    gui_files += val
+  elif id == 'framework_thread_utils'
+    framework_thread_utils += val
+  elif id == 'framework_other_utils'
+    framework_other_utils += val
+  elif id == 'framework_other_files'
+    framework_other_files += val
+  elif id == 'keycode_files'
+    keycode_files += val
+  elif id == 'menulib_files'
+    menulib_files += val
+  else
+    message('ERROR')
+    message(o)
+  endif
+endforeach
+
+#core/init.cpp has to be the last one to have proper initialization
+file_list = core_files + framework_other_files
+
 lib_file_list = file_list
 
 #Menulib does not need the ImGui menu (for now)
@@ -239,3 +277,7 @@ menulib = shared_library('mlm0dular', files(menulib_files), c_args : compile_arg
 bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
 
 test('keybinds', bind_test)
+
+if meson.backend().contains('vs20')
+  out = run_command('generate_filters.py')
+endif

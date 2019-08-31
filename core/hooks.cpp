@@ -152,7 +152,8 @@ void __fastcall CSGOHooks::LockCursor(FASTARGS)
 		return;
 	}
 
-	origFn(CFASTARGS);
+	if (origFn)
+		origFn(CFASTARGS);
 }
 
 #ifdef PT_VISUALS

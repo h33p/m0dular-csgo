@@ -73,6 +73,8 @@ IPhysicsSurfaceProps* physProp = nullptr;
 CInput* input = nullptr;
 CSGameMovement* gameMovement = nullptr;
 CGlowObjectManager* glowObjectManager = nullptr;
+CCommonHostState* hostState = nullptr;
+IStudioRenderContext* studioRender = nullptr;
 
 CL_RunPredictionFn CL_RunPrediction = nullptr;
 Weapon_ShootPositionFn Weapon_ShootPosition = nullptr;
@@ -407,9 +409,9 @@ void Shutdown(bool delayAfterUnhook)
 
 		if (delayAfterUnhook) {
 #ifdef _WIN32
-			Sleep(50);
+			Sleep(100);
 #else
-			usleep(50000);
+			usleep(100000);
 #endif
 		}
 

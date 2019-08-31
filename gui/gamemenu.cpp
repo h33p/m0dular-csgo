@@ -110,7 +110,9 @@ std::vector<UIColumn> otherColumns = {
 		, Settings::rageMode
 		, Settings::traceBudget
 #ifdef TESTING_FEATURES
+#ifdef MTR_ENABLED
 		, Settings::perfTrace
+#endif
 		, Settings::uiScale
 #endif
 		),

@@ -8,3 +8,5 @@ build_mac/*
 *.dll
 *.so
 *.pdb
+*.exe
+*.ini

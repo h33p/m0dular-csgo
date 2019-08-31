@@ -27,6 +27,7 @@ const InterfaceDefinition interfaceList[] = {
 	INTERFACE(staticPropMgr, engineLib, "StaticPropMgrClient", false),
 	INTERFACE(physProp, physicsLib, "VPhysicsSurfaceProps", false),
 	INTERFACE(gameMovement, clientLib, "GameMovement", false),
+	//INTERFACE(studioRender, studioLib, "VStudioRender", false),
 
 	INTERFACE(server, serverLib, "ServerGameDLL", false),
 };

@@ -52,6 +52,8 @@ extern IPhysicsSurfaceProps* physProp;
 extern CInput* input;
 extern CSGameMovement* gameMovement;
 extern CGlowObjectManager* glowObjectManager;
+extern CCommonHostState* hostState;
+extern IStudioRenderContext* studioRender;
 
 typedef void (*CL_RunPredictionFn)(void);
 #ifdef _WIN32

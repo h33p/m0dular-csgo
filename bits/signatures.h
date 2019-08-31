@@ -111,6 +111,8 @@ const Signature signatures[] = {
 	SIGNATURE(postProcessDisable, clientLib, "80 3D *? ? ? ? ? 53 56 57 0F 85"),
 	SIGNATURE(smokeCount, clientLib, "A3 *? ? ? ? 57 8B CB"),
 	SIGNATURE(glowObjectManager, clientLib, "0F 11 05 *? ? ? ? 83 C8 01"),
+	SIGNATURE(hostState, engineLib, "83 3D *? ? ? ? 00 74 50"),
+	SIGNATURE(studioRender, engineLib, "74 75 83 3D 5C *? ? ? ?"),
 #endif
 };
 
