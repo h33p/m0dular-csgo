@@ -245,7 +245,7 @@ if use_static_libs
     framework_other_utils = shuffled_files.stdout().split(' ')
   endif
 
-  fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+  fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
 
   lib_link_with = [fwlib]
   menulib_link_with = [fwlib]
@@ -266,15 +266,16 @@ endif
 
 if build_all_instruction_variants
   foreach instr : [['sse2', ['-msse2', '-mno-sse3']], ['sse3', ['-msse3', '-mno-sse4.2']], ['sse4', ['-msse4.2']], ['avx', ['-mavx', '-mno-avx2']], ['avx2', ['-mavx2']], ['avx512', ['-mavx512f', '-mavx512cd', '-mavx512er']]]
-    shared_library('m0dular-' + instr[0], files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'] + instr[1], cpp_args : compile_args + ['-DM0DULAR_CHEAT'] + instr[1], link_args : linker_args, dependencies : [thread_dep] + lib_dependencies, link_with : lib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+    shared_library('m0dular-' + instr[0], files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'] + instr[1], cpp_args : compile_args + ['-DM0DULAR_CHEAT'] + instr[1], link_args : linker_args, dependencies : [thread_dep] + lib_dependencies, link_with : lib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
   endforeach
 else
-  lib = shared_library('m0dular', files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep] + lib_dependencies, link_with : lib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+  lib = shared_library('m0dular', files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep] + lib_dependencies, link_with : lib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
 endif
 
-menulib = shared_library('mlm0dular', files(menulib_files), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+menulib = shared_library('mlm0dular', files(menulib_files), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
+menuexec = executable('clm0dular', files(menulib_files + ['menu_lib/csgo_exec.cpp']), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories: [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
 
-bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h', 'pch/cpp_pch.cpp'])
+bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
 
 test('keybinds', bind_test)
 

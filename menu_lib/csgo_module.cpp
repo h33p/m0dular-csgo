@@ -25,32 +25,37 @@ void OnLoad(ConsoleSetting** sets, size_t* size)
 #define APIENTRY __attribute__((constructor))
 #endif
 
+void SetupFont()
+{
+	size_t sz = 0;
+
+	for (size_t i = 0; i < sizeof(menuFont_compressed_data_base85) / sizeof(menuFont_compressed_data_base85[0]); i++)
+		sz += strlen(menuFont_compressed_data_base85[i]);
+
+	char* buf = (char*)malloc(sz + 1);
+
+	sz = 0;
+
+	for (size_t i = 0; i < sizeof(menuFont_compressed_data_base85) / sizeof(menuFont_compressed_data_base85[0]); i++) {
+		size_t stlen = strlen(menuFont_compressed_data_base85[i]);
+		memcpy(buf + sz, menuFont_compressed_data_base85[i], stlen);
+		sz += stlen;
+	}
+
+	buf[sz++] = '\0';
+
+	SHMFS::sharedInstance->SetEntry("MenuFont"_crc32, buf, sz);
+
+	free(buf);
+}
+
 int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 {
 #ifdef _WIN32
 	if (reasonForCall == DLL_PROCESS_ATTACH)
 #endif
 	{
-		size_t sz = 0;
-
-		for (size_t i = 0; i < sizeof(menuFont_compressed_data_base85) / sizeof(menuFont_compressed_data_base85[0]); i++)
-			sz += strlen(menuFont_compressed_data_base85[i]);
-
-		char* buf = (char*)malloc(sz + 1);
-
-		sz = 0;
-
-		for (size_t i = 0; i < sizeof(menuFont_compressed_data_base85) / sizeof(menuFont_compressed_data_base85[0]); i++) {
-			size_t stlen = strlen(menuFont_compressed_data_base85[i]);
-			memcpy(buf + sz, menuFont_compressed_data_base85[i], stlen);
-			sz += stlen;
-		}
-
-		buf[sz++] = '\0';
-
-		SHMFS::sharedInstance->SetEntry("MenuFont"_crc32, buf, sz);
-
-		free(buf);
+		SetupFont();
 	}
 
 	return 1;
