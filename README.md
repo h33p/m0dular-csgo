@@ -75,7 +75,7 @@ Contibutions are welcome. In order to maintain the quality of the project, some 
 - Tabs are used for indentation.
 - Files have to have correct line endings. Have autocrlf enabled.
 - All variables are named using lowerCamelCase, constants with UPPERCASE_CHARACTERS. All functions and classes are named using UpperCamelCase.
-- Pointer and reference signs go on the left side, right next to the variable name.
+- Pointer and reference signs go on the left side, right next to the type name.
 - The curly brackets go on the new line only in function definitions, everywhere else they are to be placed on the same line as the (if/for/while) statement.
 - Avoid using magic statics.
 - Avoid including unnecessary headers inside the header file. Do that in the source file.
