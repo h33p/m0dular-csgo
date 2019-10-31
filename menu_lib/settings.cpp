@@ -3,8 +3,53 @@
 #include <sstream>
 #include "settings.h"
 #include "../modules/keycode/keyid.h"
-#include "../client/main.h"
-#include "../client/game_settings_module.h"
+
+#include <stdio.h>
+#include "sdk/framework/utils/stackstring.h"
+
+#ifdef __linux__
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_GREEN "\x1b[32m"
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_BLUE "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN "\x1b[36m"
+#define ANSI_COLOR_RESET "\x1b[0m"
+#else
+#define ANSI_COLOR_RED 4
+#define ANSI_COLOR_GREEN 2
+#define ANSI_COLOR_YELLOW 6
+#define ANSI_COLOR_BLUE 1
+#define ANSI_COLOR_MAGENTA 5
+#define ANSI_COLOR_CYAN 3
+#define ANSI_COLOR_RESET 7
+#endif
+
+#ifdef __linux__
+#include <termios.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#else
+#include "sdk/framework/wincludes.h"
+#include <winternl.h>
+#include <io.h>
+#endif
+
+#define STPRINT(text) printf("%s", (const char*)ST(text))
+
+#ifdef __linux__
+#define SetColor(col) printf(col)
+#else
+inline void SetColor(int col)
+{
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(hConsole, col);
+}
+#endif
 
 void OnLoad(ConsoleSetting** sets, size_t* size);
 
