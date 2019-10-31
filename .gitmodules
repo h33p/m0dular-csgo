@@ -4,9 +4,6 @@
 [submodule "modules/keycode"]
 	path = modules/keycode
 	url = https://github.com/depp/keycode.git
-[submodule "client"]
-	path = client
-	url = ../m0dular-client.git
 [submodule "modules/perlin_noies"]
 	path = modules/perlin_noies
 	url = https://github.com/Reputeless/PerlinNoise.git
