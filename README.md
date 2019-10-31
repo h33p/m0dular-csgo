@@ -4,7 +4,7 @@ A performance optimized CSGO HvH cheat build on top of m0dular framework.
 
 ## Disclaimer
 
-This hack was built as a testing ground for various code design techniques and anti-cheat evasion was not a primary consideration. Some systems used are extremely simple to detect, so use at your own risk.
+This hack was built as a testing ground for various code design techniques and anti-cheat evasion was not the primary consideration. Some systems used are extremely simple to detect, so use at your own risk.
 
 ## Cloning and updating
 
@@ -16,7 +16,9 @@ git submodule update --init --recursive
 ## Libraries, executables and their purpose
 
 (lib)m0dular.(dll/so/dylib) - The actual hack library
+
 (lib)mlm0dular.(dll/so/dylib) - The client library that is meant to be streamed to the loader and has to be loaded before the hack itself is injected
+
 clm0dular(.exe) - The client executable that includes mlm0dular and is meant for development purposes - has to be running before the hack itself is injected
 
 ## Building
