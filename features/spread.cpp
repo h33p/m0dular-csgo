@@ -125,9 +125,9 @@ static void PopulateRandomFloat()
 {
 	for (int i = 0; i < 256; i++) {
 		RandomSeed(i + 1);
-		randomFl1[i] = RandomFloat(0.f, 1.f);
+		randomFl1[i] = RandomFloat(0.f, 1.f) - 0.5f;
 		randomFlPi1[i] = RandomFloat(0.f, 2.f * M_PI);
-		randomFl2[i] = RandomFloat(0.f, 1.f);
+		randomFl2[i] = RandomFloat(0.f, 1.f) - 0.5f;
 		randomFlPi2[i] = RandomFloat(0.f, 2.f * M_PI);
 	}
 

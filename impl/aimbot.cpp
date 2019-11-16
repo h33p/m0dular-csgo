@@ -22,7 +22,7 @@ bool Aimbot::CompareData(AimbotLoopData* d, int out, vec3_t targetVec, int bone,
 	if (fov < d->fovs[d->entID])
 		d->fovs[d->entID] = fov;
 
-	if (fov < d->target.fov && fov <= AimbotImpl::maxFOV) {
+	if (d->target.boneID != bone && fov < d->target.fov && fov <= AimbotImpl::maxFOV) {
 		d->target.boneID = bone;
 		d->target.targetVec = targetVec;
 		d->target.dmg = out;
