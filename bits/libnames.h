@@ -15,7 +15,7 @@
 #define LIBNAME(var, value) const char* var = STRTOLIB(value)
 #endif
 
-LIBNAME(clientLib, "client_panorama");
+LIBNAME(clientLib, "client");
 LIBNAME(engineLib, "engine");
 LIBNAME(matSystemLib, "materialsystem");
 LIBNAME(surfaceLib, "vguimatsurface");

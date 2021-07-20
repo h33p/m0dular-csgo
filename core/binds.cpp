@@ -27,7 +27,7 @@ BindManagerInstance::~BindManagerInstance()
 void BindManagerInstance::InitializeLocalData()
 {
 	int cnt = 0;
-	BindHandlerIFaceVtable* vtbl = Settings::settingsLocalAlloc.allocate<BindHandlerIFaceVtable>(Settings::optionCount);
+	BindHandlerIFaceVtable* vtbl = Settings::settingsLocalAlloc->allocate<BindHandlerIFaceVtable>(Settings::optionCount);
 	//This is really bad FIXME TODO!!!!! Find a better way to default bind insert!!!
 #define HANDLE_OPTION(type, defaultValue, minVal, maxVal, name, ...) ((BindImpl<type>*)&*bindList[cnt])->InitializeVTable(vtbl + cnt); cnt++; if ((void*)&Settings:: name == (void*)&Settings::showMenu) { BindManager::sharedInstance->binds[KEY_Insert].mode = BindMode::TOGGLE; BindManager::sharedInstance->binds[KEY_Insert].BindPointer(BindManager::sharedInstance->bindList[cnt - 1], 1); }
 #include "../bits/option_list.h"

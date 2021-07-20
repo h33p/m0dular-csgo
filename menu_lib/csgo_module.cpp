@@ -55,6 +55,7 @@ int APIENTRY DllMain(void* hModule, uintptr_t reasonForCall, void* lpReserved)
 	if (reasonForCall == DLL_PROCESS_ATTACH)
 #endif
 	{
+		Settings::sharedInstance.Initialize();
 		SetupFont();
 	}
 

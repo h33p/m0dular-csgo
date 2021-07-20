@@ -43,6 +43,7 @@ network_links = ['-lcrypto', '-lssl', '-lz', '-lboost_system']
 
 if get_option('buildtype').startswith('debug')
   global_defines += 'DEBUG'
+  global_defines += 'DEBUG_STDOUT'
 endif
 
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']

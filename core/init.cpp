@@ -153,6 +153,9 @@ void* __stdcall EntryPoint(void*)
 #endif
 	moduleIdentifyDependency = (volatile char*)GetModuleName((void*)RandomFloatExp, (void*)RandomFloatExp);
 	DispatchToAllThreads<ThreadIDFn, AllocateThreadID>(nullptr);
+
+	Settings::sharedInstance.Initialize();
+
 #ifndef LOADER_INITIALIZATION
 	if (Settings::sharedInstance.initialized)
 		InitializeHooks();
@@ -206,6 +209,9 @@ void SigOffset(const Signature* sig)
 	if (!*sig->result) {
 		printf("Pattern scan fail on pattern %s [%s]\n", sig->pattern, sig->module);
 		fflush(stdout);
+	} else {
+		printf("Pattern scan success on pattern %s [%s]\n", sig->pattern, sig->module);
+		fflush(stdout);
 	}
 #endif
 }
@@ -222,11 +228,19 @@ static void PlatformSpecificOffsets()
 	MHandle handle = Handles::GetModuleHandle(ST("libSDL2-2.0"));
 
 	uintptr_t polleventFn = (uintptr_t)(dlsym(handle, ST("SDL_PollEvent"))) OMac(+ 12);
+#ifdef __linux__
+	pollEventJump = (uintptr_t*)GetAbsoluteAddress(polleventFn, 2, 6);
+#else
 	pollEventJump = (uintptr_t*)GetAbsoluteAddress(polleventFn, 3, 7);
+#endif
 	origPollEvent = *pollEventJump;
 
 	uintptr_t swapwindowFn = (uintptr_t)(dlsym(handle, ST("SDL_GL_SwapWindow"))) OMac(+ 12);
+#ifdef __linux__
+	swapWindowJump = (uintptr_t*)GetAbsoluteAddress(swapwindowFn, 2, 6);
+#else
 	swapWindowJump = (uintptr_t*)GetAbsoluteAddress(swapwindowFn, 3, 7);
+#endif
 	origSwapWindow = *swapWindowJump;
 
 #else
@@ -336,8 +350,10 @@ static void InitializeHooks()
 
 	//Iniitalize input
 #ifdef __posix__
-	*pollEventJump = (uintptr_t)&PlatformHooks::PollEvent;
-	*swapWindowJump = (uintptr_t)&PlatformHooks::SwapWindow;
+	if (pollEventJump != nullptr)
+		*pollEventJump = (uintptr_t)&PlatformHooks::PollEvent;
+	if (swapWindowJump != nullptr)
+		*swapWindowJump = (uintptr_t)&PlatformHooks::SwapWindow;
 #else
 	D3DDEVICE_CREATION_PARAMETERS params;
 

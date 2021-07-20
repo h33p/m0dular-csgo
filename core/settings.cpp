@@ -29,8 +29,8 @@ std::atomic_int* ipcCounter = nullptr;
 uintptr_t Settings::allocBase = 0;
 generic_free_list_allocator<Settings::allocBase>* Settings::settingsAlloc = nullptr;
 
-uintptr_t Settings::localAllocBase = (uintptr_t)malloc(LOCAL_ALLOC_SIZE);
-generic_free_list_allocator<Settings::localAllocBase> Settings::settingsLocalAlloc(LOCAL_ALLOC_SIZE, PlacementPolicy::FIND_FIRST, (void**)localAllocBase);
+uintptr_t Settings::localAllocBase = 0;
+generic_free_list_allocator<Settings::localAllocBase>* Settings::settingsLocalAlloc = nullptr;
 
 decltype(Settings::globalSettingsPtr) Settings::globalSettingsPtr = nullptr;
 decltype(Settings::globalSettings) Settings::globalSettings;
@@ -63,15 +63,6 @@ struct IPCInit
 
 	template<typename T>
 	IPCInit(T*& in) : target((uintptr_t*)&in), size(sizeof(T)) {}
-};
-
-static IPCInit initializedPointers[] = {
-	IPCInit(ipcCounter),
-	IPCInit(Settings::settingsAlloc),
-	IPCInit(Settings::globalSettingsPtr),
-	IPCInit(Settings::bindSettingsPtr),
-	IPCInit(BindManager::sharedInstance),
-	IPCInit(SHMFS::sharedInstance),
 };
 
 bool MapSharedMemory(fileHandle& fd, void*& addr, size_t msz, const char* name)
@@ -138,8 +129,16 @@ static void ConstructClass(T*& target, Args... args)
 	target = new(target) T(args...);
 }
 
-SettingsInstance::SettingsInstance()
+SettingsInstance::SettingsInstance() {
+	Initialize();
+}
+
+void SettingsInstance::Initialize()
 {
+
+	if (alloc != nullptr)
+		return;
+
 	bool firstTime = MapSharedMemory(fd, alloc, ALLOC_SIZE, ST("m0d_settings"));
 
 	Settings::allocBase = (uintptr_t)alloc;
@@ -147,10 +146,23 @@ SettingsInstance::SettingsInstance()
 	if (!Settings::allocBase)
 		return;
 
+	Settings::localAllocBase = (uintptr_t)malloc(LOCAL_ALLOC_SIZE);
+
+	Settings::settingsLocalAlloc = new std::decay<decltype(*Settings::settingsLocalAlloc)>::type(LOCAL_ALLOC_SIZE, PlacementPolicy::FIND_FIRST, (void**)Settings::localAllocBase);
+
 	uintptr_t finalAddress = Settings::allocBase;
 #ifdef DEBUG
 	printf("Initializing pointers... BASE %p\n", alloc);
 #endif
+
+	IPCInit initializedPointers[] = {
+		IPCInit(ipcCounter),
+		IPCInit(Settings::settingsAlloc),
+		IPCInit(Settings::globalSettingsPtr),
+		IPCInit(Settings::bindSettingsPtr),
+		IPCInit(BindManager::sharedInstance),
+		IPCInit(SHMFS::sharedInstance),
+	};
 
 	for (IPCInit& i : initializedPointers) {
 		*i.target = finalAddress;

@@ -110,6 +110,8 @@ struct SettingsInstance
 
 	SettingsInstance();
 	~SettingsInstance();
+
+	void Initialize();
 };
 
 namespace Settings
@@ -118,13 +120,13 @@ namespace Settings
 	extern generic_free_list_allocator<allocBase>* settingsAlloc;
 
 	extern uintptr_t localAllocBase;
-	extern generic_free_list_allocator<localAllocBase> settingsLocalAlloc;
+	extern generic_free_list_allocator<localAllocBase>* settingsLocalAlloc;
 
 	template<typename T>
 	using SHMemPtr = typename std::decay<decltype(*Settings::settingsAlloc)>::type::pointer_t<T>;
 
 	template<typename T>
-	using LocalOffPtr = typename std::decay<decltype(Settings::settingsLocalAlloc)>::type::pointer_t<T>;
+	using LocalOffPtr = typename std::decay<decltype(*Settings::settingsLocalAlloc)>::type::pointer_t<T>;
 
 	extern SettingsGroup_t<stateful_allocator<unsigned char, settingsAlloc>>* globalSettingsPtr;
 	extern pointer_proxy<globalSettingsPtr> globalSettings;
