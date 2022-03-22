@@ -1,11 +1,12 @@
 #include "nosmoke.h"
-#include "../core/fw_bridge.h"
-#include "../core/settings.h"
+#include "../core/engine.h"
 #include "../core/hooks.h"
 
 static RecvVarProxyFn originalProxy = nullptr;
 extern NetvarHook netvarHooks[];
 extern size_t netvarCount;
+
+static bool noSmoke = true;
 
 void NoSmoke::HandleProxy(const CRecvProxyData* data, void* ent, void* out)
 {
@@ -19,7 +20,7 @@ void NoSmoke::HandleProxy(const CRecvProxyData* data, void* ent, void* out)
 		}
 	}
 
-	if (Settings::noSmoke)
+	if (noSmoke)
 		*(bool*)((uintptr_t)out + 1) = true;
 
 	if (originalProxy)
@@ -28,6 +29,6 @@ void NoSmoke::HandleProxy(const CRecvProxyData* data, void* ent, void* out)
 
 void NoSmoke::OnRenderStart()
 {
-	if (Settings::noSmoke)
+	if (noSmoke)
 		*smokeCount = 0;
 }

@@ -1,10 +1,18 @@
 #include "glow.h"
-#include "../core/fw_bridge.h"
 #include "../core/engine.h"
-#include "../core/settings.h"
 
 std::set<int> indexesToRemove;
 std::vector<int> prevIndexes;
+
+static bool glowOutline = false;
+static bool glowEnemy = true;
+static vec4_t glowEnemyColor = vec4_t(1, 0.3, 0, 1);
+static bool glowTeam = true;
+static vec4_t glowTeamColor = vec4_t(0, 0.3, 1, 1);
+static bool glowWeapons = true;
+static vec4_t glowWeaponsColor = vec4_t(0.2, 0.5, 1, 1);
+static bool glowC4 = true;
+static vec4_t glowC4Color = vec4_t(1, 0.7, 0, 1);
 
 static void AddGlow(IHandleEntity* ent, vec4_t color, int glowStyle)
 {
@@ -39,7 +47,7 @@ static void DoEntityLoop()
 
 	int entCount = entityList->GetHighestEntityIndex();
 
-	int glowStyle = 2 * (int)Settings::glowOutline;
+	int glowStyle = 2 * (int)glowOutline;
 
 	for (int i = 0; i < entCount; i++) {
 		C_BaseEntity* ent = (C_BaseEntity*)entityList->GetClientEntity(i);
@@ -53,18 +61,18 @@ static void DoEntityLoop()
 		switch (classID) {
 		case ClassId::ClassId_CCSPlayer:
 			if (Engine::IsEnemy((C_BasePlayer*)ent)) {
-				if (Settings::glowEnemy)
-					col = Settings::glowEnemyColor;
-			} else if (ent != FwBridge::localPlayer && Settings::glowTeam)
-				col = Settings::glowTeamColor;
+				if (glowEnemy)
+					col = glowEnemyColor;
+			} else if (ent != Engine::localPlayer && glowTeam)
+				col = glowTeamColor;
 			break;
 		case ClassId::ClassId_CC4:
-			if (Settings::glowC4)
-				col = Settings::glowC4Color;
+			if (glowC4)
+				col = glowC4Color;
 			break;
 		default:
-			if (ent->IsWeapon() && Settings::glowWeapons)
-				col = Settings::glowWeaponsColor;
+			if (ent->IsWeapon() && glowWeapons)
+				col = glowWeaponsColor;
 
 			break;
 		}
@@ -91,7 +99,7 @@ void Glow::Run()
 
 	prevIndexes.clear();
 
-	if (Settings::glow && FwBridge::localPlayer && engine->IsInGame())
+	if (Engine::localPlayer && engine->IsInGame())
 		DoEntityLoop();
 }
 

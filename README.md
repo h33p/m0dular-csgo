@@ -1,6 +1,6 @@
-# m0dular-csgo
+# m0dular-csgo (minimal)
 
-A performance optimized CSGO HvH cheat build on top of m0dular framework.
+Minimal base for educational purposes. Fully featured version is available on the `master` branch, but it is rather complex.
 
 ## Disclaimer
 
@@ -13,24 +13,14 @@ This repo heavily uses git submodules. Clone with --recursive flag. After pullin
 git submodule update --init --recursive
 ```
 
-## Libraries, executables and their purpose
-
-(lib)m0dular.(dll/so/dylib) - The actual hack library
-
-(lib)mlm0dular.(dll/so/dylib) - The client library that is meant to be streamed to the loader and has to be loaded before the hack itself is injected
-
-clm0dular(.exe) - The client executable that includes mlm0dular and is meant for development purposes - has to be running before the hack itself is injected
-
 ## Building
 
 The project utilizes meson as the main build system. It is available through pip or the official github releases page.
 
-Boost is a build requirement (for now). On Windows one way is to get VCPKG and install it through it.
-
 ##### Windows
 Launch a VS developer command prompt, navigate to the project directory and run:
 ```
-meson build --backend vs20<17|19> --buildtype=<release|debug> --cross-file windows_msvc_meson.txt
+meson build --backend vs20<17|19|22> --buildtype=<release|debug> --cross-file windows_msvc_meson.txt
 ```
 Go to the build directory and run msbuild on the solution file or open it in Visual Studio and build there.
 
@@ -43,7 +33,61 @@ meson build --buildtype=<release|debug>
 ninja -C build
 ```
 
-##### Cross compiling for Windows
+## Loading
+
+On Linux, use provided `load` and `uload` scripts. On windows, you will need to use a DLL injector.
+
+## Structure
+
+##### Core directory
+
+Contains core initialization and hooking routines specific to the game.
+
+* `core/init.cpp` is the entrypoint that initializes everything.
+
+* `core/hooks.cpp` contains various hooks into the game loop. `CreateMove` hook is arguably the most important one, providing access to player command manipulation.
+
+* `core/engine.cpp` interacts with the game engine. Abstracts several details such as team checking, local player information, etc.
+
+##### Features directory
+
+Contains CSGO specific features. They are being dispatched from hooks.
+
+##### SDK directory
+
+Contains all source engine related classes and features generic to typical source engine games.
+
+* `sdk/source_shared` contains definitions shared across all versions of source engine.
+
+* `sdk/source_2007` contains features present in source engine 2007. Depends on `source_shared`.
+
+* `sdk/source_csgo` contains features present in CSGO's engine. Depends on `source_2007`.
+
+* `sdk/features` contains features present in typical source engine games. Some of them require extra glue code in the implementation, thus they have `SOURCE_NO_` definitions to disable them.
+
+###### Framework directory
+
+Contains all game/engine agnostic code to build hacks.
+
+* `sdk/framework/math` contains the m0dular's math library.
+
+* `sdk/framework/utils` contains utilities for performing lower level operations easily.
+
+* `sdk/framework/features` contains engine/game agnostic features that can be implemented so long as m0dular's framework is being utilized at its fullest (not in this minimal base).
+
+* `sdk/framework/interfaces` interfaces that implementor must add to use framework's features (not relevant here).
+
+## Toolchain extras
+
+##### Configuring
+
+There are various options available in meson_options.txt file. After running the initial meson command it is possible to change the options using
+```
+meson configure build -D<option>=<value>...
+```
+
+##### Cross compiling
+
 Clang and lld can be used to compile a fully functional library for windows on a Linux or Mac operating system.
 
 It is required to acquire a set of header and library files from the Visual Studio installation and put it in a specific structure, which looks like this:
@@ -74,21 +118,4 @@ CC=clang CXX=clang++ WBUILD=<msvc_dir> ./setupbuild.sh windows <release|debug>
 ```
 Compile with `ninja -C build`. The resulting binaries will have "lib" appended to their name, just like the native Linux counterparats would.
 
-## Configuring
 
-There are various options available in meson_options.txt file. After running the initial meson command it is possible to change the options using
-```
-meson configure build -D<option>=<value>...
-```
-
-## Contributing
-
-Contibutions are welcome. In order to maintain the quality of the project, some code guidelines have to be followed. Check CONTRIBUTE.md for details, but to summarize:
-- Tabs are used for indentation.
-- Files have to have correct line endings. Have autocrlf enabled.
-- All variables are named using lowerCamelCase, constants with UPPERCASE_CHARACTERS. All functions and classes are named using UpperCamelCase.
-- Pointer and reference signs go on the left side, right next to the type name.
-- The curly brackets go on the new line only in function definitions, everywhere else they are to be placed on the same line as the (if/for/while) statement.
-- Avoid using magic statics.
-- Avoid including unnecessary headers inside the header file. Do that in the source file.
-- Try keeping an empty line on a file end.

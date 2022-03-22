@@ -5,20 +5,15 @@ py_installation = pymod.find_installation()
 
 #Compount files with headers
 gfiles = {
-  'core_files': ['features/spread', 'features/visuals', 'features/impacts', 'features/resolver', 'features/antiaim', 'features/cameramodes', 'features/nosmoke', 'features/aimlog', 'features/legitbot', 'features/ragebot', 'features/glow', 'core/temporary_animations', 'core/settings', 'core/binds', 'core/shmfs', 'impl/aimbot'],
-  'gui_files': ['gui/gamemenu', 'gui/menu/menu', 'gui/menu/imgui/imgui'],
-  'framework_other_files': ['sdk/source_shared/netvars', 'sdk/framework/features/aimbot', 'sdk/features/resolver'],
-  'menulib_files': ['core/settings', 'core/binds', 'core/shmfs', 'menu_lib/settings']
+  'core_files': ['features/nosmoke', 'features/glow'],
+  'framework_other_files': ['sdk/source_shared/netvars'],
 }
 
 #Final files
-core_files = ['core_unity/unity_main_stub.cpp', 'core_unity/unity_tracing_all.cpp', 'sdk/source_csgo/sdk.h', 'sdk/source_shared/sdk.h', 'sdk/source_2007/sdk.h']
-gui_files = ['gui/menu/imgui/imgui_widgets.cpp', 'gui/menu/imgui/imgui_draw.cpp']
+core_files = ['core_unity/unity_main_stub.cpp', 'sdk/source_csgo/sdk.h', 'sdk/source_shared/sdk.h', 'sdk/source_2007/sdk.h']
 framework_thread_utils = ['core_unity/unity_framework_threads.cpp']
 framework_other_utils = ['core_unity/unity_framework_other_utils.cpp']
 framework_other_files = ['sdk/source_csgo/baseentity.cpp']
-keycode_files = ['modules/keycode/keyid.c']
-menulib_files = ['menu_lib/csgo_module.cpp']
 
 randomize_link_order = get_option('randomize_link_order')
 
@@ -48,7 +43,7 @@ endif
 
 #pedantic_args = ['-Wpedantic', '-Wno-language-extension-token', '-Wno-gnu-anonymous-struct', '-Wno-extra-semi', '-Wno-gnu-include-next', '-Wno-nested-anon-types', '-Wno-c99-extensions', '-Wno-microsoft-enum-value', '-Wno-dollar-in-identifier-extension']
 
-includes = ['pch', 'gui/menu/imgui']
+includes = ['pch']
 system_includes = []
 libraries = []
 deps = []
@@ -111,14 +106,10 @@ else
 endif
 
 if host_machine.system() == 'linux' or host_machine.system() == 'darwin'
-  gui_files += ['gui/menu/sdlmenu.cpp', 'gui/menu/imgui/examples/imgui_impl_opengl2.cpp', 'gui/menu/imgui/examples/imgui_impl_sdl.cpp']
-  lib_dependencies += [dependency('sdl2'), dependency('gl')]
   external_link += ['dl', 'rt']
   linker_args += ['-Wl,-Map=libm0dular.map', '-fvisibility=hidden']
   compile_args += '-fvisibility=hidden'
 else
-  gui_files += ['gui/menu/dx9menu.cpp', 'gui/menu/imgui/examples/imgui_impl_dx9.cpp', 'gui/menu/imgui/examples/imgui_impl_win32.cpp']
-  external_link += ['kernel32', 'd3d9', 'user32']
   if build_machine.system() != 'windows'
     linker_args += ['-Wl,-debugtype:all', '-Wl,-debug:full']
   endif
@@ -193,7 +184,6 @@ client_add_compile_args = ['-DM0DULAR_CLIENT']
 use_static_libs = get_option('use_static_libs')
 
 lib_link_with = []
-menulib_link_with = []
 
 #Finalize the source files to a final list
 add_ops = []
@@ -209,18 +199,12 @@ foreach o : add_ops
 
   if id == 'core_files'
     core_files += val
-  elif id == 'gui_files'
-    gui_files += val
   elif id == 'framework_thread_utils'
     framework_thread_utils += val
   elif id == 'framework_other_utils'
     framework_other_utils += val
   elif id == 'framework_other_files'
     framework_other_files += val
-  elif id == 'keycode_files'
-    keycode_files += val
-  elif id == 'menulib_files'
-    menulib_files += val
   else
     message('ERROR')
     message(o)
@@ -232,14 +216,6 @@ file_list = core_files + framework_other_files
 
 lib_file_list = file_list
 
-#Menulib does not need the ImGui menu (for now)
-lib_file_list += gui_files
-
-module_identification = get_option('module_identification')
-
-module_id = static_library('module_id', files(['bits/identify.cpp']), cpp_args: compile_args + ['-DMODULE_IDENTIFICATION="'+module_identification+'"'])
-keycode_clib = static_library('keycode_clib', files(keycode_files), c_args: compile_args)
-
 if use_static_libs
   if randomize_link_order
     shuffled_files = run_command('./random_shuffle.sh', framework_other_utils)
@@ -249,14 +225,9 @@ if use_static_libs
   fwlib = static_library('m0dular-framework', files(framework_thread_utils + framework_other_utils), c_args : compile_args, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
 
   lib_link_with = [fwlib]
-  menulib_link_with = [fwlib]
 else
   lib_file_list += framework_thread_utils + framework_other_utils
-  menulib_files += framework_other_utils
 endif
-
-lib_link_with += [module_id, keycode_clib]
-menulib_link_with += [module_id, keycode_clib]
 
 build_all_instruction_variants = get_option('build_all_instruction_variants')
 
@@ -272,13 +243,6 @@ if build_all_instruction_variants
 else
   lib = shared_library('m0dular', files(lib_file_list + ['core/init.cpp']), c_args : compile_args + ['-DM0DULAR_CHEAT'], cpp_args : compile_args + ['-DM0DULAR_CHEAT'], link_args : linker_args, dependencies : [thread_dep] + lib_dependencies, link_with : lib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
 endif
-
-menulib = shared_library('mlm0dular', files(menulib_files), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
-menuexec = executable('clm0dular', files(menulib_files + ['menu_lib/csgo_exec.cpp']), c_args : compile_args + client_add_compile_args, cpp_args : compile_args + client_add_compile_args, link_args : linker_args, dependencies : [thread_dep], link_with : menulib_link_with, include_directories: [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
-
-bind_test = executable('keybind_test', ['core/settings.cpp', 'core/binds.cpp', 'core/shmfs.cpp', 'tests/binds.cpp'] + framework_thread_utils, cpp_args : compile_args, link_args : linker_args, dependencies : [thread_dep], include_directories : [incdir], c_pch: [], cpp_pch: ['pch/cpp_pch.h'])
-
-test('keybinds', bind_test)
 
 if meson.backend().contains('vs20')
   out = run_command('generate_filters.py')

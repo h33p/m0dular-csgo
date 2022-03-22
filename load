@@ -1,0 +1,32 @@
+#!/bin/bash
+
+csgo_pid=$(pidof csgo_linux64)
+if [ -z "$csgo_pid" ]; then
+    /bin/echo -e "\e[31mCS:GO needs to be open before you can inject...\e[0m"
+    exit
+fi
+
+#Credit: Aixxe @ aixxe.net. Checks if lib is injected.
+if grep -q dlibm0dular.so /proc/$csgo_pid/maps; then
+    /bin/echo -e "\e[33mm0dular is already injected... Aborting... Also, you are a noob without the kernel patch\e[0m"
+	sudo kill -CONT $(pidof steam)
+    exit
+fi
+
+input="$(
+sudo gdb -n -q -batch \
+  -ex "attach $csgo_pid" \
+  -ex "set \$dlopen = (void*(*)(char*, int)) dlopen" \
+  -ex "call \$dlopen(\"$(pwd)/build/libm0dular.so\", 1)" \
+	-ex "detach" \
+  -ex "quit"
+)"
+
+last_line="${input##*$'\n'}"
+
+if [ "$last_line" != "\$1 = (void *) 0x0" ]; then
+    /bin/echo -e "\e[32mSuccessfully injected!\e[0m"
+else
+    /bin/echo -e "\e[31mInjection failed, checking for errors...\e[0m"
+fi
+

@@ -2,21 +2,44 @@
 #define ENGINE_H
 
 #include "../sdk/framework/math/mmath.h"
+#include "../sdk/framework/players.h"
+#include "../sdk/source_csgo/sdk.h"
+#include "macros.h"
 
-struct Players;
-class C_BasePlayer;
+extern CBaseClient* cl;
+extern IClientMode* clientMode;
+extern IVEngineClient* engine;
+extern IClientEntityList* entityList;
+extern CGlobalVarsBase* globalVars;
+extern ICvar* cvar;
+extern CGlowObjectManager* glowObjectManager;
+
+extern bool* postProcessDisable;
+extern int* smokeCount;
+
+#define TICK_INTERVAL globalVars->interval_per_tick
+
+inline float TicksToTime(int ticks)
+{
+	return ticks * TICK_INTERVAL;
+}
+
+inline int TimeToTicks(float time)
+{
+	return (int)(0.5f + (float)(time) / TICK_INTERVAL);
+}
 
 namespace Engine
 {
-	bool UpdatePlayer(C_BasePlayer* ent, matrix<3,4> out[128]);
-	float LerpTime();
-	float CalculateBacktrackTime();
-	void StartLagCompensation();
-	void EndLagCompensation();
-	matrix3x4_t GetDirectBone(C_BasePlayer* ent, studiohdr_t** hdr, size_t boneID);
-	bool CopyBones(C_BasePlayer* ent, matrix3x4_t* matrix, int size);
-	void StartAnimationFix(Players* players, Players* prevPlayers);
-	void Shutdown();
+	extern LocalPlayer lpData;
+	extern C_BasePlayer* localPlayer;
+	extern C_BaseCombatWeapon* activeWeapon;
+	extern C_BasePlayer* playerList[MAX_PLAYERS];
+
+	void UpdateLocalPlayer();
+	void UpdateLocalData(CUserCmd* cmd);
+	void RunFeatures(CUserCmd* cmd, float inputSampleTime);
+
 	void FrameUpdate();
 	bool IsEnemy(C_BasePlayer* ent);
 	vec3_t PredictAimPunchAngle();
