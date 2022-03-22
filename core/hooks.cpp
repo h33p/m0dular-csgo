@@ -6,6 +6,7 @@
 #include "../sdk/framework/utils/stackstring.h"
 #include "../sdk/framework/utils/mutex.h"
 #include "../sdk/framework/utils/threading.h"
+#include "source_features.h"
 #ifdef __posix__
 #include <SDL2/SDL.h>
 #else
@@ -31,7 +32,10 @@ bool __fastcall SourceHooks::CreateMove(FASTARGS, float inputSampleTime, CUserCm
 		return ret;
 
 	Engine::UpdateLocalData(cmd);
-	Engine::RunFeatures(cmd, inputSampleTime);
+
+	//SourceBhop::Run(cmd, &Engine::lpData);
+	//SourceAutostrafer::Run(cmd, &Engine::lpData, 1.3f);
+	SourceEssentials::UpdateCMD(cmd, &Engine::lpData, Engine::GetMouseSensitivity(), inputSampleTime);
 
 	return false;
 }

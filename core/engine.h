@@ -38,7 +38,6 @@ namespace Engine
 
 	void UpdateLocalPlayer();
 	void UpdateLocalData(CUserCmd* cmd);
-	void RunFeatures(CUserCmd* cmd, float inputSampleTime);
 
 	void FrameUpdate();
 	bool IsEnemy(C_BasePlayer* ent);

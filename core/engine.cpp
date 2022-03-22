@@ -1,11 +1,8 @@
 #include "engine.h"
 #include "../sdk/framework/math/mmath.h"
 #include "../sdk/source_csgo/sdk.h"
-// Disable engine prediction
-#define SOURCE_NO_ENGINEPREDICTION
-#define SOURCE_NO_GAMEMOVEMENT
 #define SOURCE_DEFINITIONS
-#include "../sdk/features/features.h"
+#include "source_features.h"
 
 #include <algorithm>
 
@@ -152,12 +149,6 @@ void Engine::UpdateLocalData(CUserCmd* cmd)
 	lpData.flags = cflags;
 
 	SourceEssentials::UpdateData(cmd, &lpData);
-}
-
-void Engine::RunFeatures(CUserCmd* cmd, float inputSampleTime) {
-	SourceBhop::Run(cmd, &lpData);
-	SourceAutostrafer::Run(cmd, &lpData, 1.3f);
-	SourceEssentials::UpdateCMD(cmd, &lpData, Engine::GetMouseSensitivity(), inputSampleTime);
 }
 
 static void UpdateFlags(int& flags, int& cflags, C_BasePlayer* ent)
