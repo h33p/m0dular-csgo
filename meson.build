@@ -23,7 +23,7 @@ linker_args = []
 combined_args = []
 external_link = []
 lib_dependencies = []
-global_defines = ['AIMBOT_THREADING', '_HAS_STATIC_RTTI=0']
+global_defines = ['AIMBOT_THREADING', '_HAS_STATIC_RTTI=0', 'NETVAR_DUMP']
 
 if get_option('testing_features') == true
   global_defines += ['TESTING_FEATURES', 'PT_VISUALS']
